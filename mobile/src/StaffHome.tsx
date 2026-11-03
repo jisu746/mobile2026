@@ -1,7 +1,11 @@
-import { useEffect, useState } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import BarcodeFlow from './BarcodeFlow';
+import InventoryTab from './InventoryTab';
+import Notifications from './Notifications';
 import Scanner from './Scanner';
+import TaskList from './TaskList';
 import TabBar, { TabItem } from './TabBar';
 import { C } from './ui';
 
@@ -18,7 +22,7 @@ const TABS: TabItem[] = [
   { label: '업무/출퇴근', icon: 'checkbox-outline' },
   { label: '바코드 입고', icon: 'barcode-outline' },
   { label: '재고/발주', icon: 'file-tray-full-outline' },
-  { label: '알림', icon: 'notifications-outline' },
+  { label: 'MY', icon: 'person' },
 ];
 
 const elapsed = (from: Date, now: number) => {
@@ -26,10 +30,14 @@ const elapsed = (from: Date, now: number) => {
   return m >= 60 ? `${Math.floor(m / 60)}시간 ${m % 60}분째` : `${m}분째`;
 };
 
-export default function StaffHome({ storeName, onProfile }: { storeName: string; onProfile: () => void }) {
+export default function StaffHome({ storeName, userName, renderMy, onSwitchStore: onProfile }: { storeName: string; userName: string; renderMy: (onBell: () => void) => ReactNode; onSwitchStore: () => void }) {
   const [clockedAt, setClockedAt] = useState<Date | null>(null);
   const [scanning, setScanning] = useState(false);
+  const [tasksOpen, setTasksOpen] = useState(false);
+  const [taskDone, setTaskDone] = useState<string[]>([]);
   const [tab, setTab] = useState(0);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const onBell = () => setNotifOpen(true);
   const [done, setDone] = useState<string[]>([]);
   const [now, setNow] = useState(Date.now());
 
@@ -47,12 +55,20 @@ export default function StaffHome({ storeName, onProfile }: { storeName: string;
         <Text style={s.role}>직원 | {ME}</Text>
       </View>
       {avatar && (
-        <Pressable style={s.avatar} onPress={onProfile}>
-          <Ionicons name="person" size={18} color="#fff" />
-        </Pressable>
+        <>
+          {/* TODO: 알림 목록 화면 연결 */}
+          <Pressable onPress={onBell} hitSlop={8}>
+            <Ionicons name="notifications-outline" size={24} color={C.primary} />
+          </Pressable>
+          <Pressable style={s.avatar} onPress={onProfile}>
+            <Ionicons name="person" size={18} color="#fff" />
+          </Pressable>
+        </>
       )}
     </View>
   );
+
+  if (notifOpen) return <Notifications role="staff" onBack={() => setNotifOpen(false)} />;
 
   // 근무 시간 전
   if (!clockedAt) {
@@ -75,6 +91,15 @@ export default function StaffHome({ storeName, onProfile }: { storeName: string;
         />
       );
     }
+    // 출근 전에는 MY 탭만 열 수 있고, 다른 탭을 누르면 출근 전 화면으로 돌아간다
+    if (tab === 3) {
+      return (
+        <View style={s.root}>
+          {renderMy(onBell)}
+          <TabBar tabs={TABS} active={3} onChange={(i) => setTab(i === 3 ? 3 : 0)} />
+        </View>
+      );
+    }
     return (
       <View style={s.root}>
         <View style={s.pad}>{header(true)}</View>
@@ -94,6 +119,19 @@ export default function StaffHome({ storeName, onProfile }: { storeName: string;
       </View>
     );
   }
+
+  if (tasksOpen) {
+    return (
+      <TaskList
+        done={taskDone}
+        onToggle={(id) => setTaskDone((c) => (c.includes(id) ? c.filter((x) => x !== id) : [...c, id]))}
+        onBack={() => setTasksOpen(false)}
+      />
+    );
+  }
+
+  // 바코드 입고는 탭바 없이 전체 화면으로 열린다
+  if (tab === 1) return <BarcodeFlow store={storeName} userName={userName} onExit={() => setTab(0)} />;
 
   return (
     <View style={s.root}>
@@ -143,16 +181,19 @@ export default function StaffHome({ storeName, onProfile }: { storeName: string;
             })}
           </View>
 
-          <Text style={s.section}>업무</Text>
+          <Pressable style={s.sectionRow} onPress={() => setTasksOpen(true)}>
+            <Text style={s.sectionInRow}>업무</Text>
+            <Ionicons name="chevron-forward" size={18} color={C.text} />
+          </Pressable>
           <View style={s.card}>
             {TASKS.map((t, i) => (
-              <View key={t.title} style={[s.task, i > 0 && s.line]}>
+              <Pressable key={t.title} onPress={() => setTasksOpen(true)} style={[s.task, i > 0 && s.line]}>
                 <Ionicons name={t.icon} size={22} color={C.primary} />
                 <Text style={[s.rowTitle, { flex: 1 }]}>{t.title}</Text>
                 <View style={[s.tag, { backgroundColor: t.warn ? '#FDEEE3' : '#F1F0F5' }]}>
                   <Text style={[s.tagText, { color: t.warn ? '#E8590C' : '#5E5C6B' }]}>{t.tag}</Text>
                 </View>
-              </View>
+              </Pressable>
             ))}
           </View>
 
@@ -187,6 +228,10 @@ export default function StaffHome({ storeName, onProfile }: { storeName: string;
             </Pressable>
           </View>
         </ScrollView>
+      ) : tab === 2 ? (
+        <InventoryTab store={storeName} onProfile={onProfile} onBell={onBell} />
+      ) : tab === 3 ? (
+        renderMy(onBell)
       ) : (
         <View style={s.empty}>
           <Text style={s.emptyText}>{TABS[tab].label} 화면은 준비 중이에요</Text>
@@ -232,6 +277,8 @@ const s = StyleSheet.create({
   doneBtn: { backgroundColor: C.primary, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 6 },
   doneText: { fontSize: 11.5, fontWeight: '700', color: '#fff' },
   section: { fontSize: 16, fontWeight: '800', color: C.text, marginTop: 24, marginBottom: 10 },
+  sectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 24, marginBottom: 10 },
+  sectionInRow: { fontSize: 16, fontWeight: '800', color: C.text },
   card: { borderWidth: 1, borderColor: '#E6E4EE', borderRadius: 14, backgroundColor: '#fff' },
   task: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, height: 56 },
   line: { borderTopWidth: 1, borderTopColor: '#EEEDF3' },

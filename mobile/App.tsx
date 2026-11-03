@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BackHandler, StyleSheet, View } from 'react-native';
+import { BackHandler } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as auth from './src/auth';
@@ -8,6 +8,7 @@ import OwnerHome from './src/OwnerHome';
 import Profile from './src/Profile';
 import Signup from './src/Signup';
 import StaffHome from './src/StaffHome';
+import StoreSwitcher from './src/StoreSwitcher';
 import StaffJoin from './src/StaffJoin';
 import StoreSetup from './src/StoreSetup';
 
@@ -30,7 +31,7 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>('login');
   const [userId, setUserId] = useState('');
   const [account, setAccount] = useState<auth.Account | null>(null);
-  const [profile, setProfile] = useState(false);
+  const [switcher, setSwitcher] = useState(false); // 프로필 아이콘의 매장 변경 시트
 
   const store = account?.stores[account.current] ?? { name: '', type: '' };
 
@@ -51,7 +52,7 @@ export default function App() {
 
   const logout = async () => {
     await auth.logout();
-    setProfile(false);
+    setSwitcher(false);
     setAccount(null);
     setScreen('login');
   };
@@ -65,17 +66,26 @@ export default function App() {
 
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (profile) {
-        setProfile(false);
-        return true;
-      }
       const prev = backOf(screen);
       if (!prev) return false;
       setScreen(prev);
       return true;
     });
     return () => sub.remove();
-  }, [screen, profile, account]);
+  }, [screen, account]);
+
+  // MY 탭 화면 (사장님·직원 메인의 하단 탭에서 보여준다)
+  const renderMy = (onBell: () => void) =>
+    account && (
+      <Profile
+        id={userId}
+        acc={account}
+        onSelect={async (i) => setAccount(await auth.selectStore(userId, i))}
+        onAdd={() => setScreen(account.role === 'owner' ? 'o1' : 'f1')}
+        onLogout={logout}
+        onBell={onBell}
+      />
+    );
 
   if (!ready) return null;
 
@@ -92,7 +102,7 @@ export default function App() {
             onDone={(name) => finishStore({ name, type: '' }, 'shome')}
           />
         )}
-        {screen === 'shome' && <StaffHome storeName={store.name} onProfile={() => setProfile(true)} />}
+        {screen === 'shome' && <StaffHome storeName={store.name} userName={account?.name ?? ''} renderMy={renderMy} onSwitchStore={() => setSwitcher(true)} />}
         {screen[0] === 's' && screen !== 'shome' && (
           <Signup
             step={Number(screen[1]) as 1 | 2 | 3 | 4}
@@ -109,25 +119,21 @@ export default function App() {
             onDone={(st) => finishStore(st, 'home')}
           />
         )}
-        {screen === 'home' && <OwnerHome store={store} onProfile={() => setProfile(true)} />}
+        {screen === 'home' && <OwnerHome store={store} userName={account?.name ?? ''} renderMy={renderMy} onSwitchStore={() => setSwitcher(true)} />}
 
-        {profile && account && (
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: '#fff' }]}>
-            <Profile
-              id={userId}
-              acc={account}
-              onBack={() => setProfile(false)}
-              onSelect={async (i) => {
-                setAccount(await auth.selectStore(userId, i));
-                setProfile(false);
-              }}
-              onAdd={() => {
-                setProfile(false);
-                setScreen(account.role === 'owner' ? 'o1' : 'f1');
-              }}
-              onLogout={logout}
-            />
-          </View>
+        {switcher && account && (
+          <StoreSwitcher
+            acc={account}
+            onClose={() => setSwitcher(false)}
+            onSelect={async (i) => {
+              setAccount(await auth.selectStore(userId, i));
+              setSwitcher(false);
+            }}
+            onAdd={() => {
+              setSwitcher(false);
+              setScreen(account.role === 'owner' ? 'o1' : 'f1');
+            }}
+          />
         )}
       </SafeAreaView>
     </SafeAreaProvider>

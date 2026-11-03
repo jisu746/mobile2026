@@ -9,7 +9,9 @@ export default function TabBar({ tabs, active, onChange }: { tabs: TabItem[]; ac
     <View style={s.bar}>
       {tabs.map((t, i) => (
         <Pressable key={t.label} style={s.tab} onPress={() => onChange(i)}>
-          <Ionicons name={t.icon} size={22} color={active === i ? C.primary : '#8A8896'} />
+          <View style={[s.iconWrap, active === i && s.iconWrapOn]}>
+            <Ionicons name={t.icon} size={22} color={active === i ? C.primary : '#8A8896'} />
+          </View>
           <Text style={[s.text, active === i && { color: C.primary, fontWeight: '700' }]}>{t.label}</Text>
         </Pressable>
       ))}
@@ -19,6 +21,8 @@ export default function TabBar({ tabs, active, onChange }: { tabs: TabItem[]; ac
 
 const s = StyleSheet.create({
   bar: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: '#EEEDF3', backgroundColor: '#fff', paddingVertical: 8 },
-  tab: { flex: 1, alignItems: 'center', gap: 3 },
+  tab: { flex: 1, alignItems: 'center', gap: 2 },
+  iconWrap: { width: 56, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+  iconWrapOn: { backgroundColor: '#ECEAF7' },
   text: { fontSize: 10.5, color: '#8A8896' },
 });

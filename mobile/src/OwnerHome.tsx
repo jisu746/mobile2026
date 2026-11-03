@@ -1,7 +1,10 @@
-import { useState } from 'react';
+import { ReactNode, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
+import BarcodeFlow from './BarcodeFlow';
+import InventoryTab from './InventoryTab';
+import Notifications from './Notifications';
 import TabBar from './TabBar';
 import { C } from './ui';
 
@@ -27,22 +30,30 @@ const TABS: { label: string; icon: Icon }[] = [
   { label: '업무/직원', icon: 'checkbox-outline' },
   { label: '바코드 입고', icon: 'barcode-outline' },
   { label: '재고/발주', icon: 'file-tray-full-outline' },
-  { label: '알림', icon: 'notifications-outline' },
+  { label: 'MY', icon: 'person' },
 ];
 
-export default function OwnerHome({ store, onProfile }: { store: { name: string; type: string }; onProfile: () => void }) {
+// 사장님 홈: 메인, 바코드 입고, 재고, MY(프로필)까지 직원 화면과 같은 컴포넌트를 쓴다. 그 밖의 상세 화면은 아직 연결하지 않았다.
+export default function OwnerHome({ store, userName, renderMy, onSwitchStore: onProfile }: { store: { name: string; type: string }; userName: string; renderMy: (onBell: () => void) => ReactNode; onSwitchStore: () => void }) {
   const [tab, setTab] = useState(0);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const onBell = () => setNotifOpen(true);
+
+  if (notifOpen) return <Notifications role="owner" onBack={() => setNotifOpen(false)} />;
+
+  // 바코드 입고는 탭바 없이 전체 화면으로 열린다
+  if (tab === 1) return <BarcodeFlow store={store.name} userName={userName} onExit={() => setTab(0)} />;
 
   return (
     <View style={s.root}>
-      {tab === 0 ? <Dashboard store={store} onProfile={onProfile} /> : <View style={s.empty}><Text style={s.emptyText}>{TABS[tab].label} 화면은 준비 중이에요</Text></View>}
+      {tab === 0 ? <Dashboard store={store} onProfile={onProfile} onBell={onBell} /> : tab === 2 ? <InventoryTab store={store.name} onProfile={onProfile} onBell={onBell} /> : tab === 3 ? renderMy(onBell) : <View style={s.empty}><Text style={s.emptyText}>{TABS[tab].label} 화면은 준비 중이에요</Text></View>}
 
       <TabBar tabs={TABS} active={tab} onChange={setTab} />
     </View>
   );
 }
 
-function Dashboard({ store, onProfile }: { store: { name: string; type: string }; onProfile: () => void }) {
+function Dashboard({ store, onProfile, onBell }: { store: { name: string; type: string }; onProfile: () => void; onBell: () => void }) {
   const pct = Math.round((PROGRESS.done / PROGRESS.total) * 100);
 
   return (
@@ -53,7 +64,9 @@ function Dashboard({ store, onProfile }: { store: { name: string; type: string }
           <Text style={s.storeName} numberOfLines={1}>{store.name}</Text>
           <Text style={s.mode}>관리자 모드</Text>
         </View>
-        <Ionicons name="notifications-outline" size={24} color={C.primary} />
+        <Pressable onPress={onBell} hitSlop={8}>
+          <Ionicons name="notifications-outline" size={24} color={C.primary} />
+        </Pressable>
         <Pressable style={s.avatar} onPress={onProfile}>
           <Ionicons name="person" size={18} color="#fff" />
         </Pressable>
