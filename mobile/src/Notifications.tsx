@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import NotificationSettings from './NotificationSettings';
 import { C } from './ui';
 
 type Icon = keyof typeof Ionicons.glyphMap;
@@ -43,6 +44,7 @@ const DATA: Record<'owner' | 'staff', Data> = {
 export default function Notifications({ role, onBack }: { role: 'owner' | 'staff'; onBack: () => void }) {
   const data = DATA[role];
   const [read, setRead] = useState<string[]>([]);
+  const [settings, setSettings] = useState(false);
 
   // 안드로이드 뒤로가기로 알림 화면만 닫는다
   useEffect(() => {
@@ -52,6 +54,8 @@ export default function Notifications({ role, onBack }: { role: 'owner' | 'staff
     });
     return () => sub.remove();
   }, [onBack]);
+
+  if (settings) return <NotificationSettings onBack={() => setSettings(false)} />;
 
   const markAll = () => setRead([...data.today, ...data.yesterday].map((i) => i.id));
 
@@ -65,8 +69,9 @@ export default function Notifications({ role, onBack }: { role: 'owner' | 'staff
         <Pressable onPress={markAll} hitSlop={8}>
           <Text style={s.readAll}>모두 읽음</Text>
         </Pressable>
-        {/* TODO: 알림 설정 화면 연결 */}
-        <Ionicons name="settings-outline" size={22} color={C.text} />
+        <Pressable onPress={() => setSettings(true)} hitSlop={8}>
+          <Ionicons name="settings-outline" size={22} color={C.text} />
+        </Pressable>
       </View>
 
       <ScrollView contentContainerStyle={s.body}>

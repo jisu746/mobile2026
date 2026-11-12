@@ -5,7 +5,7 @@
  임시 로그인 정보(서버 재시작시마다 초기화):
   F12->Application->Local storage
 
-  화면 정보: 340*800 android
+  화면 정보: 360*800 android
 
   관리자 화면 구현부분: 직원 화면과 동일한 창
   -알림

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BackHandler } from 'react-native';
+import { BackHandler, Platform, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as auth from './src/auth';
@@ -25,6 +25,8 @@ const BACK: Record<Screen, Screen | null> = {
 const homeOf = (acc: auth.Account): Screen => (acc.role === 'owner' ? 'home' : 'shome');
 // 매장이 있으면 메인, 없으면 첫 로그인(매장 등록/참여) 화면
 const startScreen = (acc: auth.Account): Screen => (acc.stores.length ? homeOf(acc) : acc.role === 'owner' ? 'o1' : 'f1');
+
+const FRAME = { width: 360, height: 800, maxHeight: '100%' as const, alignSelf: 'center' as const };
 
 export default function App() {
   const [ready, setReady] = useState(false);
@@ -75,7 +77,7 @@ export default function App() {
   }, [screen, account]);
 
   // MY 탭 화면 (사장님·직원 메인의 하단 탭에서 보여준다)
-  const renderMy = (onBell: () => void) =>
+  const renderMy = (onBell: () => void, onRecords: () => void) =>
     account && (
       <Profile
         id={userId}
@@ -84,6 +86,7 @@ export default function App() {
         onAdd={() => setScreen(account.role === 'owner' ? 'o1' : 'f1')}
         onLogout={logout}
         onBell={onBell}
+        onRecords={onRecords}
       />
     );
 
@@ -91,7 +94,9 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
+      {/* 웹에서는 시안 크기(360×800) 화면 하나로 보여준다. 폰에서는 기기 화면을 그대로 쓴다. */}
+      <View style={{ flex: 1, justifyContent: 'center', backgroundColor: Platform.OS === 'web' ? '#444' : '#fff' }}>
+      <SafeAreaView style={[{ backgroundColor: '#fff' }, Platform.OS === 'web' ? FRAME : { flex: 1 }]}>
         <StatusBar style="dark" />
         {screen === 'login' && <Login onSignup={() => setScreen('s1')} onLoggedIn={enter} />}
         {screen[0] === 'f' && (
@@ -136,6 +141,7 @@ export default function App() {
           />
         )}
       </SafeAreaView>
+      </View>
     </SafeAreaProvider>
   );
 }

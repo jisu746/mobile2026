@@ -6,6 +6,7 @@ import BarcodeFlow from './BarcodeFlow';
 import InventoryTab from './InventoryTab';
 import Notifications from './Notifications';
 import TabBar from './TabBar';
+import WorkRecords from './WorkRecords';
 import { C } from './ui';
 
 type Icon = keyof typeof Ionicons.glyphMap;
@@ -34,19 +35,21 @@ const TABS: { label: string; icon: Icon }[] = [
 ];
 
 // 사장님 홈: 메인, 바코드 입고, 재고, MY(프로필)까지 직원 화면과 같은 컴포넌트를 쓴다. 그 밖의 상세 화면은 아직 연결하지 않았다.
-export default function OwnerHome({ store, userName, renderMy, onSwitchStore: onProfile }: { store: { name: string; type: string }; userName: string; renderMy: (onBell: () => void) => ReactNode; onSwitchStore: () => void }) {
+export default function OwnerHome({ store, userName, renderMy, onSwitchStore: onProfile }: { store: { name: string; type: string }; userName: string; renderMy: (onBell: () => void, onRecords: () => void) => ReactNode; onSwitchStore: () => void }) {
   const [tab, setTab] = useState(0);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [recordsOpen, setRecordsOpen] = useState(false);
   const onBell = () => setNotifOpen(true);
 
   if (notifOpen) return <Notifications role="owner" onBack={() => setNotifOpen(false)} />;
+  if (recordsOpen) return <WorkRecords onBack={() => setRecordsOpen(false)} />;
 
   // 바코드 입고는 탭바 없이 전체 화면으로 열린다
   if (tab === 1) return <BarcodeFlow store={store.name} userName={userName} onExit={() => setTab(0)} />;
 
   return (
     <View style={s.root}>
-      {tab === 0 ? <Dashboard store={store} onProfile={onProfile} onBell={onBell} /> : tab === 2 ? <InventoryTab store={store.name} onProfile={onProfile} onBell={onBell} /> : tab === 3 ? renderMy(onBell) : <View style={s.empty}><Text style={s.emptyText}>{TABS[tab].label} 화면은 준비 중이에요</Text></View>}
+      {tab === 0 ? <Dashboard store={store} onProfile={onProfile} onBell={onBell} /> : tab === 2 ? <InventoryTab store={store.name} onProfile={onProfile} onBell={onBell} /> : tab === 3 ? renderMy(onBell, () => setRecordsOpen(true)) : <View style={s.empty}><Text style={s.emptyText}>{TABS[tab].label} 화면은 준비 중이에요</Text></View>}
 
       <TabBar tabs={TABS} active={tab} onChange={setTab} />
     </View>

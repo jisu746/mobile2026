@@ -11,11 +11,12 @@ type Props = {
   onAdd: () => void;
   onLogout: () => void;
   onBell: () => void;
+  onRecords: () => void;
 };
 
 // MY 탭 (사장님·직원 공통 화면. 사장님은 소속 줄과 매장 추가 문구만 다르다)
 // TODO: 파트·입사일·근무 시간·예상 급여·근속은 샘플 데이터. API 연동 단계에서 서버 값으로 교체
-export default function Profile({ id, acc, onSelect, onAdd, onLogout, onBell }: Props) {
+export default function Profile({ id, acc, onSelect, onAdd, onLogout, onBell, onRecords }: Props) {
   const owner = acc.role === 'owner';
   const [switching, setSwitching] = useState(false);
   const store = acc.stores[acc.current];
@@ -78,11 +79,11 @@ export default function Profile({ id, acc, onSelect, onAdd, onLogout, onBell }: 
         </View>
 
         <Text style={s.section}>근무 · 급여</Text>
-        {/* TODO: 근로계약서·근무 기록 화면 연결 */}
+        {/* TODO: 근로계약서 화면 연결 */}
         <View style={s.card}>
           <MenuRow icon="document-text-outline" label="근로계약서" />
           <View style={s.line} />
-          <MenuRow icon="calendar-outline" label="근무 기록" />
+          <MenuRow icon="calendar-outline" label="근무 기록" onPress={onRecords} />
         </View>
 
       <Text style={s.section}>앱 설정</Text>
@@ -109,9 +110,9 @@ function Stat({ label, children }: { label: string; children: ReactNode }) {
 
 const Unit = ({ children }: { children: ReactNode }) => <Text style={s.unit}>{children}</Text>;
 
-function MenuRow({ icon, label, gray }: { icon: keyof typeof Ionicons.glyphMap; label: string; gray?: boolean }) {
+function MenuRow({ icon, label, gray, onPress }: { icon: keyof typeof Ionicons.glyphMap; label: string; gray?: boolean; onPress?: () => void }) {
   return (
-    <Pressable style={s.menu}>
+    <Pressable style={s.menu} onPress={onPress}>
       <View style={[s.menuIcon, gray && { backgroundColor: '#F1F0F5' }]}>
         <Ionicons name={icon} size={18} color={C.primary} />
       </View>

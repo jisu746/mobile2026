@@ -120,7 +120,6 @@ export default function BarcodeFlow({ store, userName, onExit }: Props) {
 function ProductSheet({ store, code, onRescan, onAdd }: { store: string; code: string; onRescan: () => void; onAdd: (i: Item) => void }) {
   const [product, setProduct] = useState<Product | null | undefined>(undefined); // undefined = 조회 중
   const [name, setName] = useState('');
-  const [category, setCategory] = useState('냉장');
   const [qty, setQty] = useState(1);
   const [expiry, setExpiry] = useState('');
 
@@ -143,7 +142,7 @@ function ProductSheet({ store, code, onRescan, onAdd }: { store: string; code: s
           {known ? (
             <>
               <View style={s.tag}>
-                <Ionicons name="checkmark-circle" size={13} color="#2F7A4E" />
+                <Ionicons name="checkmark-circle" size={16} color="#2F7A4E" />
                 <Text style={s.tagText}>등록된 상품이에요</Text>
               </View>
               <Text style={s.pName}>{product.name}</Text>
@@ -161,19 +160,11 @@ function ProductSheet({ store, code, onRescan, onAdd }: { store: string; code: s
       {!known && (
         <>
           <View style={s.info}>
-            <Ionicons name="alert-circle-outline" size={16} color="#B4561F" />
+            <Ionicons name="alert-circle-outline" size={18} color="#B4561F" />
             <Text style={s.infoText}>정보를 입력하면 관리자에게 등록 알림이 가요.</Text>
           </View>
           <Text style={s.label}>상품명</Text>
-          <Field placeholder="예) 빙그레 바나나맛우유 240ml" value={name} onChangeText={setName} style={s.focus} />
-          <Text style={s.label}>분류</Text>
-          <View style={s.chips}>
-            {CATEGORIES.map((c) => (
-              <Pressable key={c} onPress={() => setCategory(c)} style={[s.chip, category === c && s.chipOn]}>
-                <Text style={[s.chipText, category === c && { color: '#fff' }]}>{c}</Text>
-              </Pressable>
-            ))}
-          </View>
+          <Field placeholder="예) 빙그레 바나나맛우유 240ml" value={name} onChangeText={setName} style={s.nameInput} />
         </>
       )}
 
@@ -182,52 +173,56 @@ function ProductSheet({ store, code, onRescan, onAdd }: { store: string; code: s
 
       <Text style={s.label}>유통기한</Text>
       <View style={s.dateBox}>
-        <Ionicons name="calendar-outline" size={20} color={C.text} />
+        <Ionicons name="calendar-outline" size={22} color={C.text} />
         <TextInput
           style={s.dateInput}
           value={expiry}
           onChangeText={(t) => setExpiry(fmtDate(t))}
-          placeholder="YYYY.MM.DD (없으면 비워두세요)"
+          placeholder="YYYY.MM.DD"
           placeholderTextColor="#A3A1B0"
           keyboardType="number-pad"
           maxLength={10}
         />
+        {!!date && <Text style={s.weekday}>({DAYS[date.getDay()]})</Text>}
+        <View style={{ flex: 1 }} />
         {/* TODO: 촬영 인식(OCR)은 이후 구현 */}
         <Pressable style={s.ocr}>
-          <Ionicons name="camera-outline" size={14} color={C.primary} />
+          <Ionicons name="camera-outline" size={16} color={C.primary} />
           <Text style={s.ocrText}>촬영 인식</Text>
         </Pressable>
       </View>
       {!!date && (
         <View style={s.alert}>
-          <Ionicons name="time-outline" size={14} color="#B3261E" />
+          <Ionicons name="time-outline" size={16} color="#B3261E" />
           <Text style={s.alertText}>{alertText(date)}</Text>
         </View>
       )}
 
-      <View style={s.stock}>
-        <View>
-          <Text style={s.stockLabel}>현재 재고</Text>
-          <Text style={s.stockNum}>{before}</Text>
+      {known && (
+        <View style={s.stock}>
+          <View>
+            <Text style={s.stockLabel}>현재 재고</Text>
+            <Text style={s.stockNum}>{before}</Text>
+          </View>
+          <View style={{ alignItems: 'flex-end' }}>
+            <Text style={s.stockLabel}>입고 후</Text>
+            <Text style={s.stockNum}>{before + qty}</Text>
+          </View>
         </View>
-        <View style={{ alignItems: 'flex-end' }}>
-          <Text style={s.stockLabel}>입고 후</Text>
-          <Text style={s.stockNum}>{before + qty}</Text>
-        </View>
-      </View>
+      )}
 
       <View style={s.sheetBtns}>
-        <Pressable style={[s.btn, s.btnLine, { flex: 1 }]} onPress={onRescan}>
-          <Text style={s.btnLineText}>다시 스캔</Text>
+        <Pressable style={[s.sheetBtn, s.sheetBtnLine, { flex: 130 }]} onPress={onRescan}>
+          <Text style={s.sheetBtnLineText}>다시 스캔</Text>
         </Pressable>
         <Pressable
           disabled={!valid}
-          style={[s.btn, s.btnFill, { flex: 1.5 }, !valid && { opacity: 0.4 }]}
+          style={[s.sheetBtn, s.sheetBtnFill, { flex: 176 }, !valid && { opacity: 0.4 }]}
           onPress={() =>
             onAdd({
               barcode: code,
               name: product?.name ?? name.trim(),
-              category: product?.category ?? category,
+              category: product?.category ?? '기타',
               before,
               min: product?.min ?? 0,
               qty,
@@ -236,7 +231,7 @@ function ProductSheet({ store, code, onRescan, onAdd }: { store: string; code: s
           }
         >
           <Ionicons name="add" size={18} color="#fff" />
-          <Text style={s.btnFillText}>목록에 추가</Text>
+          <Text style={s.sheetBtnFillText}>목록에 추가</Text>
         </Pressable>
       </View>
     </View>
@@ -302,28 +297,30 @@ const s = StyleSheet.create({
   head: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 6 },
   img: { width: 64, height: 64, borderRadius: 12, backgroundColor: '#F1F0F5', borderWidth: 1, borderColor: '#E4E2EC', alignItems: 'center', justifyContent: 'center' },
   imgText: { fontSize: 9, color: '#A3A1B0' },
-  tag: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  tagText: { fontSize: 12, fontWeight: '700', color: '#2F7A4E' },
+  tag: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  tagText: { fontSize: 12.5, fontWeight: '700', color: '#2F7A4E' },
   pName: { fontSize: 19, fontWeight: '700', color: C.text, marginTop: 2 },
   pSub: { fontSize: 12.5, color: '#5E5C6B', marginTop: 2 },
-  info: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#FCF0E8', borderRadius: 10, padding: 12, marginTop: 10 },
-  infoText: { flex: 1, fontSize: 13, color: '#B4561F' },
+  info: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 14 },
+  infoText: { flex: 1, fontSize: 12, color: '#B4561F' },
   label: { fontSize: 13, fontWeight: '700', color: '#5E5C6B', marginTop: 16, marginBottom: 8 },
-  focus: { borderColor: C.primary, borderWidth: 1.6 },
-  chips: { flexDirection: 'row', gap: 8 },
-  chip: { paddingHorizontal: 16, height: 38, borderRadius: 19, borderWidth: 1, borderColor: '#CFCCDB', alignItems: 'center', justifyContent: 'center' },
-  chipOn: { backgroundColor: C.primary, borderColor: C.primary },
-  chipText: { fontSize: 13, fontWeight: '600', color: C.text },
-  dateBox: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 56, borderWidth: 1.6, borderColor: C.primary, borderRadius: 14, paddingLeft: 14, paddingRight: 8 },
-  dateInput: { flex: 1, minWidth: 0, fontSize: 15, color: C.text, paddingVertical: 0 },
-  ocr: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 34, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: C.primary },
-  ocrText: { fontSize: 12, fontWeight: '700', color: C.primary },
-  alert: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 },
+  dateBox: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 52, borderWidth: 1.6, borderColor: C.primary, borderRadius: 12, paddingLeft: 12, paddingRight: 10 },
+  dateInput: { outlineWidth: 0, width: 104, fontSize: 15.5, color: C.text, paddingVertical: 0 },
+  weekday: { fontSize: 15.5, color: C.text, marginLeft: -4 },
+  nameInput: { height: 50, borderColor: C.primary, borderWidth: 1.6, borderRadius: 12, fontSize: 15.5 },
+  sheetBtns: { flexDirection: 'row', gap: 14, marginTop: 20 },
+  sheetBtn: { height: 46, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
+  sheetBtnLine: { borderWidth: 0.72, borderColor: '#CFCCDB', backgroundColor: '#fff' },
+  sheetBtnLineText: { fontSize: 13.5, fontWeight: '700', color: C.primary },
+  sheetBtnFill: { backgroundColor: C.primary },
+  sheetBtnFillText: { fontSize: 13.5, fontWeight: '700', color: '#fff' },
+  ocr: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, width: 86, height: 32, borderRadius: 8, borderWidth: 1, borderColor: C.primary, backgroundColor: '#fff' },
+  ocrText: { fontSize: 12.5, fontWeight: '700', color: C.primary },
+  alert: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 },
   alertText: { fontSize: 12.5, color: '#B3261E' },
-  stock: { flexDirection: 'row', justifyContent: 'space-between', backgroundColor: C.primary, borderRadius: 14, padding: 16, marginTop: 16 },
+  stock: { flexDirection: 'row', justifyContent: 'space-between', backgroundColor: C.primary, borderRadius: 12, paddingHorizontal: 18, paddingVertical: 14, marginTop: 16 },
   stockLabel: { fontSize: 12, color: '#fff' },
   stockNum: { fontSize: 20, fontWeight: '700', color: '#fff', marginTop: 2 },
-  sheetBtns: { flexDirection: 'row', gap: 10, marginTop: 16 },
   btn: { height: 50, borderRadius: 25, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   btnLine: { borderWidth: 1, borderColor: '#CFCCDB', backgroundColor: '#fff' },
   btnLineText: { fontSize: 14.5, fontWeight: '700', color: C.primary },

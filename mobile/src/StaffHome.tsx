@@ -7,6 +7,7 @@ import Notifications from './Notifications';
 import Scanner from './Scanner';
 import TaskList from './TaskList';
 import TabBar, { TabItem } from './TabBar';
+import WorkRecords from './WorkRecords';
 import { C } from './ui';
 
 // TODO: 이름·근무 시간·업무·인수인계는 샘플 데이터. API 연동 단계에서 서버 값으로 교체
@@ -30,13 +31,14 @@ const elapsed = (from: Date, now: number) => {
   return m >= 60 ? `${Math.floor(m / 60)}시간 ${m % 60}분째` : `${m}분째`;
 };
 
-export default function StaffHome({ storeName, userName, renderMy, onSwitchStore: onProfile }: { storeName: string; userName: string; renderMy: (onBell: () => void) => ReactNode; onSwitchStore: () => void }) {
+export default function StaffHome({ storeName, userName, renderMy, onSwitchStore: onProfile }: { storeName: string; userName: string; renderMy: (onBell: () => void, onRecords: () => void) => ReactNode; onSwitchStore: () => void }) {
   const [clockedAt, setClockedAt] = useState<Date | null>(null);
   const [scanning, setScanning] = useState(false);
   const [tasksOpen, setTasksOpen] = useState(false);
   const [taskDone, setTaskDone] = useState<string[]>([]);
   const [tab, setTab] = useState(0);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [recordsOpen, setRecordsOpen] = useState(false);
   const onBell = () => setNotifOpen(true);
   const [done, setDone] = useState<string[]>([]);
   const [now, setNow] = useState(Date.now());
@@ -69,6 +71,7 @@ export default function StaffHome({ storeName, userName, renderMy, onSwitchStore
   );
 
   if (notifOpen) return <Notifications role="staff" onBack={() => setNotifOpen(false)} />;
+  if (recordsOpen) return <WorkRecords onBack={() => setRecordsOpen(false)} />;
 
   // 근무 시간 전
   if (!clockedAt) {
@@ -95,7 +98,7 @@ export default function StaffHome({ storeName, userName, renderMy, onSwitchStore
     if (tab === 3) {
       return (
         <View style={s.root}>
-          {renderMy(onBell)}
+          {renderMy(onBell, () => setRecordsOpen(true))}
           <TabBar tabs={TABS} active={3} onChange={(i) => setTab(i === 3 ? 3 : 0)} />
         </View>
       );
@@ -231,7 +234,7 @@ export default function StaffHome({ storeName, userName, renderMy, onSwitchStore
       ) : tab === 2 ? (
         <InventoryTab store={storeName} onProfile={onProfile} onBell={onBell} />
       ) : tab === 3 ? (
-        renderMy(onBell)
+        renderMy(onBell, () => setRecordsOpen(true))
       ) : (
         <View style={s.empty}>
           <Text style={s.emptyText}>{TABS[tab].label} 화면은 준비 중이에요</Text>
