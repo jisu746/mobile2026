@@ -9,7 +9,7 @@ import { C, Field } from './ui';
 
 type Item = { barcode: string; name: string; category: string; before: number; min: number; qty: number; expiry: string };
 type Result = { name: string; before: number; after: number; min: number };
-type Props = { store: string; userName: string; onExit: () => void };
+type Props = { store: number; userName: string; onExit: () => void };
 
 const BARCODES: BarcodeType[] = ['ean13', 'ean8', 'upc_a', 'upc_e', 'code128', 'code39'];
 const CATEGORIES = ['냉장', '상온', '냉동', '소모품'];
@@ -38,6 +38,7 @@ export default function BarcodeFlow({ store, userName, onExit }: Props) {
   const [items, setItems] = useState<Item[]>([]);
   const [results, setResults] = useState<Result[]>([]);
   const [scanKey, setScanKey] = useState(0);
+  const [error, setError] = useState('');
 
   const add = (item: Item) => {
     setItems((cur) =>
@@ -48,11 +49,17 @@ export default function BarcodeFlow({ store, userName, onExit }: Props) {
     setStep('review');
   };
 
+  // 서버에 입고를 반영하고, 서버가 계산한 입고 전후 재고를 결과 화면에 보여준다
   const complete = async () => {
-    await receive(store, items);
-    setResults(items.map((i) => ({ name: i.name, before: i.before, after: i.before + i.qty, min: i.min })));
-    setItems([]);
-    setStep('done');
+    setError('');
+    try {
+      const res = await receive(store, items);
+      setResults(res.map((r) => ({ name: r.name, before: r.before, after: r.after, min: r.min })));
+      setItems([]);
+      setStep('done');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '입고하지 못했어요');
+    }
   };
 
   if (step === 'scan') {
@@ -69,7 +76,7 @@ export default function BarcodeFlow({ store, userName, onExit }: Props) {
     );
   }
 
-  if (step === 'review') return <Review items={items} setItems={setItems} userName={userName} onBack={() => { setScanKey((k) => k + 1); setStep('scan'); }} onComplete={complete} />;
+  if (step === 'review') return <Review items={items} setItems={setItems} userName={userName} error={error} onBack={() => { setScanKey((k) => k + 1); setStep('scan'); }} onComplete={complete} />;
 
   return (
     <View style={s.root}>
@@ -117,16 +124,27 @@ export default function BarcodeFlow({ store, userName, onExit }: Props) {
   );
 }
 
-function ProductSheet({ store, code, onRescan, onAdd }: { store: string; code: string; onRescan: () => void; onAdd: (i: Item) => void }) {
+function ProductSheet({ store, code, onRescan, onAdd }: { store: number; code: string; onRescan: () => void; onAdd: (i: Item) => void }) {
   const [product, setProduct] = useState<Product | null | undefined>(undefined); // undefined = 조회 중
   const [name, setName] = useState('');
   const [qty, setQty] = useState(1);
   const [expiry, setExpiry] = useState('');
 
+  const [loadError, setLoadError] = useState('');
+
   useEffect(() => {
-    getProduct(store, code).then(setProduct);
+    getProduct(store, code).then(setProduct, (e) => setLoadError(e instanceof Error ? e.message : '상품을 불러오지 못했어요'));
   }, [code]);
 
+  if (loadError)
+    return (
+      <View>
+        <Text style={[s.loading, { color: '#D93025' }]}>{loadError}</Text>
+        <Pressable style={[s.sheetBtn, s.sheetBtnLine]} onPress={onRescan}>
+          <Text style={s.sheetBtnLineText}>다시 스캔</Text>
+        </Pressable>
+      </View>
+    );
   if (product === undefined) return <Text style={s.loading}>상품을 찾는 중이에요</Text>;
 
   const known = product !== null;
@@ -238,7 +256,7 @@ function ProductSheet({ store, code, onRescan, onAdd }: { store: string; code: s
   );
 }
 
-function Review({ items, setItems, userName, onBack, onComplete }: { items: Item[]; setItems: (f: (c: Item[]) => Item[]) => void; userName: string; onBack: () => void; onComplete: () => void }) {
+function Review({ items, setItems, userName, error, onBack, onComplete }: { items: Item[]; setItems: (f: (c: Item[]) => Item[]) => void; userName: string; error: string; onBack: () => void; onComplete: () => void }) {
   const total = items.reduce((a, i) => a + i.qty, 0);
   const now = new Date();
   const p2 = (n: number) => String(n).padStart(2, '0');
@@ -282,6 +300,7 @@ function Review({ items, setItems, userName, onBack, onComplete }: { items: Item
       </ScrollView>
 
       <View style={s.reviewBottom}>
+        {!!error && <Text style={s.errorText}>{error}</Text>}
         <Pressable disabled={!items.length} style={[s.btn, s.btnFill, !items.length && { opacity: 0.4 }]} onPress={onComplete}>
           <Ionicons name="clipboard-outline" size={18} color="#fff" />
           <Text style={s.btnFillText}>입고 완료 · {total}개</Text>
@@ -338,6 +357,7 @@ const s = StyleSheet.create({
   itemTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   itemName: { fontSize: 15, fontWeight: '700', color: C.text },
   empty: { textAlign: 'center', color: '#828282', paddingVertical: 28 },
+  errorText: { fontSize: 12.5, color: '#D93025', marginBottom: 8, textAlign: 'center' },
   reviewBottom: { padding: 16, paddingBottom: 24 },
 
   doneBody: { paddingHorizontal: 16, paddingTop: 48, paddingBottom: 20 },

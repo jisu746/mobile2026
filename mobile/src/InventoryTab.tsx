@@ -25,14 +25,16 @@ function status(p: Product) {
 }
 
 // 재고/발주 탭 (사장님·직원 공통)
-export default function InventoryTab({ store, onProfile, onBell }: { store: string; onProfile: () => void; onBell: () => void }) {
+export default function InventoryTab({ store, onProfile, onBell }: { store: number; onProfile: () => void; onBell: () => void }) {
   const [products, setProducts] = useState<Product[] | null>(null);
   const [q, setQ] = useState('');
   const [open, setOpen] = useState<{ barcode: string; mode: 'edit' | 'discard' } | null>(null);
   const [editName, setEditName] = useState('');
   const [editStock, setEditStock] = useState(0);
 
-  const reload = () => listProducts(store).then(setProducts);
+  const [error, setError] = useState('');
+  const fail = (e: unknown) => setError(e instanceof Error ? e.message : '요청을 처리하지 못했어요');
+  const reload = () => listProducts(store).then((l) => { setProducts(l); setError(''); }, fail);
   useEffect(() => {
     reload();
   }, [store]);
@@ -44,10 +46,14 @@ export default function InventoryTab({ store, onProfile, onBell }: { store: stri
     setEditName(p.name);
     setEditStock(p.stock);
   };
-  const save = async (job: Promise<void>) => {
-    await job;
-    setOpen(null);
-    reload();
+  const save = async (job: Promise<unknown>) => {
+    try {
+      await job;
+      setOpen(null);
+      reload();
+    } catch (e) {
+      fail(e);
+    }
   };
 
   const all = products ?? [];
@@ -81,7 +87,8 @@ export default function InventoryTab({ store, onProfile, onBell }: { store: stri
         <TextInput style={s.searchInput} value={q} onChangeText={setQ} placeholder="목록 검색" placeholderTextColor="#999" />
       </View>
 
-      {products === null && <Text style={s.empty}>불러오는 중이에요</Text>}
+      {!!error && <Text style={[s.empty, { color: '#D93025', paddingVertical: 12 }]}>{error}</Text>}
+      {products === null && !error && <Text style={s.empty}>불러오는 중이에요</Text>}
       {products !== null && !list.length && <Text style={s.empty}>{q ? '검색 결과가 없어요' : '등록된 상품이 없어요'}</Text>}
 
       {list.map((p) => {

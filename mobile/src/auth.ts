@@ -1,56 +1,95 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { api, ApiError, clearToken, getToken, setToken } from './api';
 
-// 테스트용: 계정과 로그인 상태를 기기 저장소에만 보관한다 (비밀번호 평문 저장).
-// TODO: 서버 API 연동 시 이 파일의 함수들을 API 호출로 교체
+// 계정·매장은 서버(Spring)에 저장한다. 앱에는 로그인 토큰과 "현재 매장" 선택만 남긴다.
 export type Role = 'owner' | 'staff';
-export type Store = { name: string; type: string };
-export type Account = { pw: string; role: Role; name: string; birth: string; stores: Store[]; current: number };
+export type Store = { id?: number; name: string; type: string; inviteCode?: string };
+export type Account = { role: Role; name: string; birth: string; stores: Store[]; current: number; pending?: Store };
 
-const ACCOUNTS = 'accounts';
-const SESSION = 'session';
+type StoreView = { id: number; name: string; type: string | null; branch: string | null; inviteCode: string | null };
+type AccountView = { username: string; role: Role; name: string; birth: string | null; stores: StoreView[]; pending: StoreView | null };
 
-// 예전 형식(store 단일 필드)으로 저장된 계정도 읽을 수 있게 맞춘다
-const norm = (a: any): Account => ({ ...a, stores: a.stores ?? (a.store ? [a.store] : []), current: a.current ?? 0 });
+// 서버의 매장 이름(상호)과 지점명을 화면에서 쓰는 한 이름으로 합친다 (예: "민수네 카페 강남점")
+const toStore = (v: StoreView): Store => ({
+  id: v.id,
+  name: [v.name, v.branch].filter(Boolean).join(' '),
+  type: v.type ?? '',
+  inviteCode: v.inviteCode ?? undefined,
+});
 
-const load = async (): Promise<Record<string, Account>> => {
-  const raw = JSON.parse((await AsyncStorage.getItem(ACCOUNTS)) ?? '{}');
-  return Object.fromEntries(Object.entries(raw).map(([id, a]) => [id, norm(a)]));
-};
-const save = (a: Record<string, Account>) => AsyncStorage.setItem(ACCOUNTS, JSON.stringify(a));
+const currentKey = (id: string) => `currentStore:${id}`;
 
-const update = async (id: string, fn: (a: Account) => Account) => {
-  const all = await load();
-  const next = fn(all[id]);
-  await save({ ...all, [id]: next });
-  return next;
-};
-
-export const exists = async (id: string) => id in (await load());
-
-export async function signup(id: string, acc: Pick<Account, 'pw' | 'role' | 'name' | 'birth'>) {
-  const all = await load();
-  if (id in all) return false;
-  await save({ ...all, [id]: { ...acc, stores: [], current: 0 } });
-  return true;
+async function toAccount(v: AccountView): Promise<Account> {
+  const stores = v.stores.map(toStore);
+  const saved = Number(await AsyncStorage.getItem(currentKey(v.username)));
+  return {
+    role: v.role,
+    name: v.name,
+    birth: v.birth ?? '',
+    stores,
+    current: saved >= 0 && saved < stores.length ? saved : 0,
+    pending: v.pending ? toStore(v.pending) : undefined,
+  };
 }
 
+export { ApiError };
+
+export const exists = async (id: string) => (await api<{ exists: boolean }>('GET', `/api/auth/exists?username=${encodeURIComponent(id)}`)).exists;
+
+export async function signup(id: string, acc: { pw: string; role: Role; name: string; birth: string }) {
+  await api('POST', '/api/auth/signup', { username: id, password: acc.pw, role: acc.role, name: acc.name, birth: acc.birth });
+}
+
+// 아이디·비밀번호·유형이 맞지 않으면 null, 서버에 연결하지 못하면 ApiError
 export async function login(id: string, pw: string, role: Role) {
-  const acc = (await load())[id];
-  if (!acc || acc.pw !== pw || acc.role !== role) return null;
-  await AsyncStorage.setItem(SESSION, id);
-  return acc;
+  try {
+    const r = await api<{ token: string; account: AccountView }>('POST', '/api/auth/login', { username: id, password: pw, role });
+    await setToken(r.token);
+    return await toAccount(r.account);
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 401) return null;
+    throw e;
+  }
 }
 
+export async function refresh() {
+  const v = await api<AccountView>('GET', '/api/me');
+  return { id: v.username, acc: await toAccount(v) };
+}
+
+// 저장된 토큰으로 로그인 상태를 되살린다. 토큰이 만료됐으면 지우고, 서버가 꺼져 있으면 로그인 화면으로 보낸다.
 export async function session() {
-  const id = await AsyncStorage.getItem(SESSION);
-  const acc = id ? (await load())[id] : undefined;
-  return id && acc ? { id, acc } : null;
+  if (!(await getToken())) return null;
+  try {
+    return await refresh();
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 401) await clearToken();
+    return null;
+  }
 }
 
-// 매장을 추가하고 현재 매장으로 선택한다
-export const addStore = (id: string, store: Store) =>
-  update(id, (a) => ({ ...a, stores: [...a.stores, store], current: a.stores.length }));
+export const setCurrent = (id: string, i: number) => AsyncStorage.setItem(currentKey(id), String(i));
 
-export const selectStore = (id: string, i: number) => update(id, (a) => ({ ...a, current: i }));
+// 매장 등록(사장님): 초대 코드가 들어 있는 매장을 돌려준다
+export const createStore = (data: {
+  name: string; type: string; branch: string; address: string; addressDetail: string; openTime: string; closeTime: string;
+}) => api<StoreView>('POST', '/api/stores', data).then(toStore);
 
-export const logout = () => AsyncStorage.removeItem(SESSION);
+// 초대 코드로 매장 조회 / 참여 요청(직원)
+export const lookupStore = (code: string) =>
+  api<{ name: string; type: string | null; branch: string | null; ownerName: string }>('GET', `/api/stores/lookup?code=${encodeURIComponent(code)}`).then((s) => ({
+    name: [s.name, s.branch].filter(Boolean).join(' '),
+    type: s.type ?? '',
+    ownerName: s.ownerName,
+  }));
+
+export const joinStore = (code: string) => api<{ status: string }>('POST', '/api/stores/join', { code });
+
+export async function logout() {
+  try {
+    await api('POST', '/api/auth/logout');
+  } catch {
+    // 서버에 닿지 않아도 이 기기의 로그인 상태는 지운다
+  }
+  await clearToken();
+}

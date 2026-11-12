@@ -31,7 +31,7 @@ const elapsed = (from: Date, now: number) => {
   return m >= 60 ? `${Math.floor(m / 60)}시간 ${m % 60}분째` : `${m}분째`;
 };
 
-export default function StaffHome({ storeName, userName, renderMy, onSwitchStore: onProfile }: { storeName: string; userName: string; renderMy: (onBell: () => void, onRecords: () => void) => ReactNode; onSwitchStore: () => void }) {
+export default function StaffHome({ storeId, storeName, userName, renderMy, onSwitchStore: onProfile }: { storeId: number; storeName: string; userName: string; renderMy: (onBell: () => void, onRecords: () => void) => ReactNode; onSwitchStore: () => void }) {
   const [clockedAt, setClockedAt] = useState<Date | null>(null);
   const [scanning, setScanning] = useState(false);
   const [tasksOpen, setTasksOpen] = useState(false);
@@ -134,7 +134,7 @@ export default function StaffHome({ storeName, userName, renderMy, onSwitchStore
   }
 
   // 바코드 입고는 탭바 없이 전체 화면으로 열린다
-  if (tab === 1) return <BarcodeFlow store={storeName} userName={userName} onExit={() => setTab(0)} />;
+  if (tab === 1) return <BarcodeFlow store={storeId} userName={userName} onExit={() => setTab(0)} />;
 
   return (
     <View style={s.root}>
@@ -232,7 +232,7 @@ export default function StaffHome({ storeName, userName, renderMy, onSwitchStore
           </View>
         </ScrollView>
       ) : tab === 2 ? (
-        <InventoryTab store={storeName} onProfile={onProfile} onBell={onBell} />
+        <InventoryTab store={storeId} onProfile={onProfile} onBell={onBell} />
       ) : tab === 3 ? (
         renderMy(onBell, () => setRecordsOpen(true))
       ) : (

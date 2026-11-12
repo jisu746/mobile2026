@@ -1,16 +1,24 @@
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { lookupStore, Store } from './auth';
 import Scanner from './Scanner';
 import { Button, C, Field } from './ui';
 
 type Step = 1 | 2 | 3 | 4;
-type Props = { step: Step; onStep: (n: Step) => void; onBack: () => void; onDone: (storeName: string) => void };
+type Result = 'approved' | 'pending' | 'rejected';
+type Found = { name: string; type: string; ownerName: string };
+type Props = {
+  step: Step;
+  onStep: (n: Step) => void;
+  onBack: () => void;
+  onDone: () => void;
+  onJoin: (code: string) => Promise<void>; // 서버에 참여 요청
+  onPoll: () => Promise<Result>; // 사장님 승인 결과 확인
+  pending?: Store; // 앱을 다시 켰을 때 이미 보내 둔 요청
+};
 
 const CODE_RE = /^[A-Z]{3}-\d{4}$/;
-
-// TODO: 초대코드로 매장 조회는 API 연동 단계에서 교체 (지금은 샘플 매장)
-const findStore = (_code: string) => ({ name: '민수네 카페 강남점', sub: '만화카페 · 사장님 이주영' });
 
 const stamp = () => {
   const d = new Date();
@@ -18,38 +26,84 @@ const stamp = () => {
   return `${d.getMonth() + 1}월 ${d.getDate()}일 ${p(d.getHours())}:${p(d.getMinutes())}`;
 };
 
-export default function StaffJoin({ step, onStep, onBack, onDone }: Props) {
+export default function StaffJoin({ step, onStep, onBack, onDone, onJoin, onPoll, pending }: Props) {
   const [code, setCode] = useState('');
   const [method, setMethod] = useState<'QR 스캔' | '코드 입력'>('QR 스캔');
   const [requestedAt, setRequestedAt] = useState('');
-  const store = findStore(code);
+  const [found, setFound] = useState<Found | 'none' | null>(null); // QR로 찾은 매장 (null = 조회 중)
+  const [joined, setJoined] = useState(''); // 참여 요청을 보낸 매장 이름
+  const [error, setError] = useState('');
+  const [scanKey, setScanKey] = useState(0);
 
-  const request = (m: typeof method) => {
-    setMethod(m);
-    setRequestedAt(stamp());
-    onStep(3);
+  const storeName = joined || pending?.name || '';
+
+  // 초대 코드로 매장을 확인하고 참여 요청을 보낸다
+  const request = async (c: string, m: typeof method, known?: Found) => {
+    setError('');
+    try {
+      const store = known ?? (await lookupStore(c));
+      await onJoin(c);
+      setJoined(store.name);
+      setMethod(m);
+      setRequestedAt(stamp());
+      onStep(3);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '참여 요청을 보내지 못했어요');
+      onStep(1);
+    }
   };
 
-  // TODO: 임시 자동 승인. 실제로는 관리자 승인 결과를 서버에서 받아 전환
+  // 승인 대기 화면에서는 3초마다 승인 결과를 확인한다
   useEffect(() => {
     if (step !== 3) return;
-    const t = setTimeout(() => onStep(4), 3000);
-    return () => clearTimeout(t);
+    let alive = true;
+    const tick = async () => {
+      try {
+        const r = await onPoll();
+        if (!alive) return;
+        if (r === 'approved') onStep(4);
+        else if (r === 'rejected') {
+          setError('매장 참여 요청이 거절됐어요');
+          onStep(1);
+        }
+      } catch {
+        // 서버에 잠깐 닿지 않아도 다음 확인 때 다시 시도한다
+      }
+    };
+    tick();
+    const t = setInterval(tick, 3000);
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
   }, [step]);
 
-  if (step === 2)
+  if (step === 2) {
+    const ok = found !== null && found !== 'none';
     return (
       <Scanner
+        key={scanKey}
         title="매장 QR 스캔"
         onClose={onBack}
-        onScan={setCode}
-        tag="매장을 찾았어요"
-        name={store.name}
-        sub={store.sub}
-        confirmLabel="참여 요청 보내기"
-        onConfirm={() => request('QR 스캔')}
+        onScan={(c) => {
+          setCode(c);
+          setFound(null);
+          lookupStore(c).then(setFound, () => setFound('none'));
+        }}
+        tag={found === null ? '매장을 찾는 중이에요' : found === 'none' ? '매장을 찾지 못했어요' : '매장을 찾았어요'}
+        name={ok ? found.name : code}
+        sub={ok ? `${found.type} · 사장님 ${found.ownerName}` : undefined}
+        confirmLabel={found === 'none' ? '다시 스캔' : '참여 요청 보내기'}
+        onConfirm={() => {
+          if (ok) request(code, 'QR 스캔', found);
+          else if (found === 'none') {
+            setFound(null);
+            setScanKey((k) => k + 1);
+          }
+        }}
       />
     );
+  }
 
   return (
     <View style={s.root}>
@@ -98,11 +152,12 @@ export default function StaffJoin({ step, onStep, onBack, onDone }: Props) {
           </View>
           <Pressable
             disabled={!CODE_RE.test(code)}
-            onPress={() => request('코드 입력')}
+            onPress={() => request(code, '코드 입력')}
             style={[s.codeBtn, !CODE_RE.test(code) && { opacity: 0.6 }]}
           >
             <Text style={s.codeBtnText}>코드로 참여 요청</Text>
           </Pressable>
+          {!!error && <Text style={s.error}>{error}</Text>}
         </View>
       )}
 
@@ -125,14 +180,14 @@ export default function StaffJoin({ step, onStep, onBack, onDone }: Props) {
           </View>
 
           <View style={s.table}>
-            <Row label="매장" value={store.name} />
-            <Row label="요청 방식" value={`${method} · ${requestedAt}`} line />
+            <Row label="매장" value={storeName} />
+            <Row label="요청 방식" value={requestedAt ? `${method} · ${requestedAt}` : '요청을 보냈어요'} line />
             <Row label="근무 파트" value={step === 3 ? '승인 시 배정' : '오후 파트 (17:00~22:00)'} line />
           </View>
 
           {step === 4 && (
             <View style={{ marginTop: 16 }}>
-              <Button label="확인했어요" onPress={() => onDone(store.name)} />
+              <Button label="확인했어요" onPress={onDone} />
             </View>
           )}
         </View>
@@ -152,6 +207,7 @@ function Row({ label, value, line }: { label: string; value: string; line?: bool
 
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#fff' },
+  error: { fontSize: 12.5, color: '#D93025', marginTop: 10 },
   back: { marginLeft: 16, marginTop: 14, width: 32 },
   bars: { flexDirection: 'row', gap: 6, marginHorizontal: 20, marginTop: 14 },
   bar: { flex: 1, height: 3, borderRadius: 2, backgroundColor: '#ECEAF7' },

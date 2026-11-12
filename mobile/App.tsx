@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { BackHandler, Platform, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -10,7 +10,7 @@ import Signup from './src/Signup';
 import StaffHome from './src/StaffHome';
 import StoreSwitcher from './src/StoreSwitcher';
 import StaffJoin from './src/StaffJoin';
-import StoreSetup from './src/StoreSetup';
+import StoreSetup, { NewStore } from './src/StoreSetup';
 
 // 화면 수가 적어서 네비게이션 라이브러리 없이 상태로 전환
 // login / s1~s4: 회원가입 / o1~o3: 사장님 매장 등록 / f1~f4: 직원 매장 참여 / home, shome: 사장님, 직원 메인
@@ -23,8 +23,9 @@ const BACK: Record<Screen, Screen | null> = {
 };
 
 const homeOf = (acc: auth.Account): Screen => (acc.role === 'owner' ? 'home' : 'shome');
-// 매장이 있으면 메인, 없으면 첫 로그인(매장 등록/참여) 화면
-const startScreen = (acc: auth.Account): Screen => (acc.stores.length ? homeOf(acc) : acc.role === 'owner' ? 'o1' : 'f1');
+// 매장이 있으면 메인, 참여 요청을 보내 둔 직원은 승인 대기, 아니면 첫 로그인(매장 등록/참여) 화면
+const startScreen = (acc: auth.Account): Screen =>
+  acc.stores.length ? homeOf(acc) : acc.pending ? 'f3' : acc.role === 'owner' ? 'o1' : 'f1';
 
 const FRAME = { width: 360, height: 800, maxHeight: '100%' as const, alignSelf: 'center' as const };
 
@@ -34,6 +35,7 @@ export default function App() {
   const [userId, setUserId] = useState('');
   const [account, setAccount] = useState<auth.Account | null>(null);
   const [switcher, setSwitcher] = useState(false); // 프로필 아이콘의 매장 변경 시트
+  const joinBase = useRef(0); // 참여 요청을 보낼 때의 소속 매장 수 (늘어나면 승인된 것)
 
   const store = account?.stores[account.current] ?? { name: '', type: '' };
 
@@ -44,12 +46,44 @@ export default function App() {
   const enter = (id: string, acc: auth.Account) => {
     setUserId(id);
     setAccount(acc);
+    joinBase.current = acc.stores.length;
     setScreen(startScreen(acc));
   };
 
-  const finishStore = async (st: auth.Store, next: Screen) => {
-    setAccount(await auth.addStore(userId, st));
-    setScreen(next);
+  // 새로 생긴 매장을 현재 매장으로 선택한다
+  const selectLast = async (acc: auth.Account) => {
+    const next = { ...acc, current: Math.max(acc.stores.length - 1, 0) };
+    await auth.setCurrent(userId, next.current);
+    setAccount(next);
+    return next;
+  };
+
+  // 사장님: 매장 등록 (초대 코드를 돌려준다)
+  const createStore = async (data: NewStore) => {
+    const created = await auth.createStore(data);
+    await selectLast((await auth.refresh()).acc);
+    return created.inviteCode ?? '';
+  };
+
+  // 직원: 참여 요청 보내기 / 승인 결과 확인
+  const joinStore = async (code: string) => {
+    joinBase.current = account?.stores.length ?? 0;
+    await auth.joinStore(code);
+  };
+  const pollJoin = async () => {
+    const { acc } = await auth.refresh();
+    if (acc.pending) return 'pending' as const;
+    if (acc.stores.length > joinBase.current) {
+      await selectLast(acc);
+      return 'approved' as const;
+    }
+    return 'rejected' as const;
+  };
+
+  const changeStore = async (i: number) => {
+    if (!account) return;
+    await auth.setCurrent(userId, i);
+    setAccount({ ...account, current: i });
   };
 
   const logout = async () => {
@@ -82,7 +116,7 @@ export default function App() {
       <Profile
         id={userId}
         acc={account}
-        onSelect={async (i) => setAccount(await auth.selectStore(userId, i))}
+        onSelect={changeStore}
         onAdd={() => setScreen(account.role === 'owner' ? 'o1' : 'f1')}
         onLogout={logout}
         onBell={onBell}
@@ -104,10 +138,13 @@ export default function App() {
             step={Number(screen[1]) as 1 | 2 | 3 | 4}
             onStep={(n) => setScreen(`f${n}` as Screen)}
             onBack={() => setScreen(backOf(screen) ?? 'login')}
-            onDone={(name) => finishStore({ name, type: '' }, 'shome')}
+            onJoin={joinStore}
+            onPoll={pollJoin}
+            pending={account?.pending}
+            onDone={() => setScreen('shome')}
           />
         )}
-        {screen === 'shome' && <StaffHome storeName={store.name} userName={account?.name ?? ''} renderMy={renderMy} onSwitchStore={() => setSwitcher(true)} />}
+        {screen === 'shome' && <StaffHome storeId={store.id ?? 0} storeName={store.name} userName={account?.name ?? ''} renderMy={renderMy} onSwitchStore={() => setSwitcher(true)} />}
         {screen[0] === 's' && screen !== 'shome' && (
           <Signup
             step={Number(screen[1]) as 1 | 2 | 3 | 4}
@@ -121,7 +158,8 @@ export default function App() {
             step={Number(screen[1]) as 1 | 2 | 3}
             onStep={(n) => setScreen(`o${n}` as Screen)}
             onBack={account?.stores.length ? () => setScreen(backOf(screen) ?? 'login') : undefined}
-            onDone={(st) => finishStore(st, 'home')}
+            onCreate={createStore}
+            onDone={() => setScreen('home')}
           />
         )}
         {screen === 'home' && <OwnerHome store={store} userName={account?.name ?? ''} renderMy={renderMy} onSwitchStore={() => setSwitcher(true)} />}
@@ -131,7 +169,7 @@ export default function App() {
             acc={account}
             onClose={() => setSwitcher(false)}
             onSelect={async (i) => {
-              setAccount(await auth.selectStore(userId, i));
+              await changeStore(i);
               setSwitcher(false);
             }}
             onAdd={() => {
