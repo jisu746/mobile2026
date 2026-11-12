@@ -108,8 +108,8 @@ export default function StaffHome({ storeName, userName, renderMy, onSwitchStore
           <Text style={s.shiftLabel}>근무 시간</Text>
           <Text style={s.shiftTime}>{SHIFT}</Text>
           <View style={s.loc}>
-            <Ionicons name="location-outline" size={14} color="#fff" />
-            <Text style={s.locText}>매장 반경 안에 있어요</Text>
+            <Ionicons name="qr-code" size={14} color="#fff" />
+            <Text style={s.locText}>QR 코드를 스캔해주세요</Text>
           </View>
           <Pressable style={s.clockIn} onPress={() => setScanning(true)}>
             <Ionicons name="log-in-outline" size={18} color={C.text} />
