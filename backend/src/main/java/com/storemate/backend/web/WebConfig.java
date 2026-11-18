@@ -1,3 +1,4 @@
+// CORS 허용과 토큰 문지기(AuthInterceptor) 등록 설정
 package com.storemate.backend.web;
 
 import org.springframework.context.annotation.Configuration;

@@ -1,3 +1,4 @@
+// 계정과 소속 매장 목록을 앱이 쓰는 응답 모양으로 만드는 도우미
 package com.storemate.backend.web;
 
 import com.storemate.backend.domain.*;
@@ -8,7 +9,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.List;
 
-// 계정 + 소속 매장 목록을 앱이 쓰는 모양으로 만든다
 @Component
 public class AccountViews {
     private final StoreMemberRepository members;

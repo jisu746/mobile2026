@@ -1,8 +1,8 @@
+// 요청/응답 JSON 모양 모음 (role 은 앱과 같은 소문자 문자열 "owner" / "staff")
 package com.storemate.backend.web;
 
 import java.util.List;
 
-// 요청/응답 모양. role 은 앱과 같은 소문자 문자열("owner" / "staff")로 주고받는다.
 public final class Dto {
     private Dto() {
     }
@@ -55,5 +55,38 @@ public final class Dto {
     }
 
     public record UpdateProductRequest(String name, Integer stock) {
+    }
+
+    // ---- 출퇴근 ----
+    // 시각은 yyyy-MM-dd'T'HH:mm:ss (서버 시간대). clockedAt 이 null 이면 출근 전
+    public record ClockInRequest(String code) {
+    }
+
+    public record WorkStatus(String clockedAt) {
+    }
+
+    public record WorkRecord(String clockIn, String clockOut) {
+    }
+
+    public record ActiveStaff(String name, String clockIn) {
+    }
+
+    // ---- 업무 완료 / 인수인계 / 알림 ----
+    public record DoneRequest(String key, boolean done) {
+    }
+
+    public record HandoverRequest(String content, boolean urgent) {
+    }
+
+    public record ResolveRequest(boolean done) {
+    }
+
+    public record HandoverView(Long id, String author, boolean mine, String content, boolean urgent, boolean resolved, String createdAt) {
+    }
+
+    public record NotificationView(Long id, String kind, String title, String sub, String createdAt, boolean read) {
+    }
+
+    public record ReadRequest(List<Long> ids) {
     }
 }

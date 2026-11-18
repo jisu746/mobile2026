@@ -1,3 +1,4 @@
+// 개발용: 새 매장에 샘플 상품을 넣어 주는 도우미 (storemate.dev.seed-products=true 일 때만)
 package com.storemate.backend.web;
 
 import com.storemate.backend.domain.Product;
@@ -8,7 +9,6 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
 
-// 개발용: 새 매장을 만들 때 샘플 상품을 넣어 준다 (storemate.dev.seed-products=true 일 때만)
 @Component
 public class ProductSeeder {
     private final ProductRepository products;

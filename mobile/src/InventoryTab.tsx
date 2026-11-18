@@ -1,11 +1,9 @@
+// 재고/발주 탭 화면 (상품 목록, 수정, 폐기) - 사장님·직원 공통
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Product, daysLeft, discardExpired, listProducts, updateProduct } from './inventory';
-import Stepper from './Stepper';
-import { C } from './ui';
-
-const IMMINENT = 3; // TODO: 임박 기준(D-3)은 매장 설정값을 쓰도록 연결
+import { IMMINENT, Product, daysLeft, discardExpired, listProducts, updateProduct } from './inventory';
+import { C, Stepper } from './ui';
 
 type Tag = { label: string; bg: string; fg: string };
 const RED = { bg: '#FEECEB', fg: '#E53935' };
@@ -24,7 +22,6 @@ function status(p: Product) {
   return { tags, low, imminent, expired };
 }
 
-// 재고/발주 탭 (사장님·직원 공통)
 export default function InventoryTab({ store, onProfile, onBell }: { store: number; onProfile: () => void; onBell: () => void }) {
   const [products, setProducts] = useState<Product[] | null>(null);
   const [q, setQ] = useState('');

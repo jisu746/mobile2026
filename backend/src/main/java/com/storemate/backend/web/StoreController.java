@@ -1,3 +1,4 @@
+// 매장 생성, 초대 코드 조회, 참여 요청, 승인/거절 API
 package com.storemate.backend.web;
 
 import com.storemate.backend.domain.*;
@@ -10,6 +11,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.security.SecureRandom;
 import java.util.List;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api")
@@ -19,13 +21,25 @@ public class StoreController {
     private final SecureRandom random = new SecureRandom();
     private final boolean autoApprove;
     private final ProductSeeder seeder;
+    private final Notifier notifier;
+    private final boolean anyQr;
 
-    public StoreController(StoreRepository stores, StoreMemberRepository members,
-                           ProductSeeder seeder, @Value("${storemate.dev.auto-approve:false}") boolean autoApprove) {
+    public StoreController(StoreRepository stores, StoreMemberRepository members, ProductSeeder seeder, Notifier notifier,
+                           @Value("${storemate.dev.auto-approve:false}") boolean autoApprove,
+                           @Value("${storemate.dev.any-qr:false}") boolean anyQr) {
         this.stores = stores;
         this.members = members;
         this.autoApprove = autoApprove;
         this.seeder = seeder;
+        this.notifier = notifier;
+        this.anyQr = anyQr;
+    }
+
+    // 초대 코드로 매장을 찾는다. 개발용 any-qr 일 때는 없는 코드도 가장 최근에 만든 매장으로 본다
+    private Store byCode(String code) {
+        return stores.findByInviteCode(code == null ? "" : code.trim().toUpperCase())
+                .or(() -> anyQr ? stores.findFirstByOrderByIdDesc() : Optional.empty())
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "초대 코드에 해당하는 매장이 없어요"));
     }
 
     // 초대 코드: 영문 대문자 3자 + 숫자 4자 (예: DLB-4821), 겹치면 다시 뽑는다
@@ -60,8 +74,7 @@ public class StoreController {
     // 초대 코드(또는 QR)로 매장을 찾는다. 참여 요청 전에 어떤 매장인지 보여주는 용도
     @GetMapping("/stores/lookup")
     Dto.StoreSummary lookup(@RequestParam String code) {
-        Store s = stores.findByInviteCode(code.trim().toUpperCase())
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "초대 코드에 해당하는 매장이 없어요"));
+        Store s = byCode(code);
         return new Dto.StoreSummary(s.getName(), s.getType(), s.getBranch(), s.getOwner().getName());
     }
 
@@ -69,8 +82,7 @@ public class StoreController {
     @Transactional
     Dto.JoinResponse join(@RequestAttribute(AuthInterceptor.ACCOUNT) Account account, @RequestBody Dto.JoinRequest r) {
         if (account.getRole() != Role.STAFF) throw new ApiException(HttpStatus.FORBIDDEN, "직원만 매장에 참여할 수 있어요");
-        Store s = stores.findByInviteCode(r.code() == null ? "" : r.code().trim().toUpperCase())
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "초대 코드에 해당하는 매장이 없어요"));
+        Store s = byCode(r.code());
         StoreMember m = members.findByAccountAndStore(account, s).orElse(null);
         if (m == null) {
             m = members.save(new StoreMember(account, s, Role.STAFF, autoApprove ? MemberStatus.APPROVED : MemberStatus.PENDING));
@@ -79,6 +91,7 @@ public class StoreController {
         } else if (m.getStatus() == MemberStatus.REJECTED) {
             m.setStatus(autoApprove ? MemberStatus.APPROVED : MemberStatus.PENDING); // 거절됐던 요청은 다시 보낼 수 있다
         }
+        notifier.send(s, Role.OWNER, account, "join", account.getName() + " 님이 매장 참여를 요청했어요", "초대 코드 · " + account.getUsername());
         return new Dto.JoinResponse(m.getStatus().name().toLowerCase());
     }
 

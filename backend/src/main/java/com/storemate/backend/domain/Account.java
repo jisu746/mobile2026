@@ -1,3 +1,4 @@
+// 계정(사장님/직원) 테이블
 package com.storemate.backend.domain;
 
 import jakarta.persistence.*;

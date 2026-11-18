@@ -1,9 +1,9 @@
+// 재고 변동 이력 테이블 (누가, 언제, 얼마나 바꿨는지)
 package com.storemate.backend.domain;
 
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
-// 재고 변동 이력 (누가, 언제, 얼마나 바꿨는지)
 @Entity
 @Table(name = "stock_movements")
 public class StockMovement {

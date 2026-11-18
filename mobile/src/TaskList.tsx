@@ -1,20 +1,19 @@
+// 업무 목록 화면 (재고 기반 업무 + 일반 업무)
 import { useEffect } from 'react';
 import { BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { Task } from './tasks';
 import { C } from './ui';
 
-// TODO: 업무 목록은 샘플 데이터. API 연동 단계에서 재고·유통기한 기준으로 서버가 생성한 값으로 교체
-const TASKS: { id: string; title: string; sub?: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-  { id: 't1', title: '서울우유 1L 폐기 처리', sub: '유통기한 오늘', icon: 'time-outline' },
-  { id: 't2', title: '크림빵 유통기한 확인', sub: '유통기한 내일', icon: 'time-outline' },
-  { id: 't3', title: '컵라면(신라면) 발주 필요', sub: '현재 4개 · 적정 20개', icon: 'cube-outline' },
-  { id: 't4', title: '아이스컵 16oz 발주 필요', sub: '현재 1박스', icon: 'cube-outline' },
-  { id: 't5', title: '좌석 정리', icon: 'checkmark-circle-outline' },
+// 재고에서 만든 업무 뒤에 붙는 일반 업무 (완료 표시가 없다)
+const GENERAL: { id: string; title: string; sub?: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { id: 'general:seat', title: '좌석 정리', icon: 'checkmark-circle-outline' },
 ];
 
-type Props = { done: string[]; onToggle: (id: string) => void; onBack: () => void };
+type Props = { tasks: Task[]; done: string[]; onToggle: (id: string) => void; onBack: () => void };
 
-export default function TaskList({ done, onToggle, onBack }: Props) {
+export default function TaskList({ tasks, done, onToggle, onBack }: Props) {
+  const TASKS: { id: string; title: string; sub?: string; icon: keyof typeof Ionicons.glyphMap }[] = [...tasks, ...GENERAL];
   // 안드로이드 뒤로가기로 업무 목록만 닫는다
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {

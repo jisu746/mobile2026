@@ -1,3 +1,4 @@
+// 회원가입·로그인·로그아웃·내 정보 API
 package com.storemate.backend.web;
 
 import com.storemate.backend.domain.Account;

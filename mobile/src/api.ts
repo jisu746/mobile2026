@@ -1,3 +1,4 @@
+// 서버 호출 공통 통로 (서버 주소, 토큰 첨부, 오류 변환)
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 

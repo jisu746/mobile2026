@@ -1,3 +1,4 @@
+// 계정·매장 서버 연동 (가입, 로그인, 매장 등록·참여, 현재 매장 선택)
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api, ApiError, clearToken, getToken, setToken } from './api';
 

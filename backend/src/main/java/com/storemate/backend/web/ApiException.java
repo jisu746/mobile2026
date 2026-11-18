@@ -1,3 +1,4 @@
+// 상태 코드와 메시지를 담은 서버 오류 (Controller 에서 던진다)
 package com.storemate.backend.web;
 
 import org.springframework.http.HttpStatus;

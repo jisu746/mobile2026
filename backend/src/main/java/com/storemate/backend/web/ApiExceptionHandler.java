@@ -1,3 +1,4 @@
+// 서버 오류를 항상 {"message": "..."} 모양으로 내려주는 처리기 (앱이 그대로 화면에 보여준다)
 package com.storemate.backend.web;
 
 import org.springframework.http.HttpStatus;
@@ -8,7 +9,6 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.util.Map;
 
-// 오류는 항상 {"message": "..."} 모양으로 내려준다 (앱이 그대로 화면에 보여줄 수 있게)
 @RestControllerAdvice
 public class ApiExceptionHandler {
 

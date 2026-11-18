@@ -1,3 +1,4 @@
+// 직원 매장 참여 화면 (QR/코드 입력 → 승인 대기 → 완료)
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -84,6 +85,7 @@ export default function StaffJoin({ step, onStep, onBack, onDone, onJoin, onPoll
       <Scanner
         key={scanKey}
         title="매장 QR 스캔"
+        manualEntry="text"
         onClose={onBack}
         onScan={(c) => {
           setCode(c);

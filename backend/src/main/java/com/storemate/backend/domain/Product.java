@@ -1,9 +1,9 @@
+// 매장별 상품·현재 재고 테이블 (바코드는 매장 안에서 하나만 가진다)
 package com.storemate.backend.domain;
 
 import jakarta.persistence.*;
 import java.time.LocalDate;
 
-// 매장별 상품과 현재 재고. 바코드는 매장 안에서 하나만 가진다.
 @Entity
 @Table(name = "products", uniqueConstraints = @UniqueConstraint(columnNames = {"store_id", "barcode"}))
 public class Product {

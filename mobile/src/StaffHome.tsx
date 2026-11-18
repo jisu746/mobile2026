@@ -1,24 +1,20 @@
+// 직원 홈 화면 (출근 전/후, 업무, 인수인계)과 하단 탭 연결
 import { ReactNode, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import BarcodeFlow from './BarcodeFlow';
 import InventoryTab from './InventoryTab';
 import Notifications from './Notifications';
 import Scanner from './Scanner';
 import TaskList from './TaskList';
-import TabBar, { TabItem } from './TabBar';
 import WorkRecords from './WorkRecords';
-import { C } from './ui';
+import { Handover, listHandovers, resolveHandover, writeHandover } from './handover';
+import { useTasks } from './tasks';
+import { C, TabBar, TabItem } from './ui';
+import { clockIn, clockOut, currentShift, hhmm, hoursByDay, listSessions, WAGE, won } from './work';
 
-// TODO: 이름·근무 시간·업무·인수인계는 샘플 데이터. API 연동 단계에서 서버 값으로 교체
-const ME = '민보람';
+// TODO: 근무 시간은 샘플 데이터. 근무 일정 기능을 만들 때 서버 값으로 교체
 const SHIFT = '14:00 – 20:00';
-const URGENT = ['디저트 유통기한 검사', '시럽/소스류 소분'];
-const TASKS = [
-  { title: '유통기한 임박 상품 확인', icon: 'time-outline' as const, tag: '3개 품목', warn: true },
-  { title: '재고 부족 상품 보충', icon: 'clipboard-outline' as const, tag: '2개 품목', warn: true },
-  { title: '좌석 정리', icon: 'checkmark-circle-outline' as const, tag: '일반', warn: false },
-];
 const TABS: TabItem[] = [
   { label: '업무/출퇴근', icon: 'checkbox-outline' },
   { label: '바코드 입고', icon: 'barcode-outline' },
@@ -32,16 +28,55 @@ const elapsed = (from: Date, now: number) => {
 };
 
 export default function StaffHome({ storeId, storeName, userName, renderMy, onSwitchStore: onProfile }: { storeId: number; storeName: string; userName: string; renderMy: (onBell: () => void, onRecords: () => void) => ReactNode; onSwitchStore: () => void }) {
+  const ME = userName;
   const [clockedAt, setClockedAt] = useState<Date | null>(null);
+  const [ready, setReady] = useState(false); // 서버에서 출근 상태를 받아온 뒤에 화면을 그린다
   const [scanning, setScanning] = useState(false);
+  const [qr, setQr] = useState('');
+  const [error, setError] = useState('');
+  const [earn, setEarn] = useState(0); // 이번 달 예상 급여
   const [tasksOpen, setTasksOpen] = useState(false);
-  const [taskDone, setTaskDone] = useState<string[]>([]);
+  const { tasks, done: taskDone, toggle: toggleTask, reload: reloadTasks } = useTasks(storeId);
+  const [handovers, setHandovers] = useState<Handover[]>([]);
+  const [writing, setWriting] = useState<'urgent' | 'memo' | null>(null);
+  const [draft, setDraft] = useState('');
   const [tab, setTab] = useState(0);
   const [notifOpen, setNotifOpen] = useState(false);
   const [recordsOpen, setRecordsOpen] = useState(false);
   const onBell = () => setNotifOpen(true);
-  const [done, setDone] = useState<string[]>([]);
   const [now, setNow] = useState(Date.now());
+
+  const fail = (e: unknown) => setError(e instanceof Error ? e.message : '요청을 처리하지 못했어요');
+  const refreshEarn = () => {
+    const d = new Date();
+    listSessions(storeId, d.getFullYear(), d.getMonth() + 1).then(
+      (l) => setEarn(Object.values(hoursByDay(l)).reduce((a, h) => a + h, 0) * WAGE),
+      fail,
+    );
+  };
+
+  useEffect(() => {
+    currentShift(storeId).then(setClockedAt, fail).finally(() => setReady(true));
+    refreshEarn();
+  }, [storeId]);
+
+  // 근무 중 메인 화면으로 돌아올 때마다 업무(재고 기준)와 인수인계를 새로 받는다
+  useEffect(() => {
+    if (!clockedAt || tab !== 0 || tasksOpen) return;
+    reloadTasks();
+    listHandovers(storeId).then(setHandovers, fail);
+  }, [clockedAt, tab, tasksOpen, storeId]);
+
+  const sendMemo = () => {
+    if (!writing || !draft.trim()) return;
+    writeHandover(storeId, draft.trim(), writing === 'urgent').then((h) => {
+      setHandovers((c) => [h, ...c]);
+      setDraft('');
+      setWriting(null);
+    }, fail);
+  };
+  const toggleUrgent = (h: Handover) =>
+    resolveHandover(storeId, h.id, !h.resolved).then((n) => setHandovers((c) => c.map((x) => (x.id === n.id ? n : x))), fail);
 
   useEffect(() => {
     if (!clockedAt) return;
@@ -58,7 +93,6 @@ export default function StaffHome({ storeId, storeName, userName, renderMy, onSw
       </View>
       {avatar && (
         <>
-          {/* TODO: 알림 목록 화면 연결 */}
           <Pressable onPress={onBell} hitSlop={8}>
             <Ionicons name="notifications-outline" size={24} color={C.primary} />
           </Pressable>
@@ -70,25 +104,33 @@ export default function StaffHome({ storeId, storeName, userName, renderMy, onSw
     </View>
   );
 
-  if (notifOpen) return <Notifications role="staff" onBack={() => setNotifOpen(false)} />;
-  if (recordsOpen) return <WorkRecords onBack={() => setRecordsOpen(false)} />;
+  if (notifOpen) return <Notifications storeId={storeId} onBack={() => setNotifOpen(false)} />;
+  if (recordsOpen) return <WorkRecords storeId={storeId} onBack={() => setRecordsOpen(false)} />;
+  if (!ready) return <View style={s.root} />;
 
   // 근무 시간 전
   if (!clockedAt) {
-    // TODO: 스캔한 QR이 이 매장의 출근 QR인지 서버에서 검증 (지금은 어떤 QR이든 통과)
+    // 스캔한 값이 이 매장의 출근 QR인지는 서버가 확인한다
     if (scanning) {
       return (
         <Scanner
           title="출근 QR 스캔"
           onClose={() => setScanning(false)}
-          onScan={() => {}}
+          onScan={setQr}
+          manualEntry="text"
           tag="스캔이 완료되었어요"
           name={storeName}
           confirmLabel="출근하기"
           confirmIcon="log-in-outline"
-          onConfirm={() => {
-            setNow(Date.now());
-            setClockedAt(new Date());
+          onConfirm={async () => {
+            try {
+              setError('');
+              setClockedAt(await clockIn(storeId, qr));
+              setNow(Date.now());
+              refreshEarn();
+            } catch (e) {
+              fail(e);
+            }
             setScanning(false);
           }}
         />
@@ -114,22 +156,30 @@ export default function StaffHome({ storeId, storeName, userName, renderMy, onSw
             <Ionicons name="location-outline" size={14} color="#fff" />
             <Text style={s.locText}>매장 반경 안에 있어요</Text>
           </View>
-          <Pressable style={s.clockIn} onPress={() => setScanning(true)}>
+          <Pressable style={s.clockIn} onPress={() => { setError(''); setScanning(true); }}>
             <Ionicons name="log-in-outline" size={18} color={C.text} />
             <Text style={s.clockInText}>출근하기</Text>
           </Pressable>
+          {!!error && <Text style={s.error}>{error}</Text>}
         </View>
       </View>
     );
   }
 
+  // 메인 화면에 보일 요약: 긴급 인수인계(24시간 이내), 이전 근무자 메모, 업무 건수
+  const urgent = handovers.filter((h) => h.urgent && now - h.createdAt.getTime() < 24 * 3600000);
+  const prev = handovers.find((h) => !h.urgent && !h.mine);
+  const soon = tasks.filter((t) => t.kind !== 'low').length;
+  const low = tasks.filter((t) => t.kind === 'low').length;
+  const homeTasks = [
+    ...(soon ? [{ title: '유통기한 임박 상품 확인', icon: 'time-outline' as const, tag: `${soon}개 품목`, warn: true }] : []),
+    ...(low ? [{ title: '재고 부족 상품 보충', icon: 'clipboard-outline' as const, tag: `${low}개 품목`, warn: true }] : []),
+    { title: '좌석 정리', icon: 'checkmark-circle-outline' as const, tag: '일반', warn: false },
+  ];
+
   if (tasksOpen) {
     return (
-      <TaskList
-        done={taskDone}
-        onToggle={(id) => setTaskDone((c) => (c.includes(id) ? c.filter((x) => x !== id) : [...c, id]))}
-        onBack={() => setTasksOpen(false)}
-      />
+      <TaskList tasks={tasks} done={taskDone} onToggle={toggleTask} onBack={() => setTasksOpen(false)} />
     );
   }
 
@@ -142,7 +192,7 @@ export default function StaffHome({ storeId, storeName, userName, renderMy, onSw
         <ScrollView contentContainerStyle={s.scroll}>
           {header(true)}
           <Text style={s.hello}>{ME.slice(1)}님, 오늘도 파이팅!</Text>
-          <Text style={s.earn}>이번달 120,230원 벌었어요</Text>
+          <Text style={s.earn}>이번달 {won(earn)}원 벌었어요</Text>
 
           <View style={s.status}>
             <View style={{ flex: 1 }}>
@@ -152,44 +202,47 @@ export default function StaffHome({ storeId, storeName, userName, renderMy, onSw
               </View>
               <Text style={s.statusTime}>{elapsed(clockedAt, now)}</Text>
             </View>
-            <Pressable style={s.clockOut} onPress={() => setClockedAt(null)}>
+            <Pressable
+              style={s.clockOut}
+              onPress={() => {
+                setError('');
+                clockOut(storeId).then(() => { setClockedAt(null); refreshEarn(); }, fail);
+              }}
+            >
               <Ionicons name="log-out-outline" size={16} color={C.primary} />
               <Text style={s.clockOutText}>퇴근</Text>
             </Pressable>
           </View>
+          {!!error && <Text style={[s.error, { color: '#D93025' }]}>{error}</Text>}
 
-          <View style={s.urgent}>
-            <View style={s.urgentHead}>
-              <View style={s.warn}>
-                <Ionicons name="warning" size={20} color="#fff" />
+          {!!urgent.length && (
+            <View style={s.urgent}>
+              <View style={s.urgentHead}>
+                <View style={s.warn}>
+                  <Ionicons name="warning" size={20} color="#fff" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.urgentTitle}>긴급 인수인계</Text>
+                  <Text style={s.urgentSub}>교대 전 확인이 필요한 긴급 인수인계 사항입니다.</Text>
+                </View>
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={s.urgentTitle}>긴급 인수인계</Text>
-                <Text style={s.urgentSub}>교대 전 확인이 필요한 긴급 인수인계 사항입니다.</Text>
-              </View>
-            </View>
-            {URGENT.map((u) => {
-              const d = done.includes(u);
-              return (
-                <View key={u} style={s.urgentRow}>
-                  <Text style={s.rowTitle}>{u}</Text>
-                  <Pressable
-                    style={[s.doneBtn, d && { opacity: 0.45 }]}
-                    onPress={() => setDone(d ? done.filter((x) => x !== u) : [...done, u])}
-                  >
+              {urgent.map((u) => (
+                <View key={u.id} style={s.urgentRow}>
+                  <Text style={[s.rowTitle, { flex: 1, marginRight: 8 }]} numberOfLines={2}>{u.content}</Text>
+                  <Pressable style={[s.doneBtn, u.resolved && { opacity: 0.45 }]} onPress={() => toggleUrgent(u)}>
                     <Text style={s.doneText}>완료</Text>
                   </Pressable>
                 </View>
-              );
-            })}
-          </View>
+              ))}
+            </View>
+          )}
 
           <Pressable style={s.sectionRow} onPress={() => setTasksOpen(true)}>
             <Text style={s.sectionInRow}>업무</Text>
             <Ionicons name="chevron-forward" size={18} color={C.text} />
           </Pressable>
           <View style={s.card}>
-            {TASKS.map((t, i) => (
+            {homeTasks.map((t, i) => (
               <Pressable key={t.title} onPress={() => setTasksOpen(true)} style={[s.task, i > 0 && s.line]}>
                 <Ionicons name={t.icon} size={22} color={C.primary} />
                 <Text style={[s.rowTitle, { flex: 1 }]}>{t.title}</Text>
@@ -202,34 +255,59 @@ export default function StaffHome({ storeId, storeName, userName, renderMy, onSw
 
           <Text style={s.section}>이전 근무자 인수인계</Text>
           <View style={[s.card, { padding: 14 }]}>
-            <View style={s.memoHead}>
-              <View style={s.mini}>
-                <Text style={s.miniText}>정</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={s.rowTitle}>정채원</Text>
-                <Text style={s.memoTime}>13:52 작성</Text>
-              </View>
-              <View style={[s.tag, { backgroundColor: '#ECEAF7' }]}>
-                <Text style={[s.tagText, { color: C.primary }]}>새 메모</Text>
-              </View>
-            </View>
-            <Text style={s.memoBody}>{'3번 룸 에어컨 리모컨 배터리 교체 필요해요.\n우유는 오늘 오후 입고 예정입니다.'}</Text>
+            {prev ? (
+              <>
+                <View style={s.memoHead}>
+                  <View style={s.mini}>
+                    <Text style={s.miniText}>{prev.author.slice(0, 1)}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.rowTitle}>{prev.author}</Text>
+                    <Text style={s.memoTime}>{hhmm(prev.createdAt)} 작성</Text>
+                  </View>
+                  {now - prev.createdAt.getTime() < 12 * 3600000 && (
+                    <View style={[s.tag, { backgroundColor: '#ECEAF7' }]}>
+                      <Text style={[s.tagText, { color: C.primary }]}>새 메모</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={s.memoBody}>{prev.content}</Text>
+              </>
+            ) : (
+              <Text style={s.emptyText}>남겨진 인수인계가 없어요</Text>
+            )}
           </View>
 
           <Text style={s.section}>인수인계 사항 작성</Text>
           <View style={[s.card, s.write]}>
             <View style={s.mini}>
-              <Text style={s.miniText}>민</Text>
+              <Text style={s.miniText}>{ME.slice(0, 1)}</Text>
             </View>
             <Text style={[s.rowTitle, { flex: 1 }]}>{ME}</Text>
-            <Pressable style={s.writeBtn}>
+            <Pressable style={[s.writeBtn, writing === 'urgent' && s.writeOn]} onPress={() => setWriting(writing === 'urgent' ? null : 'urgent')}>
               <Text style={s.writeText}>긴급 메모 작성</Text>
             </Pressable>
-            <Pressable style={s.writeBtn}>
+            <Pressable style={[s.writeBtn, writing === 'memo' && s.writeOn]} onPress={() => setWriting(writing === 'memo' ? null : 'memo')}>
               <Text style={s.writeText}>메모 작성</Text>
             </Pressable>
           </View>
+          {!!writing && (
+            <View style={[s.card, { padding: 12, marginTop: 8 }]}>
+              <TextInput
+                style={s.memoInput}
+                value={draft}
+                onChangeText={setDraft}
+                placeholder={writing === 'urgent' ? '교대 전에 꼭 확인해야 할 내용' : '다음 근무자에게 남길 내용'}
+                placeholderTextColor="#A3A1B0"
+                multiline
+                maxLength={500}
+              />
+              <Pressable style={[s.memoSend, !draft.trim() && { opacity: 0.4 }]} disabled={!draft.trim()} onPress={sendMemo}>
+                <Text style={s.memoSendText}>등록</Text>
+              </Pressable>
+            </View>
+          )}
+          {!!error && <Text style={[s.error, { color: '#D93025' }]}>{error}</Text>}
         </ScrollView>
       ) : tab === 2 ? (
         <InventoryTab store={storeId} onProfile={onProfile} onBell={onBell} />
@@ -260,6 +338,7 @@ const s = StyleSheet.create({
   loc: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 10 },
   locText: { fontSize: 12, color: '#fff' },
   clockIn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 54, borderRadius: 27, backgroundColor: '#fff', marginTop: 20 },
+  error: { fontSize: 12, color: '#fff', marginTop: 10, textAlign: 'center' },
   clockInText: { fontSize: 15, fontWeight: '700', color: C.text },
   hello: { fontSize: 24, fontWeight: '800', color: C.text, marginTop: 18 },
   earn: { fontSize: 11.5, color: '#828282', marginTop: 4 },
@@ -295,6 +374,10 @@ const s = StyleSheet.create({
   write: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12 },
   writeBtn: { backgroundColor: '#ECEAF7', borderRadius: 14, paddingHorizontal: 12, paddingVertical: 8 },
   writeText: { fontSize: 11, fontWeight: '700', color: C.primary },
+  writeOn: { backgroundColor: '#DAD6F0' },
+  memoInput: { minHeight: 72, fontSize: 13.5, color: C.text, textAlignVertical: 'top', padding: 0 },
+  memoSend: { alignSelf: 'flex-end', backgroundColor: C.primary, borderRadius: 14, paddingHorizontal: 18, paddingVertical: 8, marginTop: 8 },
+  memoSendText: { fontSize: 12, fontWeight: '700', color: '#fff' },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   emptyText: { fontSize: 14, color: '#828282' },
 });

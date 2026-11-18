@@ -1,3 +1,4 @@
+// 회원가입 화면 (여러 단계)
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';

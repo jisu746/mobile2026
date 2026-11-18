@@ -1,9 +1,9 @@
+// 계정과 매장의 소속 테이블 (직원은 사장님 승인 전까지 PENDING)
 package com.storemate.backend.domain;
 
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
-// 계정이 어느 매장에 어떤 역할로 속하는지 (직원은 사장님 승인 전까지 PENDING)
 @Entity
 @Table(name = "store_members", uniqueConstraints = @UniqueConstraint(columnNames = {"account_id", "store_id"}))
 public class StoreMember {

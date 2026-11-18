@@ -1,3 +1,4 @@
+// 앱 전체 화면 전환(로그인, 가입, 매장 설정, 사장님/직원 홈)과 로그인 상태 관리
 import { useEffect, useRef, useState } from 'react';
 import { BackHandler, Platform, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';

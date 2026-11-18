@@ -1,3 +1,4 @@
+// 로그인 화면 (사장님/직원)
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';

@@ -1,3 +1,4 @@
+// 모든 /api 요청의 토큰(Authorization: Bearer)을 확인해 로그인한 계정을 붙여 주는 문지기
 package com.storemate.backend.web;
 
 import com.storemate.backend.repo.AuthTokenRepository;
@@ -7,7 +8,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
-// Authorization: Bearer <토큰> 을 확인해서 로그인한 계정을 요청에 붙여 준다
 @Component
 public class AuthInterceptor implements HandlerInterceptor {
     public static final String ACCOUNT = "account";

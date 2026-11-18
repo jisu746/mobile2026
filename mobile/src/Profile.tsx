@@ -1,3 +1,4 @@
+// MY 탭 화면 (프로필, 소속 매장, 로그아웃) - 사장님·직원 공통
 import { ReactNode, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,7 +15,6 @@ type Props = {
   onRecords: () => void;
 };
 
-// MY 탭 (사장님·직원 공통 화면. 사장님은 소속 줄과 매장 추가 문구만 다르다)
 // TODO: 파트·입사일·근무 시간·예상 급여·근속은 샘플 데이터. API 연동 단계에서 서버 값으로 교체
 export default function Profile({ id, acc, onSelect, onAdd, onLogout, onBell, onRecords }: Props) {
   const owner = acc.role === 'owner';

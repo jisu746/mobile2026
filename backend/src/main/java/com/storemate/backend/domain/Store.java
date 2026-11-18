@@ -1,3 +1,4 @@
+// 매장 테이블 (이름, 주소, 영업시간, 초대 코드)
 package com.storemate.backend.domain;
 
 import jakarta.persistence.*;

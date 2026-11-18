@@ -1,3 +1,4 @@
+// 사장님 첫 로그인 매장 등록 화면 (매장 정보 입력 → 초대 QR/코드)
 import { useState } from 'react';
 import { Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';

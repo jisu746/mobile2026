@@ -1,3 +1,4 @@
+// 알림 설정 화면 (알림 화면의 톱니바퀴에서 열린다)
 import { useEffect, useRef, useState } from 'react';
 import { Animated, BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,7 +16,6 @@ const KINDS = [
 ];
 const DEFAULTS: Record<string, boolean> = { push: true, task: true, expiry: true, stock: true, memo: true, pay: true, quiet: false };
 
-// 알림 설정 (사장님·직원 공통, 알림 화면의 톱니바퀴에서 열린다)
 export default function NotificationSettings({ onBack }: { onBack: () => void }) {
   const [on, setOn] = useState(DEFAULTS);
 

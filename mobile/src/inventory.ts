@@ -1,3 +1,4 @@
+// 상품·재고·입고 서버 연동과 유통기한 계산
 import { api, ApiError } from './api';
 
 // 상품·재고는 서버(Spring)에 저장한다. storeId 는 서버가 준 매장 번호.
@@ -39,6 +40,8 @@ export const updateProduct = (storeId: number, barcode: string, patch: { name?: 
 // 유통기한이 지난 상품을 재고에서 제외
 export const discardExpired = (storeId: number, barcode: string) =>
   api('POST', `${base(storeId)}/products/${encodeURIComponent(barcode)}/discard`);
+
+export const IMMINENT = 3; // TODO: 임박 기준(D-3)은 매장 설정값을 쓰도록 연결
 
 // 오늘 기준 남은 일수 (오늘 = 0, 지났으면 음수). 유통기한이 없으면 null
 export function daysLeft(expiry?: string) {

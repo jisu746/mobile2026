@@ -1,18 +1,17 @@
+// 바코드 입고 화면 (스캔 → 입고 목록 확인 → 완료 결과)
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BarcodeType } from 'expo-camera';
 import Scanner from './Scanner';
-import Stepper from './Stepper';
-import { Product, getProduct, receive } from './inventory';
-import { C, Field } from './ui';
+import { IMMINENT, Product, getProduct, receive } from './inventory';
+import { C, Field, Stepper } from './ui';
 
 type Item = { barcode: string; name: string; category: string; before: number; min: number; qty: number; expiry: string };
 type Result = { name: string; before: number; after: number; min: number };
 type Props = { store: number; userName: string; onExit: () => void };
 
 const BARCODES: BarcodeType[] = ['ean13', 'ean8', 'upc_a', 'upc_e', 'code128', 'code39'];
-const CATEGORIES = ['냉장', '상온', '냉동', '소모품'];
 const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
 // 숫자만 입력해도 2026.10.11 형식으로 맞춘다
@@ -26,11 +25,10 @@ const parseDate = (s: string) => {
   const d = new Date(+m[1], +m[2] - 1, +m[3]);
   return d.getMonth() === +m[2] - 1 ? d : null;
 };
-// TODO: 임박 알림 기준(D-3)은 매장 설정값을 쓰도록 연결
 const alertText = (d: Date) => {
   const a = new Date(d);
-  a.setDate(a.getDate() - 3);
-  return `${a.getFullYear()}.${a.getMonth() + 1}.${a.getDate()}(D-3)에 임박 알림을 보내요`;
+  a.setDate(a.getDate() - IMMINENT);
+  return `${a.getFullYear()}.${a.getMonth() + 1}.${a.getDate()}(D-${IMMINENT})에 임박 알림을 보내요`;
 };
 
 export default function BarcodeFlow({ store, userName, onExit }: Props) {
@@ -70,7 +68,7 @@ export default function BarcodeFlow({ store, userName, onExit }: Props) {
         onClose={onExit}
         types={BARCODES}
         hint="상품 바코드를 프레임 안에 맞춰주세요"
-        manualEntry
+        manualEntry="text"
         sheet={(code, rescan) => <ProductSheet store={store} code={code} onRescan={rescan} onAdd={add} />}
       />
     );

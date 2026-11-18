@@ -1,27 +1,35 @@
+// 근무 기록 화면 (달력, 예상 급여) - MY 에서 열린다
 import { useEffect, useState } from 'react';
 import { BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { C } from './ui';
+import { hoursByDay, hr, listSessions, WAGE, won } from './work';
 
-const WAGE = 10030; // TODO: 시급은 직원 정보에서 가져온다
 const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
-const won = (n: number) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 const key = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 
-// TODO: 근무 기록은 샘플 규칙(월~수 6시간, 토 5시간, 오늘 이후는 기록 없음). 출퇴근 기록 API 연동 후 서버 값으로 교체
-function hoursOf(d: Date, today: Date) {
-  if (d >= today) return 0;
-  const dow = d.getDay();
-  return dow >= 1 && dow <= 3 ? 6 : dow === 6 ? 5 : 0;
-}
-
-// 직원 근무 기록 (MY → 근무 기록)
-export default function WorkRecords({ onBack }: { onBack: () => void }) {
+export default function WorkRecords({ storeId, onBack }: { storeId: number; onBack: () => void }) {
   const today = startOfDay(new Date());
   const [month, setMonth] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   const [selected, setSelected] = useState<Date>(today);
+  const [days, setDays] = useState<Record<string, number> | null>(null); // 날짜별 근무 시간 (null = 불러오는 중)
+  const [error, setError] = useState('');
+  const hoursOf = (d: Date) => days?.[key(d)] ?? 0;
+
+  useEffect(() => {
+    let alive = true;
+    setDays(null);
+    setError('');
+    listSessions(storeId, month.getFullYear(), month.getMonth() + 1).then(
+      (l) => alive && setDays(hoursByDay(l)),
+      (e) => alive && (setDays({}), setError(e instanceof Error ? e.message : '근무 기록을 불러오지 못했어요')),
+    );
+    return () => {
+      alive = false;
+    };
+  }, [storeId, month]);
 
   // 안드로이드 뒤로가기로 근무 기록 화면만 닫는다
   useEffect(() => {
@@ -42,7 +50,7 @@ export default function WorkRecords({ onBack }: { onBack: () => void }) {
   let total = 0, workDays = 0;
   const weekly: Record<string, number> = {};
   for (let d = new Date(y, m, 1); d.getMonth() === m; d.setDate(d.getDate() + 1)) {
-    const h = hoursOf(d, today);
+    const h = hoursOf(d);
     if (!h) continue;
     total += h;
     workDays += 1;
@@ -54,7 +62,7 @@ export default function WorkRecords({ onBack }: { onBack: () => void }) {
   const holiday = Object.values(weekly).reduce((a, h) => a + (h >= 15 ? (Math.min(h, 40) / 40) * 8 * WAGE : 0), 0);
   const isThisMonth = y === today.getFullYear() && m === today.getMonth();
 
-  const selHours = hoursOf(selected, today);
+  const selHours = hoursOf(selected);
   const selIsToday = key(selected) === key(today);
 
   return (
@@ -64,7 +72,6 @@ export default function WorkRecords({ onBack }: { onBack: () => void }) {
           <Ionicons name="arrow-back" size={24} color={C.text} />
         </Pressable>
         <Text style={s.title}>근무 기록</Text>
-       
       </View>
 
       <ScrollView contentContainerStyle={s.body}>
@@ -91,7 +98,7 @@ export default function WorkRecords({ onBack }: { onBack: () => void }) {
             </View>
           </View>
           <View style={s.metrics}>
-            <Metric label="총 근무시간" value={String(total)} unit="시간" />
+            <Metric label="총 근무시간" value={hr(total)} unit="시간" />
             <Metric label="근무 일수" value={String(workDays)} unit="일" />
             <Metric label="주휴 수당(예상)" value={(holiday / 10000).toFixed(1)} unit="만" />
           </View>
@@ -107,7 +114,7 @@ export default function WorkRecords({ onBack }: { onBack: () => void }) {
             <View key={w} style={s.weekRow}>
               {cells.slice(w * 7, w * 7 + 7).map((d, i) => {
                 const inMonth = d.getMonth() === m;
-                const h = inMonth ? hoursOf(d, today) : 0;
+                const h = inMonth ? hoursOf(d) : 0;
                 const isToday = key(d) === key(today);
                 const isSel = key(d) === key(selected);
                 return (
@@ -120,7 +127,7 @@ export default function WorkRecords({ onBack }: { onBack: () => void }) {
                     )}
                     {h > 0 && (
                       <View style={s.badge}>
-                        <Text style={s.badgeText}>{h}h</Text>
+                        <Text style={s.badgeText}>{hr(h)}h</Text>
                       </View>
                     )}
                   </Pressable>
@@ -130,19 +137,25 @@ export default function WorkRecords({ onBack }: { onBack: () => void }) {
           ))}
         </View>
 
-        {selected.getMonth() === m && selIsToday && (
+        {!!error && (
           <View style={s.notice}>
-            <Text style={s.noticeText}>아직 데이터가 로드되지 않았어요.</Text>
+            <Text style={s.noticeText}>{error}</Text>
           </View>
         )}
 
-        {selected.getMonth() === m && !selIsToday && selHours === 0 && (
+        {!error && days === null && (
           <View style={s.notice}>
-            <Text style={s.noticeText}>이 날은 근무 기록이 없어요.</Text>
+            <Text style={s.noticeText}>근무 기록을 불러오는 중이에요.</Text>
           </View>
         )}
 
-        {selected.getMonth() === m && !selIsToday && selHours > 0 && (
+        {!error && days !== null && selected.getMonth() === m && selHours === 0 && (
+          <View style={s.notice}>
+            <Text style={s.noticeText}>{selIsToday ? '오늘은 아직 근무 기록이 없어요.' : '이 날은 근무 기록이 없어요.'}</Text>
+          </View>
+        )}
+
+        {!error && days !== null && selected.getMonth() === m && selHours > 0 && (
           <>
             <Text style={s.detailTitle}>{selected.getMonth() + 1}월 {selected.getDate()}일 ({DAYS[selected.getDay()]}) 근무 상세</Text>
             <View style={s.detail}>
@@ -154,7 +167,7 @@ export default function WorkRecords({ onBack }: { onBack: () => void }) {
               </View>
               <View style={s.detailBox}>
                 <Text style={s.metricLabel}>근무시간</Text>
-                <Text style={s.metricValue}>{selHours}<Text style={s.metricUnit}>시간</Text></Text>
+                <Text style={s.metricValue}>{hr(selHours)}<Text style={s.metricUnit}>시간</Text></Text>
               </View>
             </View>
           </>

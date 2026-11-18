@@ -1,3 +1,4 @@
+// 서버 시작점 (Spring Boot 실행 클래스)
 package com.storemate.backend;
 
 import org.springframework.boot.SpringApplication;
