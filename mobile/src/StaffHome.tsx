@@ -253,7 +253,7 @@ const s = StyleSheet.create({
   big: { fontSize: 24, fontWeight: '800', color: C.text, lineHeight: 34, marginTop: 36, marginBottom: 20, paddingHorizontal: 16 },
   shift: { backgroundColor: C.primary, borderRadius: 22, padding: 20, marginHorizontal: 16 },
   shiftLabel: { fontSize: 12, color: 'rgba(255,255,255,0.8)' },
-  shiftTime: { fontSize: 28, fontWeight: '800', color: '#fff', marginTop: 4 },
+  shiftTime: { fontSize: 28, fontWeight: '700', color: '#fff', marginTop: 4 },
   loc: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 10 },
   locText: { fontSize: 12, color: '#fff' },
   clockIn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 54, borderRadius: 27, backgroundColor: '#fff', marginTop: 20 },
