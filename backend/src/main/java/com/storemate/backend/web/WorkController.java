@@ -12,7 +12,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.YearMonth;
-import java.time.format.DateTimeParseException;
 import java.util.List;
 
 @RestController
@@ -32,8 +31,10 @@ public class WorkController {
     }
 
     private Dto.WorkStatus status(Account a, Store s) {
-        return new Dto.WorkStatus(sessions.findFirstByAccountAndStoreAndClockOutIsNull(a, s)
-                .map(w -> w.getClockIn().toString()).orElse(null));
+        String clockedAt = sessions.findFirstByAccountAndStoreAndClockOutIsNull(a, s).map(w -> w.getClockIn().toString()).orElse(null);
+        String elsewhere = sessions.findFirstByAccountAndClockOutIsNull(a)
+                .filter(w -> !w.getStore().getId().equals(s.getId())).map(w -> w.getStore().getName()).orElse(null);
+        return new Dto.WorkStatus(clockedAt, elsewhere);
     }
 
     @GetMapping("/current")
@@ -50,7 +51,11 @@ public class WorkController {
         if (account.getRole() != Role.STAFF) throw new ApiException(HttpStatus.FORBIDDEN, "직원만 출근할 수 있어요");
         if (!anyQr && (r.code() == null || !s.getInviteCode().equalsIgnoreCase(r.code().trim())))
             throw new ApiException(HttpStatus.BAD_REQUEST, "이 매장의 출근 QR이 아니에요");
-        // 이미 출근 중이면 그대로 돌려준다
+        // 다른 매장에서 근무 중이면 출근할 수 없다 (같은 매장에서 이미 출근 중이면 아래에서 그대로 돌려준다)
+        sessions.findFirstByAccountAndClockOutIsNull(account).ifPresent(w -> {
+            if (!w.getStore().getId().equals(s.getId()))
+                throw new ApiException(HttpStatus.CONFLICT, "'" + w.getStore().getName() + "'에서 근무 중이에요. 그곳에서 퇴근한 뒤 출근해 주세요");
+        });
         if (sessions.findFirstByAccountAndStoreAndClockOutIsNull(account, s).isEmpty()) {
             WorkSession w = sessions.save(new WorkSession(account, s));
             notifier.send(s, Role.OWNER, account, "clockin", account.getName() + " 님이 출근했어요", w.getClockIn().toLocalTime().toString().substring(0, 5));
@@ -73,7 +78,7 @@ public class WorkController {
         WorkSession w = sessions.findFirstByAccountAndStoreAndClockOutIsNull(account, s)
                 .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT, "출근 기록이 없어요"));
         w.clockOut();
-        return new Dto.WorkStatus(null);
+        return status(account, s);
     }
 
     // month = yyyy-MM. 출근한 날이 그 달인 기록을 돌려준다
@@ -82,12 +87,7 @@ public class WorkController {
     public List<Dto.WorkRecord> records(@RequestAttribute(AuthInterceptor.ACCOUNT) Account account, @PathVariable Long storeId,
                                         @RequestParam String month) {
         Store s = access.requireMember(account, storeId);
-        YearMonth ym;
-        try {
-            ym = YearMonth.parse(month);
-        } catch (DateTimeParseException e) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "월 형식이 올바르지 않아요");
-        }
+        YearMonth ym = MemberController.month(month);
         return sessions.findByAccountAndStoreAndClockInGreaterThanEqualAndClockInLessThanOrderByClockInAsc(
                         account, s, ym.atDay(1).atStartOfDay(), ym.plusMonths(1).atDay(1).atStartOfDay()).stream()
                 .map(w -> new Dto.WorkRecord(w.getClockIn().toString(), w.getClockOut() == null ? null : w.getClockOut().toString()))

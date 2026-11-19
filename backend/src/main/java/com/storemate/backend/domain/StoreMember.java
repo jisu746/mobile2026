@@ -28,6 +28,9 @@ public class StoreMember {
 
     private LocalDateTime requestedAt = LocalDateTime.now();
 
+    // 사장님이 정하는 시급 (정하기 전에는 null)
+    private Integer hourlyWage;
+
     protected StoreMember() {
     }
 
@@ -44,5 +47,7 @@ public class StoreMember {
     public Role getRole() { return role; }
     public MemberStatus getStatus() { return status; }
     public LocalDateTime getRequestedAt() { return requestedAt; }
+    public Integer getHourlyWage() { return hourlyWage; }
     public void setStatus(MemberStatus status) { this.status = status; }
+    public void setHourlyWage(Integer hourlyWage) { this.hourlyWage = hourlyWage; }
 }

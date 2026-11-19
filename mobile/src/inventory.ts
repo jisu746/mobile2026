@@ -33,8 +33,8 @@ export const receive = (storeId: number, items: Receipt[]) =>
     items: items.map((i) => ({ barcode: i.barcode, name: i.name, category: i.category, qty: i.qty, expiry: toDash(i.expiry) })),
   });
 
-// 상품명·재고 수량 수정
-export const updateProduct = (storeId: number, barcode: string, patch: { name?: string; stock?: number }) =>
+// 상품명·재고 수량·적정 재고 수정
+export const updateProduct = (storeId: number, barcode: string, patch: { name?: string; stock?: number; min?: number }) =>
   api('PUT', `${base(storeId)}/products/${encodeURIComponent(barcode)}`, patch);
 
 // 유통기한이 지난 상품을 재고에서 제외

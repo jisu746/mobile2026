@@ -56,5 +56,6 @@ public class Product {
 
     public void setName(String name) { this.name = name; }
     public void setStock(int stock) { this.stock = stock; }
+    public void setMinStock(int minStock) { this.minStock = minStock; }
     public void setExpiry(LocalDate expiry) { this.expiry = expiry; }
 }
