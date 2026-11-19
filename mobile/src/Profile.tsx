@@ -1,6 +1,6 @@
 // MY 탭 화면 (프로필, 소속 매장, 로그아웃) - 사장님·직원 공통
 import { ReactNode, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Account } from './auth';
 import { C } from './ui';
@@ -49,7 +49,7 @@ export default function Profile({ id, acc, onSelect, onAdd, onLogout, onBell, on
       </View>
 
       <Pressable style={[s.card, s.storeCard]} onPress={() => setSwitching(!switching)}>
-        <Ionicons name="storefront" size={34} color={C.primary} />
+        {owner ? <Image source={require('../assets/storemate-store-icon.png')} style={{ width: 34, height: 34 }} resizeMode="contain" accessibilityLabel="StoreMate" /> : <Ionicons name="storefront" size={34} color={C.primary} />}
         <View style={{ flex: 1 }}>
           <Text style={s.storeName}>{store?.name ?? '소속 매장 없음'}</Text>
           <Text style={s.storeSub}>{owner ? '사장님' : '직원 · 오후 파트 · 2025.03.03 입사'}</Text>

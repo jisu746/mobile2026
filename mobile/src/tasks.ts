@@ -8,12 +8,12 @@ import { IMMINENT, daysLeft, listProducts, Product } from './inventory';
 // 서버에는 어떤 업무를 마쳤는지(id)만 저장한다.
 export type Task = {
   id: string;
-  kind: 'expired' | 'soon' | 'low';
+  kind: 'expired' | 'soon' | 'low' | 'custom';
   title: string;
   sub: string;
   icon: keyof typeof Ionicons.glyphMap;
   tag: string;
-  tone: 'action' | 'urgent';
+  tone: 'action' | 'urgent' | 'normal';
 };
 
 export function buildTasks(products: Product[]): Task[] {
@@ -33,7 +33,7 @@ export function buildTasks(products: Product[]): Task[] {
       out.push({ id: `low:${p.barcode}`, kind: 'low', title: `${p.name} 발주 필요`, sub: `현재 ${p.stock}개 · 적정 ${p.min}개`, icon: 'cube-outline', tag: '발주', tone: 'action' });
     }
   }
-  const order = { expired: 0, soon: 1, low: 2 };
+  const order = { expired: 0, soon: 1, low: 2, custom: 3 };
   return out.sort((a, b) => order[a.kind] - order[b.kind]);
 }
 
