@@ -33,6 +33,7 @@ public class WorkSession {
 
     public Long getId() { return id; }
     public Account getAccount() { return account; }
+    public Store getStore() { return store; }
     public LocalDateTime getClockIn() { return clockIn; }
     public LocalDateTime getClockOut() { return clockOut; }
     public void clockOut() { this.clockOut = now(); }

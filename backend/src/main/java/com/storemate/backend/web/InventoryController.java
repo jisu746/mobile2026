@@ -118,6 +118,10 @@ public class InventoryController {
                 movements.save(new StockMovement(p, account, MovementType.ADJUST, before, r.stock()));
             }
         }
+        if (r.min() != null) {
+            if (r.min() < 0) throw new ApiException(HttpStatus.BAD_REQUEST, "적정 재고는 0개 이상이어야 해요");
+            p.setMinStock(r.min());
+        }
         return view(p);
     }
 

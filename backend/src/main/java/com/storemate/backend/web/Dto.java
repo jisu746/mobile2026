@@ -54,7 +54,7 @@ public final class Dto {
     public record ReceiptResult(String barcode, String name, int before, int after, int min) {
     }
 
-    public record UpdateProductRequest(String name, Integer stock) {
+    public record UpdateProductRequest(String name, Integer stock, Integer min) {
     }
 
     // ---- 출퇴근 ----
@@ -62,13 +62,32 @@ public final class Dto {
     public record ClockInRequest(String code) {
     }
 
-    public record WorkStatus(String clockedAt) {
+    // elsewhere: 다른 매장에서 근무 중이면 그 매장 이름 (이 매장에는 출근할 수 없다)
+    public record WorkStatus(String clockedAt, String elsewhere) {
     }
 
     public record WorkRecord(String clockIn, String clockOut) {
     }
 
     public record ActiveStaff(String name, String clockIn) {
+    }
+
+    // ---- 직원 시급·근무 일정 (사장님이 정하고 직원 화면이 읽는다) ----
+    // hourlyWage 가 null 이면 사장님이 아직 정하지 않은 것. date 는 yyyy-MM-dd, 시각은 HH:mm
+    public record MeView(Integer hourlyWage, String joinedAt) {
+    }
+
+    public record StaffView(Long memberId, String name, Integer hourlyWage) {
+    }
+
+    public record WageRequest(Integer hourlyWage) {
+    }
+
+    // start/end 가 모두 null 이면 그 날의 일정을 지운다
+    public record Shift(String date, String start, String end) {
+    }
+
+    public record ShiftsRequest(List<Shift> shifts) {
     }
 
     // ---- 업무 완료 / 인수인계 / 알림 ----

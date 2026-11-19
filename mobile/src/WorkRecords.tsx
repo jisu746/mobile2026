@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { C } from './ui';
-import { hoursByDay, hr, listSessions, WAGE, won } from './work';
+import { hoursByDay, hr, listSessions, useMe, won } from './work';
 
 const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
@@ -11,6 +11,7 @@ const key = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 
 export default function WorkRecords({ storeId, onBack }: { storeId: number; onBack: () => void }) {
+  const { wage, wageSet } = useMe(storeId);
   const today = startOfDay(new Date());
   const [month, setMonth] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   const [selected, setSelected] = useState<Date>(today);
@@ -59,7 +60,7 @@ export default function WorkRecords({ storeId, onBack }: { storeId: number; onBa
     weekly[key(monday)] = (weekly[key(monday)] ?? 0) + h;
   }
   // 주휴 수당(예상): 주 15시간 이상 근무한 주마다 (주 근무시간 ÷ 40 × 8시간) × 시급
-  const holiday = Object.values(weekly).reduce((a, h) => a + (h >= 15 ? (Math.min(h, 40) / 40) * 8 * WAGE : 0), 0);
+  const holiday = Object.values(weekly).reduce((a, h) => a + (h >= 15 ? (Math.min(h, 40) / 40) * 8 * wage : 0), 0);
   const isThisMonth = y === today.getFullYear() && m === today.getMonth();
 
   const selHours = hoursOf(selected);
@@ -91,10 +92,10 @@ export default function WorkRecords({ storeId, onBack }: { storeId: number; onBa
           <View style={s.heroTop}>
             <View>
               <Text style={s.heroLabel}>{isThisMonth ? '이번 달' : `${m + 1}월`} 예상 급여</Text>
-              <Text style={s.heroPay}>{won(total * WAGE)}<Text style={s.heroWon}>원</Text></Text>
+              <Text style={s.heroPay}>{won(total * wage)}<Text style={s.heroWon}>원</Text></Text>
             </View>
             <View style={s.pill}>
-              <Text style={s.pillText}>시급 {won(WAGE)}원 기준</Text>
+              <Text style={s.pillText}>시급 {won(wage)}원 기준{wageSet ? '' : ' (기본)'}</Text>
             </View>
           </View>
           <View style={s.metrics}>
@@ -160,9 +161,9 @@ export default function WorkRecords({ storeId, onBack }: { storeId: number; onBa
             <Text style={s.detailTitle}>{selected.getMonth() + 1}월 {selected.getDate()}일 ({DAYS[selected.getDay()]}) 근무 상세</Text>
             <View style={s.detail}>
               <View style={s.heroTop}>
-                <Text style={s.detailPay}>{won(selHours * WAGE)}<Text style={s.detailWon}> 원</Text></Text>
+                <Text style={s.detailPay}>{won(selHours * wage)}<Text style={s.detailWon}> 원</Text></Text>
                 <View style={s.pill}>
-                  <Text style={s.pillText}>시급 {won(WAGE)}원</Text>
+                  <Text style={s.pillText}>시급 {won(wage)}원{wageSet ? '' : ' (기본)'}</Text>
                 </View>
               </View>
               <View style={s.detailBox}>

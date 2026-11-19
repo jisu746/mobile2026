@@ -1,7 +1,8 @@
 // 직원 홈 화면 (출근 전/후, 업무, 인수인계)과 하단 탭 연결
 import { ReactNode, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { ApiError } from './api';
 import BarcodeFlow from './BarcodeFlow';
 import InventoryTab from './InventoryTab';
 import Notifications from './Notifications';
@@ -11,10 +12,8 @@ import WorkRecords from './WorkRecords';
 import { Handover, listHandovers, resolveHandover, writeHandover } from './handover';
 import { useTasks } from './tasks';
 import { C, TabBar, TabItem } from './ui';
-import { clockIn, clockOut, currentShift, hhmm, hoursByDay, listSessions, WAGE, won } from './work';
+import { Shift, clockIn, clockOut, currentShift, hhmm, hoursByDay, listSessions, listShifts, shiftState, useMe, won, ymd } from './work';
 
-// TODO: 근무 시간은 샘플 데이터. 근무 일정 기능을 만들 때 서버 값으로 교체
-const SHIFT = '14:00 – 20:00';
 const TABS: TabItem[] = [
   { label: '업무/출퇴근', icon: 'checkbox-outline' },
   { label: '바코드 입고', icon: 'barcode-outline' },
@@ -34,7 +33,10 @@ export default function StaffHome({ storeId, storeName, userName, renderMy, onSw
   const [scanning, setScanning] = useState(false);
   const [qr, setQr] = useState('');
   const [error, setError] = useState('');
-  const [earn, setEarn] = useState(0); // 이번 달 예상 급여
+  const [notice, setNotice] = useState(''); // 출근할 수 없을 때 띄우는 안내창 내용
+  const [hours, setHours] = useState(0); // 이번 달 근무 시간
+  const [shifts, setShifts] = useState<Shift[]>([]); // 이번 달 내 근무 일정 (사장님이 정한 것)
+  const me = useMe(storeId);
   const [tasksOpen, setTasksOpen] = useState(false);
   const { tasks, done: taskDone, toggle: toggleTask, reload: reloadTasks } = useTasks(storeId);
   const [handovers, setHandovers] = useState<Handover[]>([]);
@@ -50,13 +52,15 @@ export default function StaffHome({ storeId, storeName, userName, renderMy, onSw
   const refreshEarn = () => {
     const d = new Date();
     listSessions(storeId, d.getFullYear(), d.getMonth() + 1).then(
-      (l) => setEarn(Object.values(hoursByDay(l)).reduce((a, h) => a + h, 0) * WAGE),
+      (l) => setHours(Object.values(hoursByDay(l)).reduce((a, h) => a + h, 0)),
       fail,
     );
   };
 
   useEffect(() => {
-    currentShift(storeId).then(setClockedAt, fail).finally(() => setReady(true));
+    const d = new Date();
+    currentShift(storeId).then((r) => setClockedAt(r.clockedAt), fail).finally(() => setReady(true));
+    listShifts(storeId, d.getFullYear(), d.getMonth() + 1).then(setShifts, fail);
     refreshEarn();
   }, [storeId]);
 
@@ -84,7 +88,19 @@ export default function StaffHome({ storeId, storeName, userName, renderMy, onSw
     return () => clearInterval(t);
   }, [clockedAt]);
 
-  const header = (avatar: boolean) => (
+  // 다른 매장에서 근무 중이면 스캔 화면을 열지 않고 바로 안내창을 띄운다
+  const startClockIn = async () => {
+    setError('');
+    try {
+      const r = await currentShift(storeId);
+      if (r.elsewhere) setNotice(`'${r.elsewhere}'에서 근무 중이에요.\n그곳에서 퇴근한 뒤 출근해 주세요.`);
+      else setScanning(true);
+    } catch (e) {
+      fail(e);
+    }
+  };
+
+  const header = (avatar: boolean, bell = true) => (
     <View style={s.header}>
       <Ionicons name="storefront" size={34} color={C.primary} />
       <View style={{ flex: 1 }}>
@@ -93,9 +109,11 @@ export default function StaffHome({ storeId, storeName, userName, renderMy, onSw
       </View>
       {avatar && (
         <>
-          <Pressable onPress={onBell} hitSlop={8}>
-            <Ionicons name="notifications-outline" size={24} color={C.primary} />
-          </Pressable>
+          {bell && (
+            <Pressable onPress={onBell} hitSlop={8}>
+              <Ionicons name="notifications-outline" size={24} color={C.primary} />
+            </Pressable>
+          )}
           <Pressable style={s.avatar} onPress={onProfile}>
             <Ionicons name="person" size={18} color="#fff" />
           </Pressable>
@@ -129,7 +147,9 @@ export default function StaffHome({ storeId, storeName, userName, renderMy, onSw
               setNow(Date.now());
               refreshEarn();
             } catch (e) {
-              fail(e);
+              // 다른 매장에서 근무 중이라 서버가 거절한 경우는 안내창으로 알린다
+              if (e instanceof ApiError && e.status === 409) setNotice(e.message);
+              else fail(e);
             }
             setScanning(false);
           }}
@@ -145,23 +165,42 @@ export default function StaffHome({ storeId, storeName, userName, renderMy, onSw
         </View>
       );
     }
+    const today = shifts.find((x) => x.date === ymd(new Date()));
+    const headline = {
+      none: '오늘은 근무 일정이 없어요',
+      before: '아직 근무 시간이 아니에요',
+      during: '근무 시간이에요\n출근해 주세요',
+      after: '오늘 근무가 끝났어요',
+    }[shiftState(today)];
     return (
       <View style={s.root}>
-        <View style={s.pad}>{header(true)}</View>
-        <Text style={s.big}>{`${ME.slice(1)}님,\n아직 근무 시간이 아니에요`}</Text>
+        <View style={s.pad}>{header(true, false)}</View>
+        <Text style={s.big}>{`${ME.slice(1)}님,\n${headline}`}</Text>
         <View style={s.shift}>
           <Text style={s.shiftLabel}>근무 시간</Text>
-          <Text style={s.shiftTime}>{SHIFT}</Text>
+          <Text style={s.shiftTime}>{today ? `${today.start} – ${today.end}` : '일정 없음'}</Text>
           <View style={s.loc}>
             <Ionicons name="qr-code" size={14} color="#fff" />
             <Text style={s.locText}>QR 코드를 스캔해주세요</Text>
           </View>
-          <Pressable style={s.clockIn} onPress={() => { setError(''); setScanning(true); }}>
+          <Pressable style={s.clockIn} onPress={startClockIn}>
             <Ionicons name="log-in-outline" size={18} color={C.text} />
             <Text style={s.clockInText}>출근하기</Text>
           </Pressable>
           {!!error && <Text style={s.error}>{error}</Text>}
         </View>
+
+        <Modal transparent animationType="fade" visible={!!notice} onRequestClose={() => setNotice('')}>
+          <View style={s.dim}>
+            <View style={s.dialog}>
+              <Text style={s.dialogTitle}>출근할 수 없어요</Text>
+              <Text style={s.dialogBody}>{notice}</Text>
+              <Pressable style={s.dialogBtn} onPress={() => setNotice('')}>
+                <Text style={s.dialogBtnText}>확인</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
       </View>
     );
   }
@@ -192,7 +231,7 @@ export default function StaffHome({ storeId, storeName, userName, renderMy, onSw
         <ScrollView contentContainerStyle={s.scroll}>
           {header(true)}
           <Text style={s.hello}>{ME.slice(1)}님, 오늘도 파이팅!</Text>
-          <Text style={s.earn}>이번달 {won(earn)}원 벌었어요</Text>
+          <Text style={s.earn}>이번달 {won(hours * me.wage)}원 벌었어요</Text>
 
           <View style={s.status}>
             <View style={{ flex: 1 }}>
@@ -339,6 +378,12 @@ const s = StyleSheet.create({
   locText: { fontSize: 12, color: '#fff' },
   clockIn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 54, borderRadius: 27, backgroundColor: '#fff', marginTop: 20 },
   error: { fontSize: 12, color: '#fff', marginTop: 10, textAlign: 'center' },
+  dim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center', padding: 32 },
+  dialog: { width: '100%', maxWidth: 320, backgroundColor: '#fff', borderRadius: 20, padding: 22 },
+  dialogTitle: { fontSize: 16, fontWeight: '800', color: C.text },
+  dialogBody: { fontSize: 13.5, lineHeight: 20, color: '#5E5C6B', marginTop: 10 },
+  dialogBtn: { height: 46, borderRadius: 23, backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center', marginTop: 20 },
+  dialogBtnText: { fontSize: 14.5, fontWeight: '700', color: '#fff' },
   clockInText: { fontSize: 15, fontWeight: '700', color: C.text },
   hello: { fontSize: 24, fontWeight: '800', color: C.text, marginTop: 18 },
   earn: { fontSize: 11.5, color: '#828282', marginTop: 4 },
