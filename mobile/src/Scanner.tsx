@@ -50,6 +50,13 @@ export default function Scanner({
       </View>
 
       <View style={s.camera}>
+        <View pointerEvents="none" style={s.frame}>
+          <View style={[s.corner, { top: 0, left: 0, borderTopWidth: 4, borderLeftWidth: 4, borderTopLeftRadius: 14 }]} />
+          <View style={[s.corner, { top: 0, right: 0, borderTopWidth: 4, borderRightWidth: 4, borderTopRightRadius: 14 }]} />
+          <View style={[s.corner, { bottom: 0, left: 0, borderBottomWidth: 4, borderLeftWidth: 4, borderBottomLeftRadius: 14 }]} />
+          <View style={[s.corner, { bottom: 0, right: 0, borderBottomWidth: 4, borderRightWidth: 4, borderBottomRightRadius: 14 }]} />
+          <View style={s.line} />
+        </View>
         {perm?.granted ? (
           <CameraView
             style={StyleSheet.absoluteFill}
@@ -70,13 +77,6 @@ export default function Scanner({
             <Text style={s.permText}>카메라 권한 허용하기</Text>
           </Pressable>
         )}
-        <View pointerEvents="none" style={s.frame}>
-          <View style={[s.corner, { top: 0, left: 0, borderTopWidth: 4, borderLeftWidth: 4, borderTopLeftRadius: 14 }]} />
-          <View style={[s.corner, { top: 0, right: 0, borderTopWidth: 4, borderRightWidth: 4, borderTopRightRadius: 14 }]} />
-          <View style={[s.corner, { bottom: 0, left: 0, borderBottomWidth: 4, borderLeftWidth: 4, borderBottomLeftRadius: 14 }]} />
-          <View style={[s.corner, { bottom: 0, right: 0, borderBottomWidth: 4, borderRightWidth: 4, borderBottomRightRadius: 14 }]} />
-          <View style={s.line} />
-        </View>
         <Text pointerEvents="none" style={s.hint}>{hint}</Text>
 
         {manualEntry && code === null && (

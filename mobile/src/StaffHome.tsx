@@ -153,8 +153,8 @@ export default function StaffHome({ storeId, storeName, userName, renderMy, onSw
           <Text style={s.shiftLabel}>근무 시간</Text>
           <Text style={s.shiftTime}>{SHIFT}</Text>
           <View style={s.loc}>
-            <Ionicons name="location-outline" size={14} color="#fff" />
-            <Text style={s.locText}>매장 반경 안에 있어요</Text>
+            <Ionicons name="qr-code" size={14} color="#fff" />
+            <Text style={s.locText}>QR 코드를 스캔해주세요</Text>
           </View>
           <Pressable style={s.clockIn} onPress={() => { setError(''); setScanning(true); }}>
             <Ionicons name="log-in-outline" size={18} color={C.text} />
@@ -334,7 +334,7 @@ const s = StyleSheet.create({
   big: { fontSize: 24, fontWeight: '800', color: C.text, lineHeight: 34, marginTop: 36, marginBottom: 20, paddingHorizontal: 16 },
   shift: { backgroundColor: C.primary, borderRadius: 22, padding: 20, marginHorizontal: 16 },
   shiftLabel: { fontSize: 12, color: 'rgba(255,255,255,0.8)' },
-  shiftTime: { fontSize: 28, fontWeight: '800', color: '#fff', marginTop: 4 },
+  shiftTime: { fontSize: 28, fontWeight: '700', color: '#fff', marginTop: 4 },
   loc: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 10 },
   locText: { fontSize: 12, color: '#fff' },
   clockIn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 54, borderRadius: 27, backgroundColor: '#fff', marginTop: 20 },
