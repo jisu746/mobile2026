@@ -3,6 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Account } from './auth';
 import { C } from './ui';
+import WorkLog from './WorkLog'
 
 type Props = {
   id: string;
@@ -18,6 +19,10 @@ type Props = {
 export default function Profile({ id, acc, onSelect, onAdd, onLogout, onBell }: Props) {
   const owner = acc.role === 'owner';
   const [switching, setSwitching] = useState(false);
+  const [workLogOpen, setWorkLogOpen] = useState(false);
+  if (workLogOpen){
+    return <WorkLog onBack={() => setWorkLogOpen(false)} onBell={onBell} />;
+  }
   const store = acc.stores[acc.current];
 
   return (
@@ -82,7 +87,7 @@ export default function Profile({ id, acc, onSelect, onAdd, onLogout, onBell }: 
         <View style={s.card}>
           <MenuRow icon="document-text-outline" label="근로계약서" />
           <View style={s.line} />
-          <MenuRow icon="calendar-outline" label="근무 기록" />
+          <MenuRow icon="calendar-outline" label="근무 기록" onPress={() => setWorkLogOpen(true)}/>
         </View>
 
       <Text style={s.section}>앱 설정</Text>
@@ -109,9 +114,9 @@ function Stat({ label, children }: { label: string; children: ReactNode }) {
 
 const Unit = ({ children }: { children: ReactNode }) => <Text style={s.unit}>{children}</Text>;
 
-function MenuRow({ icon, label, gray }: { icon: keyof typeof Ionicons.glyphMap; label: string; gray?: boolean }) {
+function MenuRow({ icon, label, gray, onPress}: { icon: keyof typeof Ionicons.glyphMap; label: string; gray?: boolean; onPress?: () => void }) {
   return (
-    <Pressable style={s.menu}>
+    <Pressable style={s.menu} onPress={onPress}>
       <View style={[s.menuIcon, gray && { backgroundColor: '#F1F0F5' }]}>
         <Ionicons name={icon} size={18} color={C.primary} />
       </View>
