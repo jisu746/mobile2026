@@ -1,31 +1,18 @@
-import { ReactNode, useState } from 'react';
+// 사장님 홈 화면 (업무 진행률, 근무 현황)과 하단 탭 연결
+import { ReactNode, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
 import BarcodeFlow from './BarcodeFlow';
 import InventoryTab from './InventoryTab';
 import Notifications from './Notifications';
-import TabBar from './TabBar';
-import { C } from './ui';
+import WorkRecords from './WorkRecords';
+import { useTasks } from './tasks';
+import { C, TabBar } from './ui';
+import { activeStaff, hhmm } from './work';
 
 type Icon = keyof typeof Ionicons.glyphMap;
 
-// TODO: 아래 수치·목록은 샘플 데이터. API 연동 단계에서 서버 값으로 교체
-const PROGRESS = { done: 13, total: 21 };
-const STATS: { label: string; value: string; icon: Icon; color: string }[] = [
-  { label: '유통기한 임박', value: '5개', icon: 'time-outline', color: '#E8590C' },
-  { label: '재고 부족', value: '3개', icon: 'clipboard-outline', color: '#D93025' },
-  { label: '근무 중', value: '4명', icon: 'people-outline', color: '#1E8E3E' },
-];
-const TODOS: { title: string; sub: string; icon: Icon; tag: string; kind: 'action' | 'urgent' | 'normal' }[] = [
-  { title: '컵라면(신라면) 발주 필요', sub: '재고 4 / 적정 20 · 3일 연속 부족', icon: 'cube-outline', tag: '발주', kind: 'action' },
-  { title: '서울우유 1L 폐기 처리', sub: '홍지수 님에게 폐기 업무 배정됨', icon: 'time-outline', tag: 'D-day', kind: 'urgent' },
-  { title: '좌석 정리', sub: '', icon: 'checkmark-circle-outline', tag: '일반', kind: 'normal' },
-];
-const STAFF = [
-  { name: '정채원', info: '14:00 ~ 20:00 · 13:58 출근' },
-  { name: '민보람', info: '14:00 ~ 20:00 · 14:01 출근' },
-];
 const TABS: { label: string; icon: Icon }[] = [
   { label: '업무/직원', icon: 'checkbox-outline' },
   { label: '바코드 입고', icon: 'barcode-outline' },
@@ -34,27 +21,42 @@ const TABS: { label: string; icon: Icon }[] = [
 ];
 
 // 사장님 홈: 메인, 바코드 입고, 재고, MY(프로필)까지 직원 화면과 같은 컴포넌트를 쓴다. 그 밖의 상세 화면은 아직 연결하지 않았다.
-export default function OwnerHome({ store, userName, renderMy, onSwitchStore: onProfile }: { store: { name: string; type: string }; userName: string; renderMy: (onBell: () => void) => ReactNode; onSwitchStore: () => void }) {
+export default function OwnerHome({ store, userName, renderMy, onSwitchStore: onProfile }: { store: { id?: number; name: string; type: string }; userName: string; renderMy: (onBell: () => void, onRecords: () => void) => ReactNode; onSwitchStore: () => void }) {
   const [tab, setTab] = useState(0);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [recordsOpen, setRecordsOpen] = useState(false);
   const onBell = () => setNotifOpen(true);
 
-  if (notifOpen) return <Notifications role="owner" onBack={() => setNotifOpen(false)} />;
+  if (notifOpen) return <Notifications storeId={store.id ?? 0} onBack={() => setNotifOpen(false)} />;
+  if (recordsOpen) return <WorkRecords storeId={store.id ?? 0} onBack={() => setRecordsOpen(false)} />;
 
   // 바코드 입고는 탭바 없이 전체 화면으로 열린다
-  if (tab === 1) return <BarcodeFlow store={store.name} userName={userName} onExit={() => setTab(0)} />;
+  if (tab === 1) return <BarcodeFlow store={store.id ?? 0} userName={userName} onExit={() => setTab(0)} />;
 
   return (
     <View style={s.root}>
-      {tab === 0 ? <Dashboard store={store} onProfile={onProfile} onBell={onBell} /> : tab === 2 ? <InventoryTab store={store.name} onProfile={onProfile} onBell={onBell} /> : tab === 3 ? renderMy(onBell) : <View style={s.empty}><Text style={s.emptyText}>{TABS[tab].label} 화면은 준비 중이에요</Text></View>}
+      {tab === 0 ? <Dashboard storeId={store.id ?? 0} store={store} onProfile={onProfile} onBell={onBell} /> : tab === 2 ? <InventoryTab store={store.id ?? 0} onProfile={onProfile} onBell={onBell} /> : tab === 3 ? renderMy(onBell, () => setRecordsOpen(true)) : <View style={s.empty}><Text style={s.emptyText}>{TABS[tab].label} 화면은 준비 중이에요</Text></View>}
 
       <TabBar tabs={TABS} active={tab} onChange={setTab} />
     </View>
   );
 }
 
-function Dashboard({ store, onProfile, onBell }: { store: { name: string; type: string }; onProfile: () => void; onBell: () => void }) {
-  const pct = Math.round((PROGRESS.done / PROGRESS.total) * 100);
+function Dashboard({ storeId, store, onProfile, onBell }: { storeId: number; store: { name: string; type: string }; onProfile: () => void; onBell: () => void }) {
+  const { tasks, done, error } = useTasks(storeId);
+  const [staff, setStaff] = useState<{ name: string; clockIn: Date }[]>([]);
+  useEffect(() => {
+    activeStaff(storeId).then(setStaff, () => {});
+  }, [storeId]);
+
+  const doneCount = tasks.filter((t) => done.includes(t.id)).length;
+  const pct = tasks.length ? Math.round((doneCount / tasks.length) * 100) : 0;
+  const todos = tasks.filter((t) => !done.includes(t.id));
+  const STATS: { label: string; value: string; icon: Icon; color: string }[] = [
+    { label: '유통기한 임박', value: `${tasks.filter((t) => t.kind !== 'low').length}개`, icon: 'time-outline', color: '#E8590C' },
+    { label: '재고 부족', value: `${tasks.filter((t) => t.kind === 'low').length}개`, icon: 'clipboard-outline', color: '#D93025' },
+    { label: '근무 중', value: `${staff.length}명`, icon: 'people-outline', color: '#1E8E3E' },
+  ];
 
   return (
     <ScrollView contentContainerStyle={s.scroll}>
@@ -82,7 +84,7 @@ function Dashboard({ store, onProfile, onBell }: { store: { name: string; type: 
         <Ring pct={pct} />
         <View style={{ flex: 1 }}>
           <Text style={s.heroLabel}>오늘 업무 진행률</Text>
-          <Text style={s.heroValue}>{PROGRESS.done} / {PROGRESS.total} 완료</Text>
+          <Text style={s.heroValue}>{doneCount} / {tasks.length} 완료</Text>
           <Text style={s.heroSub}>재고 데이터 기반 업무 자동 생성</Text>
         </View>
         <Ionicons name="chevron-forward" size={22} color="#fff" />
@@ -101,18 +103,20 @@ function Dashboard({ store, onProfile, onBell }: { store: { name: string; type: 
       </View>
 
       <View style={s.sectionHead}>
-        <Text style={s.section}>확인 필요 <Text style={{ color: C.primary }}>{TODOS.length}</Text></Text>
+        <Text style={s.section}>확인 필요 <Text style={{ color: C.primary }}>{todos.length}</Text></Text>
         <Text style={s.more}>전체 &gt;</Text>
       </View>
       <View style={s.card}>
-        {TODOS.map((t, i) => (
-          <View key={t.title} style={[s.todo, i > 0 && s.line]}>
+        {!!error && <Text style={[s.todoSub, { padding: 14, color: '#D93025' }]}>{error}</Text>}
+        {!error && !todos.length && <Text style={[s.todoSub, { padding: 14 }]}>확인할 업무가 없어요</Text>}
+        {todos.slice(0, 5).map((t, i) => (
+          <View key={t.id} style={[s.todo, i > 0 && s.line]}>
             <Ionicons name={t.icon} size={22} color={C.primary} />
             <View style={{ flex: 1 }}>
               <Text style={s.todoTitle}>{t.title}</Text>
               {!!t.sub && <Text style={s.todoSub}>{t.sub}</Text>}
             </View>
-            <Tag kind={t.kind} label={t.tag} />
+            <Tag kind={t.tone} label={t.tag} />
           </View>
         ))}
       </View>
@@ -123,14 +127,15 @@ function Dashboard({ store, onProfile, onBell }: { store: { name: string; type: 
       </Pressable>
 
       <Text style={[s.section, { marginTop: 26, marginBottom: 12 }]}>근무 현황</Text>
-      {STAFF.map((p) => (
-        <View key={p.name} style={[s.card, s.staff]}>
+      {!staff.length && <Text style={[s.todoSub, { marginBottom: 10 }]}>지금 근무 중인 직원이 없어요</Text>}
+      {staff.map((p, i) => (
+        <View key={i} style={[s.card, s.staff]}>
           <View style={s.staffAvatar}>
             <Text style={s.staffInitial}>{p.name[0]}</Text>
           </View>
           <View>
             <Text style={s.todoTitle}>{p.name}</Text>
-            <Text style={s.todoSub}>{p.info}</Text>
+            <Text style={s.todoSub}>{hhmm(p.clockIn)} 출근</Text>
           </View>
         </View>
       ))}

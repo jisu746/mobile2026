@@ -1,8 +1,10 @@
-import { ReactNode, useState } from 'react';
+// MY 탭 화면 (프로필, 소속 매장, 로그아웃) - 사장님·직원 공통
+import { ReactNode, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Account } from './auth';
 import { C } from './ui';
+import { hoursByDay, hr, listSessions, useMe } from './work';
 
 type Props = {
   id: string;
@@ -11,14 +13,32 @@ type Props = {
   onAdd: () => void;
   onLogout: () => void;
   onBell: () => void;
+  onRecords: () => void;
 };
 
-// MY 탭 (사장님·직원 공통 화면. 사장님은 소속 줄과 매장 추가 문구만 다르다)
-// TODO: 파트·입사일·근무 시간·예상 급여·근속은 샘플 데이터. API 연동 단계에서 서버 값으로 교체
-export default function Profile({ id, acc, onSelect, onAdd, onLogout, onBell }: Props) {
+const dot = (d: Date) => `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
+
+export default function Profile({ id, acc, onSelect, onAdd, onLogout, onBell, onRecords }: Props) {
   const owner = acc.role === 'owner';
   const [switching, setSwitching] = useState(false);
   const store = acc.stores[acc.current];
+  const storeId = store?.id ?? 0;
+
+  // 직원: 이번 달 근무 시간, 예상 급여(사장님이 정한 시급), 근속은 서버 값으로 계산한다
+  const me = useMe(storeId);
+  const [hours, setHours] = useState(0);
+  useEffect(() => {
+    if (owner || !storeId) return;
+    const d = new Date();
+    listSessions(storeId, d.getFullYear(), d.getMonth() + 1).then(
+      (l) => setHours(Object.values(hoursByDay(l)).reduce((a, h) => a + h, 0)),
+      () => {},
+    );
+  }, [owner, storeId]);
+  const now = new Date();
+  const months = me.joinedAt
+    ? Math.max(0, (now.getFullYear() - me.joinedAt.getFullYear()) * 12 + now.getMonth() - me.joinedAt.getMonth() - (now.getDate() < me.joinedAt.getDate() ? 1 : 0))
+    : 0;
 
   return (
     <ScrollView contentContainerStyle={s.body}>
@@ -51,7 +71,7 @@ export default function Profile({ id, acc, onSelect, onAdd, onLogout, onBell }: 
         <Ionicons name="storefront" size={34} color={C.primary} />
         <View style={{ flex: 1 }}>
           <Text style={s.storeName}>{store?.name ?? '소속 매장 없음'}</Text>
-          <Text style={s.storeSub}>{owner ? '사장님' : '직원 · 오후 파트 · 2025.03.03 입사'}</Text>
+          <Text style={s.storeSub}>{owner ? '사장님' : `직원${me.joinedAt ? ` · ${dot(me.joinedAt)} 입사` : ''}`}</Text>
         </View>
         <Ionicons name={switching ? 'chevron-up' : 'chevron-down'} size={20} color="#5E5C6B" />
       </Pressable>
@@ -71,18 +91,20 @@ export default function Profile({ id, acc, onSelect, onAdd, onLogout, onBell }: 
         </View>
       )}
 
-        <View style={s.stats}>
-          <Stat label="이번 달 근무">62<Unit>시간</Unit></Stat>
-          <Stat label="예상 급여">76.4<Unit>만원</Unit></Stat>
-          <Stat label="근속">1<Unit>년 </Unit>6<Unit>개월</Unit></Stat>
-        </View>
+        {!owner && (
+          <View style={s.stats}>
+            <Stat label="이번 달 근무">{hr(hours)}<Unit>시간</Unit></Stat>
+            <Stat label="예상 급여">{(Math.round((hours * me.wage) / 1000) / 10).toFixed(1)}<Unit>만원</Unit></Stat>
+            <Stat label="근속">{months >= 12 && <>{Math.floor(months / 12)}<Unit>년 </Unit></>}{months % 12}<Unit>개월</Unit></Stat>
+          </View>
+        )}
 
         <Text style={s.section}>근무 · 급여</Text>
-        {/* TODO: 근로계약서·근무 기록 화면 연결 */}
+        {/* TODO: 근로계약서 화면 연결 */}
         <View style={s.card}>
           <MenuRow icon="document-text-outline" label="근로계약서" />
           <View style={s.line} />
-          <MenuRow icon="calendar-outline" label="근무 기록" />
+          <MenuRow icon="calendar-outline" label="근무 기록" onPress={onRecords} />
         </View>
 
       <Text style={s.section}>앱 설정</Text>
@@ -109,9 +131,9 @@ function Stat({ label, children }: { label: string; children: ReactNode }) {
 
 const Unit = ({ children }: { children: ReactNode }) => <Text style={s.unit}>{children}</Text>;
 
-function MenuRow({ icon, label, gray }: { icon: keyof typeof Ionicons.glyphMap; label: string; gray?: boolean }) {
+function MenuRow({ icon, label, gray, onPress }: { icon: keyof typeof Ionicons.glyphMap; label: string; gray?: boolean; onPress?: () => void }) {
   return (
-    <Pressable style={s.menu}>
+    <Pressable style={s.menu} onPress={onPress}>
       <View style={[s.menuIcon, gray && { backgroundColor: '#F1F0F5' }]}>
         <Ionicons name={icon} size={18} color={C.primary} />
       </View>

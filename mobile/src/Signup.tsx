@@ -1,3 +1,4 @@
+// 회원가입 화면 (여러 단계)
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,6 +15,7 @@ export default function Signup({ step, onStep, onBack, onDone }: Props) {
   const [pw, setPw] = useState('');
   const [pw2, setPw2] = useState('');
   const [idError, setIdError] = useState('');
+  const [formError, setFormError] = useState('');
   const [role, setRole] = useState<'owner' | 'staff'>('owner');
   const [name, setName] = useState('');
   const [birth, setBirth] = useState('');
@@ -38,9 +40,16 @@ export default function Signup({ step, onStep, onBack, onDone }: Props) {
   }
 
   const next = async () => {
-    if (step === 1 && (await exists(id))) return setIdError('이미 사용 중인 아이디예요');
-    if (step === 3) await signup(id, { pw, role, name, birth });
-    onStep((step + 1) as 2 | 3 | 4);
+    try {
+      if (step === 1 && (await exists(id))) return setIdError('이미 사용 중인 아이디예요');
+      if (step === 3) await signup(id, { pw, role, name, birth });
+      setFormError('');
+      onStep((step + 1) as 2 | 3 | 4);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '요청을 처리하지 못했어요';
+      if (step === 1) setIdError(msg);
+      else setFormError(msg);
+    }
   };
 
   const mismatch = pw2 !== '' && pw !== pw2;
@@ -99,6 +108,7 @@ export default function Signup({ step, onStep, onBack, onDone }: Props) {
       )}
 
       <View style={s.bottom}>
+        {!!formError && <Text style={[s.error, { marginBottom: 8 }]}>{formError}</Text>}
         <Button label={step === 3 ? '완료' : '다음'} disabled={!ok} onPress={next} />
       </View>
     </View>

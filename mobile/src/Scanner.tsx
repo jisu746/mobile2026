@@ -1,3 +1,4 @@
+// 카메라로 QR·바코드를 읽는 공통 스캔 화면 (값 직접 입력 칸 포함)
 import { ReactNode, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,7 +18,7 @@ type Props = {
   confirmLabel?: string;
   confirmIcon?: keyof typeof Ionicons.glyphMap;
   onConfirm?: () => void;
-  manualEntry?: boolean; // 카메라 대신 번호를 직접 입력하는 칸 표시
+  manualEntry?: boolean | 'text'; // 카메라 대신 값을 직접 입력하는 칸 표시 (true = 숫자만, 'text' = 아무 글자. QR·바코드 규격이 정해지기 전 테스트용)
   // 직접 만든 시트: 스캔한 값과 다시 스캔 함수를 받는다
   sheet?: (code: string, rescan: () => void) => ReactNode;
 };
@@ -33,8 +34,9 @@ export default function Scanner({
   const [typed, setTyped] = useState('');
 
   const submitTyped = () => {
-    onScan?.(typed);
-    setCode(typed);
+    const v = manualEntry === 'text' ? typed.trim().toUpperCase() : typed;
+    onScan?.(v);
+    setCode(v);
     setTyped('');
   };
 
@@ -82,14 +84,14 @@ export default function Scanner({
             <TextInput
               style={s.manualInput}
               value={typed}
-              onChangeText={(t) => setTyped(t.replace(/\D/g, ''))}
-              placeholder="바코드 번호 직접 입력"
+              onChangeText={(t) => setTyped(manualEntry === 'text' ? t : t.replace(/\D/g, ''))}
+              placeholder={manualEntry === 'text' ? '값 직접 입력 (아무거나)' : '바코드 번호 직접 입력'}
               placeholderTextColor="#A3A1B0"
-              keyboardType="number-pad"
-              maxLength={14}
-              onSubmitEditing={() => typed.length > 0 && submitTyped()}
+              keyboardType={manualEntry === 'text' ? 'default' : 'number-pad'}
+              maxLength={manualEntry === 'text' ? 20 : 14}
+              onSubmitEditing={() => typed.trim().length > 0 && submitTyped()}
             />
-            <Pressable style={[s.manualBtn, typed.length === 0 && { opacity: 0.4 }]} disabled={typed.length === 0} onPress={submitTyped}>
+            <Pressable style={[s.manualBtn, !typed.trim() && { opacity: 0.4 }]} disabled={!typed.trim()} onPress={submitTyped}>
               <Text style={s.manualBtnText}>확인</Text>
             </Pressable>
           </View>

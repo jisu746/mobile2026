@@ -1,0 +1,16 @@
+// 근무 일정 테이블 조회·저장 창구
+package com.storemate.backend.repo;
+
+import com.storemate.backend.domain.StoreMember;
+import com.storemate.backend.domain.WorkShift;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Optional;
+
+public interface WorkShiftRepository extends JpaRepository<WorkShift, Long> {
+    List<WorkShift> findByMemberAndDayGreaterThanEqualAndDayLessThanOrderByDayAsc(StoreMember member, LocalDate from, LocalDate to);
+
+    Optional<WorkShift> findByMemberAndDay(StoreMember member, LocalDate day);
+}

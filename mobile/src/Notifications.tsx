@@ -1,48 +1,42 @@
+// 알림 목록 화면 (서버 알림, 사장님·직원 공통)
 import { useEffect, useState } from 'react';
 import { BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import NotificationSettings from './NotificationSettings';
+import { listNotifs, markRead, Notif } from './notifs';
 import { C } from './ui';
+import { hhmm } from './work';
 
 type Icon = keyof typeof Ionicons.glyphMap;
-type Item = { id: string; icon: Icon; bg: string; fg: string; title: string; sub: string; time: string; unread?: boolean; outline?: boolean };
-type Data = { today: Item[]; yesterday: Item[] };
+type Look = { icon: Icon; bg: string; fg: string; outline?: boolean };
 
-const RED = { bg: '#FBEDEC', fg: '#D93025' };
 const GREEN = { bg: '#EAF5EE', fg: '#2F7A4E' };
-const ORANGE = { bg: '#FCF0E8', fg: '#D9661F' };
 const GRAY = { bg: '#F1F0F5', fg: '#5E5C6B' };
 const PURPLE = { bg: '#F5F4FB', fg: C.primary };
 
-// TODO: 알림 목록은 샘플 데이터. API 연동 단계에서 서버 알림(최근 30일)으로 교체
-const DATA: Record<'owner' | 'staff', Data> = {
-  staff: {
-    today: [
-      { id: 's1', icon: 'time-outline', ...RED, title: '서울우유 1L 오늘 만료', sub: '냉장고 2칸 · 2개 · 폐기 업무가 배정됐어요', time: '14:02', unread: true },
-      { id: 's2', icon: 'swap-horizontal', ...PURPLE, outline: true, title: '민보람 님이 인수인계를 남겼어요', sub: '3번 룸 에어컨 리모컨 배터리 교체 필요해요. 우유는 오늘 오후 입고...', time: '13:52', unread: true },
-      { id: 's3', icon: 'checkmark-circle-outline', ...GREEN, title: '좌석 정리 · 1차 완료가 승인됐어요', sub: '이주영 관리자 · 14:05 완료 보고', time: '14:11' },
-      { id: 's4', icon: 'file-tray-full-outline', ...ORANGE, title: '재고 부족 업무가 추가됐어요', sub: '아이스컵 16oz · 현재 1박스 · 창고에서 보충해 주세요', time: '13:58' },
-    ],
-    yesterday: [
-      { id: 's5', icon: 'calendar-outline', ...GRAY, title: '근무 기록 정정이 반영됐어요', sub: '9월 28일 퇴근 20:00 → 20:30 · 이주영 관리자', time: '09:12' },
-    ],
-  },
-  owner: {
-    today: [
-      { id: 'o1', icon: 'person-add', ...PURPLE, outline: true, title: '정하늘 님이 매장 참여를 요청했어요', sub: '초대 코드 · haneul@mail.com', time: '15:20', unread: true },
-      { id: 'o2', icon: 'cube-outline', ...RED, title: '컵라면(신라면) 발주가 필요해요', sub: '재고 4 / 적정 20 · 3일 연속 부족', time: '15:02', unread: true },
-      { id: 'o3', icon: 'download-outline', ...GREEN, title: '홍지수 님이 입고를 완료했어요', sub: '3개 품목 · 38개 · 서울우유 홍대 대리점', time: '15:42', unread: true },
-      { id: 'o4', icon: 'log-in-outline', ...GRAY, outline: true, title: '홍지수 님이 출근했어요', sub: '13:58 · 오후 파트', time: '13:58' },
-    ],
-    yesterday: [
-      { id: 'o5', icon: 'time-outline', ...ORANGE, title: '유통기한 임박 상품 5개', sub: 'D-3 이내 · 크림빵, 요거트 외 3개', time: '09:00' },
-    ],
-  },
+// 서버 알림 종류별 아이콘과 색
+const LOOK: Record<string, Look> = {
+  receipt: { icon: 'download-outline', ...GREEN },
+  clockin: { icon: 'log-in-outline', ...GRAY, outline: true },
+  join: { icon: 'person-add', ...PURPLE, outline: true },
+  handover: { icon: 'swap-horizontal', ...PURPLE, outline: true },
 };
+const DEFAULT_LOOK: Look = { icon: 'notifications-outline', ...GRAY };
 
-// 알림 목록 (사장님·직원 공통 화면, 내용만 다르다)
-export default function Notifications({ role, onBack }: { role: 'owner' | 'staff'; onBack: () => void }) {
-  const data = DATA[role];
-  const [read, setRead] = useState<string[]>([]);
+const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+
+export default function Notifications({ storeId, onBack }: { storeId: number; onBack: () => void }) {
+  const [list, setList] = useState<Notif[] | null>(null);
+  const [error, setError] = useState('');
+  const [settings, setSettings] = useState(false);
+
+  const fail = (e: unknown) => setError(e instanceof Error ? e.message : '요청을 처리하지 못했어요');
+  useEffect(() => {
+    listNotifs(storeId).then(setList, (e) => {
+      setList([]);
+      fail(e);
+    });
+  }, [storeId]);
 
   // 안드로이드 뒤로가기로 알림 화면만 닫는다
   useEffect(() => {
@@ -53,7 +47,22 @@ export default function Notifications({ role, onBack }: { role: 'owner' | 'staff
     return () => sub.remove();
   }, [onBack]);
 
-  const markAll = () => setRead([...data.today, ...data.yesterday].map((i) => i.id));
+  if (settings) return <NotificationSettings onBack={() => setSettings(false)} />;
+
+  const read = (ids: number[]) => {
+    if (!ids.length) return;
+    setList((c) => c && c.map((n) => (ids.includes(n.id) ? { ...n, read: true } : n)));
+    markRead(storeId, ids).catch(fail);
+  };
+
+  const all = list ?? [];
+  const today = new Date();
+  const yesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
+  const groups = [
+    { label: '오늘', items: all.filter((n) => dayKey(n.createdAt) === dayKey(today)) },
+    { label: '어제', items: all.filter((n) => dayKey(n.createdAt) === dayKey(yesterday)) },
+    { label: '이전', items: all.filter((n) => dayKey(n.createdAt) !== dayKey(today) && dayKey(n.createdAt) !== dayKey(yesterday)) },
+  ];
 
   return (
     <View style={s.root}>
@@ -62,40 +71,46 @@ export default function Notifications({ role, onBack }: { role: 'owner' | 'staff
           <Ionicons name="arrow-back" size={24} color={C.text} />
         </Pressable>
         <Text style={s.title}>알림</Text>
-        <Pressable onPress={markAll} hitSlop={8}>
+        <Pressable onPress={() => read(all.filter((n) => !n.read).map((n) => n.id))} hitSlop={8}>
           <Text style={s.readAll}>모두 읽음</Text>
         </Pressable>
-        {/* TODO: 알림 설정 화면 연결 */}
-        <Ionicons name="settings-outline" size={22} color={C.text} />
+        <Pressable onPress={() => setSettings(true)} hitSlop={8}>
+          <Ionicons name="settings-outline" size={22} color={C.text} />
+        </Pressable>
       </View>
 
       <ScrollView contentContainerStyle={s.body}>
-        <Section label="오늘" items={data.today} read={read} onRead={(id) => setRead((c) => [...c, id])} />
-        <Section label="어제" items={data.yesterday} read={read} onRead={(id) => setRead((c) => [...c, id])} />
+        {!!error && <Text style={[s.footer, { color: '#D93025' }]}>{error}</Text>}
+        {list === null && !error && <Text style={s.footer}>불러오는 중이에요</Text>}
+        {list !== null && !all.length && !error && <Text style={s.footer}>새 알림이 없어요</Text>}
+        {groups.filter((g) => g.items.length).map((g) => (
+          <Section key={g.label} label={g.label} items={g.items} onRead={(id) => read([id])} />
+        ))}
         <Text style={s.footer}>최근 30일 알림까지 보관돼요</Text>
       </ScrollView>
     </View>
   );
 }
 
-function Section({ label, items, read, onRead }: { label: string; items: Item[]; read: string[]; onRead: (id: string) => void }) {
+function Section({ label, items, onRead }: { label: string; items: Notif[]; onRead: (id: number) => void }) {
   return (
     <>
       <Text style={s.section}>{label}</Text>
       <View style={s.list}>
         {items.map((i) => {
-          const unread = !!i.unread && !read.includes(i.id);
+          const look = LOOK[i.kind] ?? DEFAULT_LOOK;
+          const unread = !i.read;
           return (
             <Pressable key={i.id} style={[s.row, unread && s.rowUnread]} onPress={() => onRead(i.id)}>
               {unread && <View style={s.dot} />}
-              <View style={[s.icon, { backgroundColor: i.bg }, i.outline && s.iconOutline]}>
-                <Ionicons name={i.icon} size={19} color={i.fg} />
+              <View style={[s.icon, { backgroundColor: look.bg }, look.outline && s.iconOutline]}>
+                <Ionicons name={look.icon} size={19} color={look.fg} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={s.rowTitle}>{i.title}</Text>
-                <Text style={s.rowSub} numberOfLines={2}>{i.sub}</Text>
+                {!!i.sub && <Text style={s.rowSub} numberOfLines={2}>{i.sub}</Text>}
               </View>
-              <Text style={s.time}>{i.time}</Text>
+              <Text style={s.time}>{label === '이전' ? `${i.createdAt.getMonth() + 1}.${i.createdAt.getDate()}` : hhmm(i.createdAt)}</Text>
             </Pressable>
           );
         })}

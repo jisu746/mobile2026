@@ -1,3 +1,4 @@
+// 사장님 첫 로그인 매장 등록 화면 (매장 정보 입력 → 초대 QR/코드)
 import { useState } from 'react';
 import { Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,7 +8,9 @@ import { Button, C, Field } from './ui';
 
 type Step = 1 | 2 | 3;
 // onBack은 매장을 추가로 등록할 때만 전달된다
-type Props = { step: Step; onStep: (n: Step) => void; onBack?: () => void; onDone: (store: { name: string; type: string }) => void };
+export type NewStore = { name: string; type: string; branch: string; address: string; addressDetail: string; openTime: string; closeTime: string };
+// onCreate는 서버에 매장을 등록하고 초대 코드를 돌려준다
+type Props = { step: Step; onStep: (n: Step) => void; onBack?: () => void; onCreate: (s: NewStore) => Promise<string>; onDone: () => void };
 
 const TYPES: { label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
   { label: '카페', icon: 'cafe-outline' },
@@ -23,13 +26,7 @@ const PARTS = [
 ];
 const TIME_RE = /^([01]\d|2[0-3]|24):[0-5]\d$/;
 
-// 임시 코드: 실제 초대코드는 서버에서 발급(API 연동 단계)
-const makeCode = () =>
-  Array.from({ length: 3 }, () => String.fromCharCode(65 + Math.floor(Math.random() * 26))).join('') +
-  '-' +
-  String(Math.floor(1000 + Math.random() * 9000));
-
-export default function StoreSetup({ step, onStep, onBack, onDone }: Props) {
+export default function StoreSetup({ step, onStep, onBack, onCreate, onDone }: Props) {
   const [name, setName] = useState('');
   const [type, setType] = useState('');
   const [branch, setBranch] = useState('');
@@ -37,10 +34,30 @@ export default function StoreSetup({ step, onStep, onBack, onDone }: Props) {
   const [addr2, setAddr2] = useState('');
   const [open, setOpen] = useState('10:00');
   const [close, setClose] = useState('24:00');
-  const [code] = useState(makeCode);
+  const [code, setCode] = useState(''); // 서버가 발급한 초대 코드 (등록 전에는 비어 있다)
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
 
   const ok = step === 1 ? !!name.trim() && !!type && !!addr.trim() : step === 2 ? TIME_RE.test(open) && TIME_RE.test(close) : true;
   const storeName = `${name}${branch ? ' ' + branch : ''}`;
+
+  // 2단계에서 다음을 누르면 매장을 등록한다. 이미 등록했다면(뒤로 갔다가 다시 온 경우) 다시 만들지 않는다.
+  const next = async () => {
+    if (step === 3) return onDone();
+    if (step === 2 && !code) {
+      setBusy(true);
+      setError('');
+      try {
+        setCode(await onCreate({ name: name.trim(), type, branch: branch.trim(), address: addr.trim(), addressDetail: addr2.trim(), openTime: open, closeTime: close }));
+      } catch (e) {
+        setError(e instanceof Error ? e.message : '매장을 등록하지 못했어요');
+        setBusy(false);
+        return;
+      }
+      setBusy(false);
+    }
+    onStep((step + 1) as Step);
+  };
 
   return (
     <View style={s.root}>
@@ -174,11 +191,8 @@ export default function StoreSetup({ step, onStep, onBack, onDone }: Props) {
       </ScrollView>
 
       <View style={s.bottom}>
-        <Button
-          label={step === 3 ? '확인했어요' : '다음'}
-          disabled={!ok}
-          onPress={() => (step === 3 ? onDone({ name: storeName, type }) : onStep((step + 1) as Step))}
-        />
+        {!!error && <Text style={s.error}>{error}</Text>}
+        <Button label={step === 3 ? '확인했어요' : busy ? '등록하는 중...' : '다음'} disabled={!ok || busy} onPress={next} />
       </View>
     </View>
   );
@@ -187,6 +201,7 @@ export default function StoreSetup({ step, onStep, onBack, onDone }: Props) {
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#fff' },
   back: { marginLeft: 16, marginTop: 14, width: 32 },
+  error: { fontSize: 12.5, color: '#D93025', marginBottom: 8 },
   logo: { marginLeft: 20, marginTop: 16 },
   bars: { flexDirection: 'row', gap: 6, marginHorizontal: 20, marginTop: 14 },
   bar: { flex: 1, height: 4, borderRadius: 2, backgroundColor: '#ECEAF7' },

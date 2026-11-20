@@ -1,3 +1,4 @@
+// 로그인 화면 (사장님/직원)
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,9 +14,13 @@ export default function Login({ onSignup, onLoggedIn }: Props) {
   const [error, setError] = useState('');
 
   const submit = async () => {
-    const acc = await login(id, pw, role);
-    if (acc) onLoggedIn(id, acc);
-    else setError('아이디 또는 비밀번호가 일치하지 않아요');
+    try {
+      const acc = await login(id, pw, role);
+      if (acc) onLoggedIn(id, acc);
+      else setError('아이디 또는 비밀번호가 일치하지 않아요');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '로그인하지 못했어요');
+    }
   };
 
   return (

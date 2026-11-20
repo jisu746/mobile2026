@@ -1,3 +1,4 @@
+// 프로필 아이콘에서 열리는 매장 변경 시트 (사장님·직원 공통)
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Account } from './auth';
@@ -5,7 +6,6 @@ import { C } from './ui';
 
 type Props = { acc: Account; onSelect: (i: number) => void; onAdd: () => void; onClose: () => void };
 
-// 프로필 아이콘을 누르면 아래에서 올라오는 간단한 매장 변경 시트 (사장님·직원 공통)
 export default function StoreSwitcher({ acc, onSelect, onAdd, onClose }: Props) {
   const owner = acc.role === 'owner';
 
