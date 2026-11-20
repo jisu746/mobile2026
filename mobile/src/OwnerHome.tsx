@@ -1,6 +1,7 @@
 // 사장님 홈 화면 (업무 진행률, 근무 현황)과 하단 탭 연결
 import { ReactNode, useCallback, useEffect, useState } from 'react';
-import { Image, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Linking, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from './font';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
 import BarcodeFlow from './BarcodeFlow';
@@ -8,6 +9,9 @@ import InventoryTab from './InventoryTab';
 import Notifications from './Notifications';
 import WorkRecords from './WorkRecords';
 import OwnerTaskRegistration from './OwnerTaskRegistration';
+import { OwnerStaffManagement, OwnerStaffRequests } from './OwnerStaff';
+import OwnerPayroll from './OwnerPayroll';
+import OwnerContracts from './OwnerContracts';
 import { Task, useTasks } from './tasks';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { C, TabBar } from './ui';
@@ -23,13 +27,20 @@ const TABS: { label: string; icon: Icon }[] = [
 ];
 
 // 사장님 홈: 메인, 바코드 입고, 재고, MY(프로필)까지 직원 화면과 같은 컴포넌트를 쓴다. 그 밖의 상세 화면은 아직 연결하지 않았다.
-export default function OwnerHome({ store, userName, renderMy, onSwitchStore: onProfile }: { store: { id?: number; name: string; type: string }; userName: string; renderMy: (onBell: () => void, onRecords: () => void) => ReactNode; onSwitchStore: () => void }) {
+export default function OwnerHome({ store, userId, userName, renderMy, onSwitchStore: onProfile }: { store: { id?: number; name: string; type: string; inviteCode?: string }; userId: string; userName: string; renderMy: (onBell: () => void, onRecords: () => void, onEmployeeRequests?: () => void, onEmployees?: () => void, onPayroll?: () => void, onContracts?: () => void) => ReactNode; onSwitchStore: () => void }) {
   const [tab, setTab] = useState(0);
   const [notifOpen, setNotifOpen] = useState(false);
   const [recordsOpen, setRecordsOpen] = useState(false);
+  const [staffPage, setStaffPage] = useState<'requests' | 'employees' | null>(null);
+  const [payrollOpen, setPayrollOpen] = useState(false);
+  const [contractsOpen, setContractsOpen] = useState(false);
   const onBell = () => setNotifOpen(true);
 
-  if (notifOpen) return <Notifications storeId={store.id ?? 0} onBack={() => setNotifOpen(false)} />;
+  if (staffPage === 'requests') return <OwnerStaffRequests storeId={store.id ?? 0} inviteCode={store.inviteCode} storeName={store.name} onBack={() => setStaffPage(null)} />;
+  if (staffPage === 'employees') return <OwnerStaffManagement storeId={store.id ?? 0} onBack={() => setStaffPage(null)} />;
+  if (payrollOpen) return <OwnerPayroll storeId={store.id ?? 0} onClose={() => setPayrollOpen(false)} />;
+  if (contractsOpen) return <OwnerContracts storeId={store.id ?? 0} onBack={() => setContractsOpen(false)} />;
+  if (notifOpen) return <Notifications storeId={store.id ?? 0} userId={userId} onBack={() => setNotifOpen(false)} />;
   if (recordsOpen) return <WorkRecords storeId={store.id ?? 0} onBack={() => setRecordsOpen(false)} />;
 
   // 바코드 입고는 탭바 없이 전체 화면으로 열린다
@@ -37,7 +48,7 @@ export default function OwnerHome({ store, userName, renderMy, onSwitchStore: on
 
   return (
     <View style={s.root}>
-      {tab === 0 ? <Dashboard storeId={store.id ?? 0} store={store} onProfile={onProfile} onBell={onBell} /> : tab === 2 ? <InventoryTab store={store.id ?? 0} onProfile={onProfile} onBell={onBell} /> : tab === 3 ? renderMy(onBell, () => setRecordsOpen(true)) : <View style={s.empty}><Text style={s.emptyText}>{TABS[tab].label} 화면은 준비 중이에요</Text></View>}
+      {tab === 0 ? <Dashboard storeId={store.id ?? 0} store={store} onProfile={onProfile} onBell={onBell} /> : tab === 2 ? <InventoryTab store={store.id ?? 0} onProfile={onProfile} onBell={onBell} /> : tab === 3 ? renderMy(onBell, () => setRecordsOpen(true), () => setStaffPage('requests'), () => setStaffPage('employees'), () => setPayrollOpen(true), () => setContractsOpen(true)) : <View style={s.empty}><Text style={s.emptyText}>{TABS[tab].label} 화면은 준비 중이에요</Text></View>}
 
       <TabBar tabs={TABS} active={tab} onChange={setTab} />
     </View>

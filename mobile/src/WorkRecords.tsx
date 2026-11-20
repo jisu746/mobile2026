@@ -1,6 +1,7 @@
 // 근무 기록 화면 (달력, 예상 급여) - MY 에서 열린다
 import { useEffect, useState } from 'react';
-import { BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { BackHandler, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from './font';
 import { Ionicons } from '@expo/vector-icons';
 import { C } from './ui';
 import { hoursByDay, hr, listSessions, WAGE, won } from './work';

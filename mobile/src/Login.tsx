@@ -1,6 +1,7 @@
 // 로그인 화면 (사장님/직원)
 import { useState } from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from './font';
 import { Account, login, Role } from './auth';
 import { Button, C, Field, Pill } from './ui';
 

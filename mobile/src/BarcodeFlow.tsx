@@ -1,10 +1,12 @@
 // 바코드 입고 화면 (스캔 → 입고 목록 확인 → 완료 결과)
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from './font';
 import { Ionicons } from '@expo/vector-icons';
 import { BarcodeType } from 'expo-camera';
 import Scanner from './Scanner';
-import { IMMINENT, Product, getProduct, receive } from './inventory';
+import { Product, getProduct, isLowStock, receive } from './inventory';
+import { DEFAULT_STORE_SETUP_SETTINGS, getStoreSetupSettingsOrDefault } from './storeSetupRepository';
 import { C, Field, Stepper } from './ui';
 
 type Item = { barcode: string; name: string; category: string; before: number; min: number; qty: number; expiry: string };
@@ -25,10 +27,10 @@ const parseDate = (s: string) => {
   const d = new Date(+m[1], +m[2] - 1, +m[3]);
   return d.getMonth() === +m[2] - 1 ? d : null;
 };
-const alertText = (d: Date) => {
+const alertText = (d: Date, days: number) => {
   const a = new Date(d);
-  a.setDate(a.getDate() - IMMINENT);
-  return `${a.getFullYear()}.${a.getMonth() + 1}.${a.getDate()}(D-${IMMINENT})에 임박 알림을 보내요`;
+  a.setDate(a.getDate() - days);
+  return `${a.getFullYear()}.${a.getMonth() + 1}.${a.getDate()}(D-${days})에 임박 알림을 보내요`;
 };
 
 export default function BarcodeFlow({ store, userName, onExit }: Props) {
@@ -37,6 +39,15 @@ export default function BarcodeFlow({ store, userName, onExit }: Props) {
   const [results, setResults] = useState<Result[]>([]);
   const [scanKey, setScanKey] = useState(0);
   const [error, setError] = useState('');
+  const [alertSettings, setAlertSettings] = useState(DEFAULT_STORE_SETUP_SETTINGS);
+
+  useEffect(() => {
+    let active = true;
+    getStoreSetupSettingsOrDefault(store).then((settings) => {
+      if (active) setAlertSettings(settings);
+    }).catch((e) => setError(e instanceof Error ? e.message : '매장 설정을 불러오지 못했어요.'));
+    return () => { active = false; };
+  }, [store]);
 
   const add = (item: Item) => {
     setItems((cur) =>
@@ -69,7 +80,7 @@ export default function BarcodeFlow({ store, userName, onExit }: Props) {
         types={BARCODES}
         hint="상품 바코드를 프레임 안에 맞춰주세요"
         manualEntry="text"
-        sheet={(code, rescan) => <ProductSheet store={store} code={code} onRescan={rescan} onAdd={add} />}
+        sheet={(code, rescan) => <ProductSheet store={store} code={code} expirationAlertDays={alertSettings.expirationAlertDays} onRescan={rescan} onAdd={add} />}
       />
     );
   }
@@ -90,7 +101,8 @@ export default function BarcodeFlow({ store, userName, onExit }: Props) {
         <Text style={s.sectionTitle}>재고 변화</Text>
         <View style={s.card}>
           {results.map((r, i) => {
-            const fixed = r.before < r.min && r.after >= r.min;
+            const fixed = isLowStock(r.before, r.min, alertSettings.lowStockThresholdPercent)
+              && !isLowStock(r.after, r.min, alertSettings.lowStockThresholdPercent);
             return (
               <View key={r.name + i} style={[s.changeRow, i > 0 && s.line]}>
                 <View style={{ flex: 1 }}>
@@ -122,7 +134,7 @@ export default function BarcodeFlow({ store, userName, onExit }: Props) {
   );
 }
 
-function ProductSheet({ store, code, onRescan, onAdd }: { store: number; code: string; onRescan: () => void; onAdd: (i: Item) => void }) {
+function ProductSheet({ store, code, expirationAlertDays, onRescan, onAdd }: { store: number; code: string; expirationAlertDays: number; onRescan: () => void; onAdd: (i: Item) => void }) {
   const [product, setProduct] = useState<Product | null | undefined>(undefined); // undefined = 조회 중
   const [name, setName] = useState('');
   const [qty, setQty] = useState(1);
@@ -210,7 +222,7 @@ function ProductSheet({ store, code, onRescan, onAdd }: { store: number; code: s
       {!!date && (
         <View style={s.alert}>
           <Ionicons name="time-outline" size={16} color="#B3261E" />
-          <Text style={s.alertText}>{alertText(date)}</Text>
+          <Text style={s.alertText}>{alertText(date, expirationAlertDays)}</Text>
         </View>
       )}
 

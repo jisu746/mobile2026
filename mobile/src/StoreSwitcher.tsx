@@ -1,5 +1,6 @@
 // 프로필 아이콘에서 열리는 매장 변경 시트 (사장님·직원 공통)
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from './font';
 import { Ionicons } from '@expo/vector-icons';
 import { Account } from './auth';
 import { C } from './ui';

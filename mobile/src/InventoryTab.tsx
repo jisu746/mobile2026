@@ -1,8 +1,11 @@
 // 재고/발주 탭 화면 (상품 목록, 수정, 폐기) - 사장님·직원 공통
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from './font';
 import { Ionicons } from '@expo/vector-icons';
-import { IMMINENT, Product, daysLeft, discardExpired, listProducts, updateProduct } from './inventory';
+import { Product, daysLeft, discardExpired, isLowStock, listProducts, updateProduct } from './inventory';
+import { DEFAULT_STORE_SETUP_SETTINGS, getStoreSetupSettingsOrDefault } from './storeSetupRepository';
+import type { StoreSetupSettings } from './storeSetupRepository';
 import { C, Stepper } from './ui';
 
 type Tag = { label: string; bg: string; fg: string };
@@ -11,11 +14,11 @@ const ORANGE = { bg: '#FFF4E5', fg: '#D97706' };
 const GREEN = { bg: '#EDFAF2', fg: '#10B981' };
 
 // 상품 상태: 재고 부족 / 유통기한 임박 / 폐기 사항(유통기한 지남)
-function status(p: Product) {
+function status(p: Product, settings: StoreSetupSettings) {
   const d = daysLeft(p.expiry);
-  const low = p.stock < p.min;
+  const low = isLowStock(p.stock, p.min, settings.lowStockThresholdPercent);
   const expired = d !== null && d < 0;
-  const imminent = d !== null && d >= 0 && d <= IMMINENT;
+  const imminent = d !== null && d >= 0 && d <= settings.expirationAlertDays;
   const tags: Tag[] = [{ label: `재고 ${p.stock}개`, ...(low ? RED : GREEN) }];
   if (imminent) tags.push({ label: d === 0 ? 'D-day 임박' : `D-${d} 임박`, ...ORANGE });
   if (expired) tags.push({ label: '폐기 사항 있음', ...RED });
@@ -24,6 +27,7 @@ function status(p: Product) {
 
 export default function InventoryTab({ store, onProfile, onBell }: { store: number; onProfile: () => void; onBell: () => void }) {
   const [products, setProducts] = useState<Product[] | null>(null);
+  const [alertSettings, setAlertSettings] = useState(DEFAULT_STORE_SETUP_SETTINGS);
   const [q, setQ] = useState('');
   const [open, setOpen] = useState<{ barcode: string; mode: 'edit' | 'discard' } | null>(null);
   const [editName, setEditName] = useState('');
@@ -34,6 +38,13 @@ export default function InventoryTab({ store, onProfile, onBell }: { store: numb
   const reload = () => listProducts(store).then((l) => { setProducts(l); setError(''); }, fail);
   useEffect(() => {
     reload();
+  }, [store]);
+  useEffect(() => {
+    let active = true;
+    getStoreSetupSettingsOrDefault(store).then((settings) => {
+      if (active) setAlertSettings(settings);
+    }).catch(fail);
+    return () => { active = false; };
   }, [store]);
 
   // 같은 카드의 같은 패널을 다시 누르면 접는다
@@ -54,8 +65,8 @@ export default function InventoryTab({ store, onProfile, onBell }: { store: numb
   };
 
   const all = products ?? [];
-  const needOrder = all.filter((p) => status(p).low).length;
-  const imminent = all.filter((p) => status(p).imminent).length;
+  const needOrder = all.filter((p) => status(p, alertSettings).low).length;
+  const imminent = all.filter((p) => status(p, alertSettings).imminent).length;
   const list = all.filter((p) => p.name.toLowerCase().includes(q.trim().toLowerCase()));
 
   return (
@@ -89,7 +100,7 @@ export default function InventoryTab({ store, onProfile, onBell }: { store: numb
       {products !== null && !list.length && <Text style={s.empty}>{q ? '검색 결과가 없어요' : '등록된 상품이 없어요'}</Text>}
 
       {list.map((p) => {
-        const st = status(p);
+        const st = status(p, alertSettings);
         const isOpen = open?.barcode === p.barcode;
         return (
           <View key={p.barcode} style={s.item}>

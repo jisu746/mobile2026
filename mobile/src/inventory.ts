@@ -41,7 +41,8 @@ export const updateProduct = (storeId: number, barcode: string, patch: { name?: 
 export const discardExpired = (storeId: number, barcode: string) =>
   api('POST', `${base(storeId)}/products/${encodeURIComponent(barcode)}/discard`);
 
-export const IMMINENT = 3; // TODO: 임박 기준(D-3)은 매장 설정값을 쓰도록 연결
+export const isLowStock = (stock: number, optimalStock: number, thresholdPercent: number) =>
+  optimalStock > 0 && stock <= optimalStock * thresholdPercent / 100;
 
 // 오늘 기준 남은 일수 (오늘 = 0, 지났으면 음수). 유통기한이 없으면 null
 export function daysLeft(expiry?: string) {

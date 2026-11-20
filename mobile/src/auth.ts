@@ -4,7 +4,7 @@ import { api, ApiError, clearToken, getToken, setToken } from './api';
 
 // 계정·매장은 서버(Spring)에 저장한다. 앱에는 로그인 토큰과 "현재 매장" 선택만 남긴다.
 export type Role = 'owner' | 'staff';
-export type Store = { id?: number; name: string; type: string; inviteCode?: string };
+export type Store = { id?: number; name: string; type: string; inviteCode?: string; baseName?: string; branch?: string };
 export type Account = { role: Role; name: string; birth: string; stores: Store[]; current: number; pending?: Store };
 
 type StoreView = { id: number; name: string; type: string | null; branch: string | null; inviteCode: string | null };
@@ -14,6 +14,8 @@ type AccountView = { username: string; role: Role; name: string; birth: string |
 const toStore = (v: StoreView): Store => ({
   id: v.id,
   name: [v.name, v.branch].filter(Boolean).join(' '),
+  baseName: v.name,
+  branch: v.branch ?? '',
   type: v.type ?? '',
   inviteCode: v.inviteCode ?? undefined,
 });
@@ -57,6 +59,14 @@ export async function refresh() {
   const v = await api<AccountView>('GET', '/api/me');
   return { id: v.username, acc: await toAccount(v) };
 }
+
+export async function updateProfile(name: string, birth: string) {
+  const updated = await api<AccountView>('PUT', '/api/me', { name, birth });
+  return toAccount(updated);
+}
+
+export const updateStoreName = (storeId: number, name: string) =>
+  api<StoreView>('PUT', `/api/stores/${storeId}/name`, { name }).then(toStore);
 
 // 저장된 토큰으로 로그인 상태를 되살린다. 토큰이 만료됐으면 지우고, 서버가 꺼져 있으면 로그인 화면으로 보낸다.
 export async function session() {

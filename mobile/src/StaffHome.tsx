@@ -1,6 +1,7 @@
 // 직원 홈 화면 (출근 전/후, 업무, 인수인계)과 하단 탭 연결
 import { ReactNode, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from './font';
 import { Ionicons } from '@expo/vector-icons';
 import BarcodeFlow from './BarcodeFlow';
 import InventoryTab from './InventoryTab';
@@ -27,7 +28,7 @@ const elapsed = (from: Date, now: number) => {
   return m >= 60 ? `${Math.floor(m / 60)}시간 ${m % 60}분째` : `${m}분째`;
 };
 
-export default function StaffHome({ storeId, storeName, userName, renderMy, onSwitchStore: onProfile }: { storeId: number; storeName: string; userName: string; renderMy: (onBell: () => void, onRecords: () => void) => ReactNode; onSwitchStore: () => void }) {
+export default function StaffHome({ storeId, storeName, userId, userName, renderMy, onSwitchStore: onProfile }: { storeId: number; storeName: string; userId: string; userName: string; renderMy: (onBell: () => void, onRecords: () => void) => ReactNode; onSwitchStore: () => void }) {
   const ME = userName;
   const [clockedAt, setClockedAt] = useState<Date | null>(null);
   const [ready, setReady] = useState(false); // 서버에서 출근 상태를 받아온 뒤에 화면을 그린다
@@ -104,7 +105,7 @@ export default function StaffHome({ storeId, storeName, userName, renderMy, onSw
     </View>
   );
 
-  if (notifOpen) return <Notifications storeId={storeId} onBack={() => setNotifOpen(false)} />;
+  if (notifOpen) return <Notifications storeId={storeId} userId={userId} onBack={() => setNotifOpen(false)} />;
   if (recordsOpen) return <WorkRecords storeId={storeId} onBack={() => setRecordsOpen(false)} />;
   if (!ready) return <View style={s.root} />;
 

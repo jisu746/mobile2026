@@ -1,27 +1,37 @@
 // 알림 설정 화면 (알림 화면의 톱니바퀴에서 열린다)
 import { useEffect, useRef, useState } from 'react';
-import { Animated, BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, BackHandler, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from './font';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { C } from './ui';
+import { DEFAULT_NOTIFICATION_PREFERENCES, getNotificationPreferences, NotificationPreferences, saveNotificationPreferences } from './notificationPreferencesRepository';
+import { DEFAULT_STORE_SETUP_SETTINGS, getStoreSetupSettingsOrDefault } from './storeSetupRepository';
 
-// TODO: 알림 설정은 기기 저장소에만 보관한다. API 연동 단계에서 계정 설정으로 저장
-const KEY = 'notificationSettings';
-const KINDS = [
+type NotificationToggleKey = 'task' | 'expiry' | 'stock' | 'memo' | 'pay';
+const KINDS: { id: NotificationToggleKey; title: string; sub?: string }[] = [
   { id: 'task', title: '업무 배정 · 승인', sub: '새 업무, 완료 승인/반려' },
-  { id: 'expiry', title: '유통기한 임박', sub: '매장 기준 D-3 · 오전 9시' },
-  { id: 'stock', title: '재고 부족', sub: '적정 재고의 30% 이하' },
+  { id: 'expiry', title: '유통기한 임박' },
+  { id: 'stock', title: '재고 부족' },
   { id: 'memo', title: '인수인계 메모', sub: '내 근무 직전 파트의 메모' },
   { id: 'pay', title: '근무표 · 급여', sub: '근무표 확정, 급여 명세서 도착' },
 ];
-const DEFAULTS: Record<string, boolean> = { push: true, task: true, expiry: true, stock: true, memo: true, pay: true, quiet: false };
 
-export default function NotificationSettings({ onBack }: { onBack: () => void }) {
-  const [on, setOn] = useState(DEFAULTS);
+export default function NotificationSettings({ userId, storeId, onBack }: { userId: string; storeId: number; onBack: () => void }) {
+  const [on, setOn] = useState(DEFAULT_NOTIFICATION_PREFERENCES);
+  const [storeSettings, setStoreSettings] = useState(DEFAULT_STORE_SETUP_SETTINGS);
+  const [timeEditorOpen, setTimeEditorOpen] = useState(false);
 
   useEffect(() => {
-    AsyncStorage.getItem(KEY).then((raw) => raw && setOn({ ...DEFAULTS, ...JSON.parse(raw) }));
-  }, []);
+    getNotificationPreferences(userId).then(setOn).catch(() => {});
+  }, [userId]);
+
+  useEffect(() => {
+    let active = true;
+    getStoreSetupSettingsOrDefault(storeId).then((settings) => {
+      if (active) setStoreSettings(settings);
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [storeId]);
 
   // 안드로이드 뒤로가기로 설정 화면만 닫는다
   useEffect(() => {
@@ -32,10 +42,18 @@ export default function NotificationSettings({ onBack }: { onBack: () => void })
     return () => sub.remove();
   }, [onBack]);
 
-  const toggle = (id: string, v: boolean) => {
+  const toggle = (id: keyof Pick<NotificationPreferences, 'push' | 'task' | 'expiry' | 'stock' | 'memo' | 'pay' | 'quiet'>, v: boolean) => {
     const next = { ...on, [id]: v };
     setOn(next);
-    AsyncStorage.setItem(KEY, JSON.stringify(next));
+    void saveNotificationPreferences(userId, next);
+  };
+
+  const changeTime = (field: 'quietStart' | 'quietEnd', delta: number) => {
+    const [hour, minute] = on[field].split(':').map(Number);
+    const nextMinutes = (hour * 60 + minute + delta + 1440) % 1440;
+    const next = { ...on, [field]: `${String(Math.floor(nextMinutes / 60)).padStart(2, '0')}:${String(nextMinutes % 60).padStart(2, '0')}` };
+    setOn(next);
+    void saveNotificationPreferences(userId, next);
   };
 
   return (
@@ -55,26 +73,55 @@ export default function NotificationSettings({ onBack }: { onBack: () => void })
         <Text style={s.section}>받을 알림</Text>
         <View style={s.card}>
           {KINDS.map((k, i) => (
-            <Row key={k.id} line={i > 0} title={k.title} sub={k.sub} value={on[k.id]} onChange={(v) => toggle(k.id, v)} />
+            <Row
+              key={k.id}
+              line={i > 0}
+              title={k.title}
+              sub={k.id === 'expiry'
+                ? `매장 기준 D-${storeSettings.expirationAlertDays} · 오전 9시`
+                : k.id === 'stock' ? `적정 재고의 ${storeSettings.lowStockThresholdPercent}% 이하` : k.sub ?? ''}
+              value={on[k.id]}
+              onChange={(v) => toggle(k.id, v)}
+            />
           ))}
         </View>
 
         <Text style={s.section}>방해 금지</Text>
         <View style={s.card}>
           <Row title="근무 외 시간 알림 끄기" sub="근무 시작 30분 전부터 다시 받아요" value={on.quiet} onChange={(v) => toggle('quiet', v)} />
-          {/* TODO: 방해 금지 시간 설정 화면 연결 */}
-          <Pressable style={[s.row, s.line]}>
+          <Pressable style={[s.row, s.line]} onPress={() => setTimeEditorOpen(true)}>
             <View style={s.moon}>
               <Ionicons name="moon-outline" size={18} color={C.text} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={s.rowTitle}>방해 금지 시간</Text>
-              <Text style={s.rowSub}>23:00 – 08:00</Text>
+              <Text style={s.rowSub}>{on.quietStart} – {on.quietEnd}</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#5E5C6B" />
           </Pressable>
         </View>
       </ScrollView>
+      <Modal transparent visible={timeEditorOpen} animationType="fade" onRequestClose={() => setTimeEditorOpen(false)}>
+        <View style={s.modalBackdrop}>
+          <View style={s.modalCard}>
+            <Text style={s.modalTitle}>방해 금지 시간</Text>
+            <TimeRow label="시작" value={on.quietStart} onChange={(delta) => changeTime('quietStart', delta)} />
+            <TimeRow label="종료" value={on.quietEnd} onChange={(delta) => changeTime('quietEnd', delta)} />
+            <Pressable style={s.modalDone} onPress={() => setTimeEditorOpen(false)}><Text style={s.modalDoneText}>확인</Text></Pressable>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+}
+
+function TimeRow({ label, value, onChange }: { label: string; value: string; onChange: (delta: number) => void }) {
+  return (
+    <View style={s.timeRow}>
+      <Text style={s.rowTitle}>{label}</Text>
+      <Pressable accessibilityLabel={`${label} 시간 30분 앞당기기`} style={s.timeButton} onPress={() => onChange(-30)}><Ionicons name="remove" size={18} color={C.primary} /></Pressable>
+      <Text style={s.timeValue}>{value}</Text>
+      <Pressable accessibilityLabel={`${label} 시간 30분 늦추기`} style={s.timeButton} onPress={() => onChange(30)}><Ionicons name="add" size={18} color={C.primary} /></Pressable>
     </View>
   );
 }
@@ -141,4 +188,12 @@ const s = StyleSheet.create({
   rowTitle: { fontSize: 15, fontWeight: '700', color: C.text },
   rowSub: { fontSize: 12.5, color: '#5E5C6B', marginTop: 3 },
   moon: { width: 34, height: 34, borderRadius: 10, backgroundColor: '#F1F0F5', alignItems: 'center', justifyContent: 'center' },
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  modalCard: { width: '100%', maxWidth: 312, alignSelf: 'center', backgroundColor: '#fff', borderRadius: 20, padding: 20 },
+  modalTitle: { fontSize: 18, fontWeight: '700', color: C.text, marginBottom: 14 },
+  timeRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 52 },
+  timeButton: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#ECEAF7', alignItems: 'center', justifyContent: 'center' },
+  timeValue: { width: 54, textAlign: 'center', fontSize: 16, fontWeight: '700', color: C.text },
+  modalDone: { marginTop: 16, height: 44, borderRadius: 22, backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center' },
+  modalDoneText: { color: '#fff', fontWeight: '700' },
 });

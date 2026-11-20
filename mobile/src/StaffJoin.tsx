@@ -1,6 +1,7 @@
 // 직원 매장 참여 화면 (QR/코드 입력 → 승인 대기 → 완료)
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Text } from './font';
 import { Ionicons } from '@expo/vector-icons';
 import { lookupStore, Store } from './auth';
 import Scanner from './Scanner';

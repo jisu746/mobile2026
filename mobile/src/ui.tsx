@@ -1,5 +1,6 @@
 // 공통 색상과 화면 부품 (알약, 입력칸, 버튼, 수량 조절, 하단 탭)
-import { Pressable, StyleSheet, Text, TextInput, TextInputProps, View } from 'react-native';
+import { Image, Pressable, StyleSheet, TextInputProps, View } from 'react-native';
+import { Text, TextInput } from './font';
 import { Ionicons } from '@expo/vector-icons';
 
 export const C = {
@@ -10,10 +11,10 @@ export const C = {
   placeholder: '#828282',
 };
 
-export function Pill({ label, active, onPress }: { label: string; active?: boolean; onPress?: () => void }) {
+export function Pill({ label, active, onPress, fontFamily }: { label: string; active?: boolean; onPress?: () => void; fontFamily?: string }) {
   return (
     <Pressable onPress={onPress} style={[s.pill, active ? s.pillOn : s.pillOff]}>
-      <Text style={[s.pillText, { color: active ? '#fff' : C.primary }]}>{label}</Text>
+      <Text style={[s.pillText, fontFamily ? { fontFamily } : undefined, { color: active ? '#fff' : C.primary }]}>{label}</Text>
     </Pressable>
   );
 }
@@ -22,19 +23,19 @@ export function Field(props: TextInputProps) {
   return <TextInput placeholderTextColor={C.placeholder} autoCapitalize="none" {...props} style={[s.field, props.style]} />;
 }
 
-export function Button({ label, onPress, disabled }: { label: string; onPress: () => void; disabled?: boolean }) {
+export function Button({ label, onPress, disabled, fontFamily }: { label: string; onPress: () => void; disabled?: boolean; fontFamily?: string }) {
   return (
     <Pressable onPress={onPress} disabled={disabled} style={[s.button, disabled && { opacity: 0.4 }]}>
-      <Text style={s.buttonText}>{label}</Text>
+      <Text style={[s.buttonText, fontFamily ? { fontFamily } : undefined]}>{label}</Text>
     </Pressable>
   );
 }
 
-// 회원가입 상단: 흐린 로고 + StoreMate 워드마크
+// 회원가입 상단: 앱 아이콘을 연하게 깔고 워드마크를 겹쳐 배치
 export function SignupHeader() {
   return (
-    <View style={s.header}>
-      <Ionicons name="storefront" size={56} color={C.primary} style={{ opacity: 0.12 }} />
+    <View pointerEvents="none" style={s.header}>
+      <Image source={require('../assets/storemate-store-icon.png')} style={s.headerLogo} resizeMode="contain" accessibilityLabel="StoreMate 앱 로고" />
       <Text style={s.headerText}>StoreMate</Text>
     </View>
   );
@@ -94,8 +95,9 @@ const s = StyleSheet.create({
   },
   button: { height: 44, borderRadius: 8, backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center' },
   buttonText: { color: '#fff', fontSize: 14, fontWeight: '500' },
-  header: { flexDirection: 'row', alignItems: 'center', paddingLeft: 14 },
-  headerText: { position: 'absolute', left: 20, top: 24, fontSize: 16, fontWeight: '800', color: C.primary },
+  header: { width: 112, height: 76, marginLeft: -12, position: 'relative', alignItems: 'center', justifyContent: 'center' },
+  headerLogo: { position: 'absolute', width: 104, height: 104, top: -20, opacity: 0.12 },
+  headerText: { position: 'absolute', top: 28, left: 0, right: 0, textAlign: 'center', fontSize: 17, fontWeight: '900', color: C.primary, fontFamily: 'NotoSansKR' },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   stepBtn: { backgroundColor: '#ECEAF7', alignItems: 'center', justifyContent: 'center' },
   qtyBig: { fontSize: 26, fontWeight: '700', color: C.text, minWidth: 64, textAlign: 'center' },

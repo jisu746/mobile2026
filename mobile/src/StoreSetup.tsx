@@ -1,14 +1,16 @@
 // 사장님 첫 로그인 매장 등록 화면 (매장 정보 입력 → 초대 QR/코드)
 import { useState } from 'react';
-import { Image, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
+import { Text } from './font';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import QRCode from 'react-native-qrcode-svg';
 import { C, Field } from './ui';
+import type { WorkPartSetting } from './storeSetupRepository';
 
 type Step = 1 | 2 | 3;
 // onBack은 매장을 추가로 등록할 때만 전달된다
-export type NewStore = { name: string; type: string; branch: string; address: string; addressDetail: string; openTime: string; closeTime: string };
+export type NewStore = { name: string; type: string; branch: string; address: string; addressDetail: string; openTime: string; closeTime: string; workParts: WorkPartSetting[]; expirationAlertDays: number; lowStockThresholdPercent: number };
 // onCreate는 서버에 매장을 등록하고 초대 코드를 돌려준다
 type Props = { step: Step; onStep: (n: Step) => void; onBack?: () => void; onCreate: (s: NewStore) => Promise<string>; onDone: () => void };
 
@@ -19,10 +21,10 @@ const TYPES: { label: string; icon: keyof typeof MaterialIcons.glyphMap; width: 
   { label: '음식점', icon: 'restaurant', width: 80 },
   { label: '기타', icon: 'more-horiz', width: 70 },
 ];
-const PARTS = [
-  { name: '오전 파트', time: '10:00 ~ 14:00' },
-  { name: '오후 파트', time: '14:00 ~ 20:00' },
-  { name: '마감 파트', time: '18:00 ~ 24:00' },
+const DEFAULT_PARTS: WorkPartSetting[] = [
+  { id: 'morning', name: '오전 파트', start: '10:00', end: '14:00' },
+  { id: 'afternoon', name: '오후 파트', start: '14:00', end: '20:00' },
+  { id: 'closing', name: '마감 파트', start: '18:00', end: '24:00' },
 ];
 const TIME_RE = /^([01]\d|2[0-3]|24):[0-5]\d$/;
 
@@ -34,12 +36,18 @@ export default function StoreSetup({ step, onStep, onBack, onCreate, onDone }: P
   const [addr2, setAddr2] = useState('');
   const [open, setOpen] = useState('10:00');
   const [close, setClose] = useState('24:00');
+  const [workParts, setWorkParts] = useState<WorkPartSetting[]>(DEFAULT_PARTS.map((part) => ({ ...part })));
+  const [expirationAlertDays, setExpirationAlertDays] = useState(3);
+  const [lowStockThresholdPercent, setLowStockThresholdPercent] = useState(30);
   const [code, setCode] = useState(''); // 서버가 발급한 초대 코드 (등록 전에는 비어 있다)
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  const ok = step === 1 ? !!name.trim() && !!type && !!addr.trim() : step === 2 ? TIME_RE.test(open) && TIME_RE.test(close) : true;
+  const ok = step === 1 ? !!name.trim() && !!type && /^\d{5}$/.test(addr) : step === 2 ? TIME_RE.test(open) && TIME_RE.test(close) && workParts.every((part) => !!part.name.trim() && TIME_RE.test(part.start) && TIME_RE.test(part.end)) : true;
   const storeName = `${name}${branch ? ' ' + branch : ''}`;
+  const updateWorkPart = (id: string, values: Partial<WorkPartSetting>) => setWorkParts((current) => current.map((part) => part.id === id ? { ...part, ...values } : part));
+  const addWorkPart = () => setWorkParts((current) => [...current, { id: `custom-${Date.now()}-${current.length}`, name: `새 파트 ${current.length + 1}`, start: '10:00', end: '14:00' }]);
+  const removeWorkPart = (id: string) => setWorkParts((current) => current.filter((part) => part.id !== id));
 
   // 2단계에서 다음을 누르면 매장을 등록한다. 이미 등록했다면(뒤로 갔다가 다시 온 경우) 다시 만들지 않는다.
   const next = async () => {
@@ -48,7 +56,7 @@ export default function StoreSetup({ step, onStep, onBack, onCreate, onDone }: P
       setBusy(true);
       setError('');
       try {
-        setCode(await onCreate({ name: name.trim(), type, branch: branch.trim(), address: addr.trim(), addressDetail: addr2.trim(), openTime: open, closeTime: close }));
+        setCode(await onCreate({ name: name.trim(), type, branch: branch.trim(), address: addr.trim(), addressDetail: addr2.trim(), openTime: open, closeTime: close, workParts, expirationAlertDays, lowStockThresholdPercent }));
       } catch (e) {
         setError(e instanceof Error ? e.message : '매장을 등록하지 못했어요');
         setBusy(false);
@@ -98,8 +106,7 @@ export default function StoreSetup({ step, onStep, onBack, onCreate, onDone }: P
 
             <Text style={s.label}>매장 주소</Text>
             <View style={s.search}>
-              <MaterialIcons name="search" size={20} color="#5E5C6B" />
-              <Field placeholder="주소를 검색하세요" value={addr} onChangeText={setAddr} style={[s.searchInput, s.firstField]} />
+              <Field placeholder="우편번호 5자리를 입력하세요" value={addr} onChangeText={(value) => setAddr(value.replace(/\D/g, '').slice(0, 5))} keyboardType="number-pad" maxLength={5} style={[s.searchInput, s.firstField]} />
             </View>
 
             <Text style={s.label}>상세 주소</Text>
@@ -121,32 +128,47 @@ export default function StoreSetup({ step, onStep, onBack, onCreate, onDone }: P
 
             <View style={s.rowHead}>
               <Text style={[s.label, s.partsLabel]}>근무 파트 (지금 꼭 입력할 필요는 없어요)</Text>
-              <Text style={s.add}>+ 추가</Text>
+              <Pressable onPress={addWorkPart} hitSlop={8}><Text style={s.add}>+ 추가</Text></Pressable>
             </View>
             <View style={s.card}>
-              {PARTS.map((p, i) => (
-                <View key={p.name} style={[s.row, i > 0 && s.rowLine]}>
-                  <Text style={s.rowTitle}>{p.name}</Text>
-                  <Text style={s.rowSub}>{p.time} &gt;</Text>
+              {workParts.map((part, i) => (
+                <View key={part.id} style={[s.partItem, i > 0 && s.rowLine]}>
+                  <View style={s.partNameRow}>
+                    <Field value={part.name} onChangeText={(value) => updateWorkPart(part.id, { name: value })} placeholder="파트 이름" style={s.partNameInput} maxLength={20} />
+                    <Pressable accessibilityRole="button" accessibilityLabel={`${part.name} 삭제`} onPress={() => removeWorkPart(part.id)} hitSlop={8}>
+                      <Ionicons name="trash-outline" size={18} color="#828282" />
+                    </Pressable>
+                  </View>
+                  <View style={s.partTimeRow}>
+                    <Text style={s.partTimeLabel}>근무 시간</Text>
+                    <Field value={part.start} onChangeText={(value) => updateWorkPart(part.id, { start: value.replace(/[^0-9:]/g, '').slice(0, 5) })} keyboardType="numbers-and-punctuation" maxLength={5} style={s.partTimeInput} />
+                    <Text style={s.dash}>–</Text>
+                    <Field value={part.end} onChangeText={(value) => updateWorkPart(part.id, { end: value.replace(/[^0-9:]/g, '').slice(0, 5) })} keyboardType="numbers-and-punctuation" maxLength={5} style={s.partTimeInput} />
+                  </View>
                 </View>
               ))}
+              {!workParts.length && <Text style={s.noParts}>근무 파트를 추가해 주세요.</Text>}
             </View>
 
             <Text style={[s.label, { marginTop: 20, lineHeight: 17 }]}>알림 기준</Text>
             <View style={s.card}>
-              <View style={s.row}>
+              <View style={s.settingBlock}>
                 <View style={s.rowLeft}>
                   <Ionicons name="time-outline" size={18} color={C.primary} />
                   <Text style={s.rowTitle}>유통기한 임박 알림</Text>
                 </View>
-                <Text style={s.rowValue}>D-3</Text>
+                <View style={s.settingChoices}>
+                  {[1, 3, 5, 7].map((days) => <Pressable key={days} onPress={() => setExpirationAlertDays(days)} style={[s.choice, expirationAlertDays === days && s.choiceActive]}><Text style={[s.choiceText, expirationAlertDays === days && s.choiceTextActive]}>D-{days}</Text></Pressable>)}
+                </View>
               </View>
-              <View style={[s.row, s.rowLine]}>
+              <View style={[s.settingBlock, s.rowLine]}>
                 <View style={s.rowLeft}>
                   <Ionicons name="clipboard-outline" size={18} color={C.primary} />
                   <Text style={s.rowTitle}>재고 부족 기준</Text>
                 </View>
-                <Text style={s.rowValue}>적정 재고의 30%</Text>
+                <View style={s.settingChoices}>
+                  {[20, 30, 40, 50].map((percent) => <Pressable key={percent} onPress={() => setLowStockThresholdPercent(percent)} style={[s.choice, lowStockThresholdPercent === percent && s.choiceActive]}><Text style={[s.choiceText, lowStockThresholdPercent === percent && s.choiceTextActive]}>{percent}%</Text></Pressable>)}
+                </View>
               </View>
             </View>
           </View>
@@ -246,7 +268,7 @@ const s = StyleSheet.create({
   },
   chipOn: { backgroundColor: C.primary, borderColor: C.primary },
   chipText: { fontSize: 13.2, fontWeight: '600', color: C.text },
-  search: { flexDirection: 'row', alignItems: 'center', height: 52, borderWidth: 1, borderColor: C.border, borderRadius: 12, paddingLeft: 14 },
+  search: { flexDirection: 'row', alignItems: 'center', height: 52, borderWidth: 1, borderColor: C.border, borderRadius: 12, paddingLeft: 0 },
   searchInput: { flex: 1, minWidth: 0, borderWidth: 0, height: 50 },
   hours: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   time: { height: 54, flex: 1, minWidth: 0, paddingHorizontal: 4, textAlign: 'center', fontSize: 16, fontWeight: '600' },
@@ -254,8 +276,21 @@ const s = StyleSheet.create({
   rowHead: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
   add: { fontSize: 12, fontWeight: '600', color: C.primary, marginBottom: 8 },
   card: { borderWidth: 1, borderColor: '#E4E2EC', borderRadius: 16, backgroundColor: '#fff', overflow: 'hidden' },
+  partItem: { paddingHorizontal: 14, paddingVertical: 12, gap: 8 },
+  partNameRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  partNameInput: { flex: 1, minWidth: 0, height: 38, fontSize: 14, fontWeight: '700', paddingHorizontal: 10 },
+  partTimeRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  partTimeLabel: { width: 62, fontSize: 12, color: '#5E5C6B' },
+  partTimeInput: { flex: 1, minWidth: 0, height: 38, fontSize: 13, textAlign: 'center', paddingHorizontal: 4 },
+  noParts: { padding: 16, color: '#828282', fontSize: 13 },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, height: 49 },
   rowLine: { borderTopWidth: 1, borderTopColor: '#EEEDF3' },
+  settingBlock: { padding: 14, gap: 10 },
+  settingChoices: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  choice: { minWidth: 56, height: 34, paddingHorizontal: 12, borderRadius: 17, borderWidth: 1, borderColor: C.border, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
+  choiceActive: { borderColor: C.primary, backgroundColor: C.primary },
+  choiceText: { color: C.primary, fontSize: 12.5, fontWeight: '600' },
+  choiceTextActive: { color: '#fff' },
   rowLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   rowTitle: { fontSize: 14.2, fontWeight: '600', color: C.text },
   rowSub: { fontSize: 14, color: '#5E5C6B' },
