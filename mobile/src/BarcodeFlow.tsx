@@ -5,7 +5,7 @@ import { Text, TextInput } from './font';
 import { Ionicons } from '@expo/vector-icons';
 import { BarcodeType } from 'expo-camera';
 import Scanner from './Scanner';
-import { Product, getProduct, isLowStock, receive } from './inventory';
+import { Product, getProduct, isLowStock, productLowStockThreshold, receive } from './inventory';
 import { DEFAULT_STORE_SETUP_SETTINGS, getStoreSetupSettingsOrDefault } from './storeSetupRepository';
 import { C, Field, Stepper } from './ui';
 
@@ -101,8 +101,8 @@ export default function BarcodeFlow({ store, userName, onExit }: Props) {
         <Text style={s.sectionTitle}>재고 변화</Text>
         <View style={s.card}>
           {results.map((r, i) => {
-            const fixed = isLowStock(r.before, alertSettings.lowStockThresholdCount)
-              && !isLowStock(r.after, alertSettings.lowStockThresholdCount);
+            const threshold = productLowStockThreshold(r.min, alertSettings.lowStockThresholdCount);
+            const fixed = isLowStock(r.before, threshold) && !isLowStock(r.after, threshold);
             return (
               <View key={r.name + i} style={[s.changeRow, i > 0 && s.line]}>
                 <View style={{ flex: 1 }}>
