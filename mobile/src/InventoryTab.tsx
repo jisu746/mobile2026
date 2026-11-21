@@ -1,9 +1,9 @@
 // 재고/발주 탭 화면 (상품 목록, 수정, 폐기) - 사장님·직원 공통
 import { ComponentRef, useEffect, useRef, useState } from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Linking, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from './font';
 import { Ionicons } from '@expo/vector-icons';
-import { Product, daysLeft, discardExpired, isLowStock, listProducts, updateProduct } from './inventory';
+import { Product, daysLeft, discardExpired, isLowStock, listProducts, productLowStockThreshold, updateProduct } from './inventory';
 import { DEFAULT_STORE_SETUP_SETTINGS, getStoreSetupSettingsOrDefault } from './storeSetupRepository';
 import type { StoreSetupSettings } from './storeSetupRepository';
 import { C, Stepper } from './ui';
@@ -18,7 +18,7 @@ const GREEN = { bg: '#EDFAF2', fg: '#10B981' };
 // 상품 상태: 재고 부족 / 유통기한 임박 / 폐기 사항(유통기한 지남)
 function status(p: Product, settings: StoreSetupSettings) {
   const d = daysLeft(p.expiry);
-  const low = isLowStock(p.stock, settings.lowStockThresholdCount);
+  const low = isLowStock(p.stock, productLowStockThreshold(p.min, settings.lowStockThresholdCount));
   const expired = d !== null && d < 0;
   const imminent = d !== null && d >= 0 && d <= settings.expirationAlertDays;
   const tags: Tag[] = [{ label: `재고 ${p.stock}개`, ...(low ? RED : GREEN) }];
@@ -73,17 +73,52 @@ export default function InventoryTab({ store, onProfile, onBell }: { store: numb
   const all = products ?? [];
   const needOrder = all.filter((p) => status(p, alertSettings).low).length;
   const imminent = all.filter((p) => status(p, alertSettings).imminent).length;
-  const list = all.filter((p) => p.name.toLowerCase().includes(q.trim().toLowerCase()));
+  const query = q.trim().toLowerCase();
+  const list = all
+    .filter((p) => p.name.toLowerCase().includes(query))
+    .sort((a, b) => {
+      const aStatus = status(a, alertSettings);
+      const bStatus = status(b, alertSettings);
+      // 폐기/유통기한 임박 상품을 가장 먼저, 발주 필요 상품, 나머지 상품 순으로 둔다.
+      const priority = (st: ReturnType<typeof status>) => st.expired || st.imminent ? 0 : st.low ? 1 : 2;
+      const groupDiff = priority(aStatus) - priority(bStatus);
+      if (groupDiff !== 0) return groupDiff;
 
-  // "발주 관리 현황"을 누르면 발주 필요·유통기한 임박 상품 중 목록 맨 위의 건으로 스크롤한다
+      if ((aStatus.expired || aStatus.imminent) && (bStatus.expired || bStatus.imminent)) {
+        // 유통기한이 지난 상품(음수)이 먼저, 이어서 임박 일수가 적은 순으로 둔다.
+        const aDays = daysLeft(a.expiry) ?? Number.POSITIVE_INFINITY;
+        const bDays = daysLeft(b.expiry) ?? Number.POSITIVE_INFINITY;
+        return aDays - bDays || a.name.localeCompare(b.name, 'ko');
+      }
+
+      if (aStatus.low && bStatus.low) {
+        // 발주 필요 상품은 재고가 가장 적은 상품이 위에 오도록 한다.
+        return a.stock - b.stock || a.name.localeCompare(b.name, 'ko');
+      }
+
+      // 일반 상품은 재고가 적은 순, 재고가 같으면 유통기한이 가까운 순으로 둔다.
+      const aDays = daysLeft(a.expiry) ?? Number.POSITIVE_INFINITY;
+      const bDays = daysLeft(b.expiry) ?? Number.POSITIVE_INFINITY;
+      return a.stock - b.stock || aDays - bDays || a.name.localeCompare(b.name, 'ko');
+    });
+
+  // "발주 관리 현황"을 누르면 발주·유통기한 알림 상품 중 목록 맨 위의 건으로 스크롤한다
   const goFirstAlert = () => {
-    const first = list.find((p) => status(p, alertSettings).low || status(p, alertSettings).imminent);
+    const first = list.find((p) => {
+      const st = status(p, alertSettings);
+      return st.low || st.imminent || st.expired;
+    });
     const y = first && tops.current[first.barcode];
     if (y !== undefined) scroll.current?.scrollTo({ y: Math.max(0, y - 12), animated: true });
   };
 
   return (
-    <ScrollView ref={scroll} contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
+    <ScrollView
+      ref={scroll}
+      showsVerticalScrollIndicator={Platform.OS !== 'web'}
+      contentContainerStyle={s.scroll}
+      keyboardShouldPersistTaps="handled"
+    >
       <View style={s.header}>
         <Text style={s.title}>재고 및 발주</Text>
         <Pressable onPress={onBell} hitSlop={8}>
@@ -97,7 +132,8 @@ export default function InventoryTab({ store, onProfile, onBell }: { store: numb
       <Pressable style={s.hero} onPress={goFirstAlert}>
         <View style={{ flex: 1 }}>
           <Text style={s.heroLabel}>발주 관리 현황</Text>
-          <Text style={s.heroText}>발주 필요 {needOrder}건 · 유통임박 {imminent}건 대기</Text>
+          <Text style={s.heroText}>발주 필요 {needOrder}건 · 유통기한 D-{alertSettings.expirationAlertDays} 이내 {imminent}건</Text>
+          <Text style={s.heroHint}>상품별 기준 우선 · 미설정 상품은 {alertSettings.lowStockThresholdCount}개 이하</Text>
         </View>
         <Ionicons name="chevron-forward" size={20} color="#fff" />
       </Pressable>
@@ -151,8 +187,9 @@ export default function InventoryTab({ store, onProfile, onBell }: { store: numb
                 <TextInput style={s.input} value={editName} onChangeText={setEditName} />
                 <Text style={[s.label, { marginTop: 16 }]}>재고 수량</Text>
                 <Stepper value={editStock} onChange={setEditStock} big min={0} />
-                <Text style={[s.label, { marginTop: 16 }]}>적정 재고 (이보다 적으면 발주 필요)</Text>
+                <Text style={[s.label, { marginTop: 16 }]}>적정 재고 알림 기준</Text>
                 <Stepper value={editMin} onChange={setEditMin} big min={0} />
+                <Text style={s.note}>재고가 {productLowStockThreshold(editMin, alertSettings.lowStockThresholdCount)}개 이하일 때 발주 필요로 표시돼요. 0은 매장 기본 기준을 따라요.</Text>
                 <Pressable
                   disabled={!editName.trim()}
                   style={[s.panelBtn, !editName.trim() && { opacity: 0.4 }]}
@@ -185,13 +222,14 @@ export default function InventoryTab({ store, onProfile, onBell }: { store: numb
 }
 
 const s = StyleSheet.create({
-  scroll: { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 24 },
+  scroll: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 24 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 14, height: 48 },
   title: { flex: 1, fontSize: 20, fontWeight: '700', color: C.text },
   avatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center' },
   hero: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.primary, borderRadius: 20, paddingHorizontal: 22, paddingVertical: 20, marginTop: 14 },
   heroLabel: { fontSize: 10, color: 'rgba(255,255,255,0.85)' },
   heroText: { fontSize: 16, fontWeight: '700', color: '#fff', marginTop: 6 },
+  heroHint: { fontSize: 10, color: 'rgba(255,255,255,0.82)', marginTop: 4 },
   search: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 40, borderRadius: 20, backgroundColor: '#F1EFF6', paddingHorizontal: 16, marginTop: 16, marginBottom: 14 },
   searchInput: { flex: 1, minWidth: 0, fontSize: 14, fontWeight: '600', color: C.text, paddingVertical: 0 },
   empty: { textAlign: 'center', color: '#828282', paddingVertical: 40 },
