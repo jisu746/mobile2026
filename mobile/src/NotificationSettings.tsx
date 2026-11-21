@@ -79,7 +79,7 @@ export default function NotificationSettings({ userId, storeId, onBack }: { user
               title={k.title}
               sub={k.id === 'expiry'
                 ? `매장 기준 D-${storeSettings.expirationAlertDays} · 오전 9시`
-                : k.id === 'stock' ? `적정 재고의 ${storeSettings.lowStockThresholdPercent}% 이하` : k.sub ?? ''}
+                : k.id === 'stock' ? `재고 ${storeSettings.lowStockThresholdCount}개 이하` : k.sub ?? ''}
               value={on[k.id]}
               onChange={(v) => toggle(k.id, v)}
             />

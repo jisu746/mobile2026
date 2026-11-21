@@ -101,8 +101,8 @@ export default function BarcodeFlow({ store, userName, onExit }: Props) {
         <Text style={s.sectionTitle}>재고 변화</Text>
         <View style={s.card}>
           {results.map((r, i) => {
-            const fixed = isLowStock(r.before, r.min, alertSettings.lowStockThresholdPercent)
-              && !isLowStock(r.after, r.min, alertSettings.lowStockThresholdPercent);
+            const fixed = isLowStock(r.before, alertSettings.lowStockThresholdCount)
+              && !isLowStock(r.after, alertSettings.lowStockThresholdCount);
             return (
               <View key={r.name + i} style={[s.changeRow, i > 0 && s.line]}>
                 <View style={{ flex: 1 }}>

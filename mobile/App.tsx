@@ -74,10 +74,10 @@ export default function App() {
 
   // 사장님: 매장 등록 (초대 코드를 돌려준다)
   const createStore = async (data: NewStore) => {
-    const { workParts, expirationAlertDays, lowStockThresholdPercent, ...storeData } = data;
+    const { workParts, expirationAlertDays, lowStockThresholdCount, ...storeData } = data;
     const created = await auth.createStore(storeData);
     if (created.id) {
-      await saveStoreSetupSettings(created.id, { workParts, expirationAlertDays, lowStockThresholdPercent });
+      await saveStoreSetupSettings(created.id, { workParts, expirationAlertDays, lowStockThresholdCount });
     }
     await selectLast((await auth.refresh()).acc);
     return created.inviteCode ?? '';

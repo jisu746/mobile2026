@@ -4,7 +4,7 @@ export type WorkPartSetting = { id: string; name: string; start: string; end: st
 export type StoreSetupSettings = {
   workParts: WorkPartSetting[];
   expirationAlertDays: number;
-  lowStockThresholdPercent: number;
+  lowStockThresholdCount: number;
 };
 
 export const DEFAULT_STORE_SETUP_SETTINGS: StoreSetupSettings = {
@@ -14,7 +14,7 @@ export const DEFAULT_STORE_SETUP_SETTINGS: StoreSetupSettings = {
     { id: 'closing', name: '마감 파트', start: '18:00', end: '24:00' },
   ],
   expirationAlertDays: 3,
-  lowStockThresholdPercent: 30,
+  lowStockThresholdCount: 3,
 };
 
 const keyFor = (storeId: number) => `storeSetupSettings:${storeId}`;
@@ -30,6 +30,9 @@ export async function getStoreSetupSettingsOrDefault(storeId: number): Promise<S
     ...DEFAULT_STORE_SETUP_SETTINGS,
     ...saved,
     workParts: Array.isArray(saved.workParts) ? saved.workParts : DEFAULT_STORE_SETUP_SETTINGS.workParts,
+    lowStockThresholdCount: Number.isInteger((saved as Partial<StoreSetupSettings>).lowStockThresholdCount)
+      ? (saved as StoreSetupSettings).lowStockThresholdCount
+      : DEFAULT_STORE_SETUP_SETTINGS.lowStockThresholdCount,
   } : { ...DEFAULT_STORE_SETUP_SETTINGS, workParts: DEFAULT_STORE_SETUP_SETTINGS.workParts.map((part) => ({ ...part })) };
 }
 

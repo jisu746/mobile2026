@@ -18,7 +18,7 @@ export type Task = {
   tone: 'action' | 'urgent' | 'normal';
 };
 
-export function buildTasks(products: Product[], settings: Pick<StoreSetupSettings, 'expirationAlertDays' | 'lowStockThresholdPercent'> = DEFAULT_STORE_SETUP_SETTINGS): Task[] {
+export function buildTasks(products: Product[], settings: Pick<StoreSetupSettings, 'expirationAlertDays' | 'lowStockThresholdCount'> = DEFAULT_STORE_SETUP_SETTINGS): Task[] {
   const out: Task[] = [];
   for (const p of products) {
     const d = daysLeft(p.expiry);
@@ -31,7 +31,7 @@ export function buildTasks(products: Product[], settings: Pick<StoreSetupSetting
         icon: 'time-outline', tag: d === 0 ? 'D-day' : `D-${d}`, tone: 'urgent',
       });
     }
-    if (isLowStock(p.stock, p.min, settings.lowStockThresholdPercent)) {
+    if (isLowStock(p.stock, settings.lowStockThresholdCount)) {
       out.push({ id: `low:${p.barcode}`, kind: 'low', title: `${p.name} 발주 필요`, sub: `현재 ${p.stock}개 · 적정 ${p.min}개`, icon: 'cube-outline', tag: '발주', tone: 'action' });
     }
   }

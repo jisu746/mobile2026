@@ -10,7 +10,7 @@ import type { WorkPartSetting } from './storeSetupRepository';
 
 type Step = 1 | 2 | 3;
 // onBack은 매장을 추가로 등록할 때만 전달된다
-export type NewStore = { name: string; type: string; branch: string; address: string; addressDetail: string; openTime: string; closeTime: string; workParts: WorkPartSetting[]; expirationAlertDays: number; lowStockThresholdPercent: number };
+export type NewStore = { name: string; type: string; branch: string; address: string; addressDetail: string; openTime: string; closeTime: string; workParts: WorkPartSetting[]; expirationAlertDays: number; lowStockThresholdCount: number };
 // onCreate는 서버에 매장을 등록하고 초대 코드를 돌려준다
 type Props = { step: Step; onStep: (n: Step) => void; onBack?: () => void; onCreate: (s: NewStore) => Promise<string>; onDone: () => void };
 
@@ -38,7 +38,7 @@ export default function StoreSetup({ step, onStep, onBack, onCreate, onDone }: P
   const [close, setClose] = useState('24:00');
   const [workParts, setWorkParts] = useState<WorkPartSetting[]>(DEFAULT_PARTS.map((part) => ({ ...part })));
   const [expirationAlertDays, setExpirationAlertDays] = useState(3);
-  const [lowStockThresholdPercent, setLowStockThresholdPercent] = useState(30);
+  const [lowStockThresholdCount, setLowStockThresholdCount] = useState(3);
   const [code, setCode] = useState(''); // 서버가 발급한 초대 코드 (등록 전에는 비어 있다)
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -56,7 +56,7 @@ export default function StoreSetup({ step, onStep, onBack, onCreate, onDone }: P
       setBusy(true);
       setError('');
       try {
-        setCode(await onCreate({ name: name.trim(), type, branch: branch.trim(), address: addr.trim(), addressDetail: addr2.trim(), openTime: open, closeTime: close, workParts, expirationAlertDays, lowStockThresholdPercent }));
+        setCode(await onCreate({ name: name.trim(), type, branch: branch.trim(), address: addr.trim(), addressDetail: addr2.trim(), openTime: open, closeTime: close, workParts, expirationAlertDays, lowStockThresholdCount }));
       } catch (e) {
         setError(e instanceof Error ? e.message : '매장을 등록하지 못했어요');
         setBusy(false);
@@ -167,7 +167,7 @@ export default function StoreSetup({ step, onStep, onBack, onCreate, onDone }: P
                   <Text style={s.rowTitle}>재고 부족 기준</Text>
                 </View>
                 <View style={s.settingChoices}>
-                  {[20, 30, 40, 50].map((percent) => <Pressable key={percent} onPress={() => setLowStockThresholdPercent(percent)} style={[s.choice, lowStockThresholdPercent === percent && s.choiceActive]}><Text style={[s.choiceText, lowStockThresholdPercent === percent && s.choiceTextActive]}>{percent}%</Text></Pressable>)}
+                  {[3, 5, 7, 10].map((count) => <Pressable key={count} onPress={() => setLowStockThresholdCount(count)} style={[s.choice, lowStockThresholdCount === count && s.choiceActive]}><Text style={[s.choiceText, lowStockThresholdCount === count && s.choiceTextActive]}>{count}개 이하</Text></Pressable>)}
                 </View>
               </View>
             </View>

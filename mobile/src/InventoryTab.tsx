@@ -16,7 +16,7 @@ const GREEN = { bg: '#EDFAF2', fg: '#10B981' };
 // 상품 상태: 재고 부족 / 유통기한 임박 / 폐기 사항(유통기한 지남)
 function status(p: Product, settings: StoreSetupSettings) {
   const d = daysLeft(p.expiry);
-  const low = isLowStock(p.stock, p.min, settings.lowStockThresholdPercent);
+  const low = isLowStock(p.stock, settings.lowStockThresholdCount);
   const expired = d !== null && d < 0;
   const imminent = d !== null && d >= 0 && d <= settings.expirationAlertDays;
   const tags: Tag[] = [{ label: `재고 ${p.stock}개`, ...(low ? RED : GREEN) }];
