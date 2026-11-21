@@ -1,11 +1,12 @@
 // 재고/발주 탭 화면 (상품 목록, 수정, 폐기) - 사장님·직원 공통
-import { ComponentRef, useEffect, useRef, useState } from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from './font';
 import { Ionicons } from '@expo/vector-icons';
-import { IMMINENT, Product, daysLeft, discardExpired, listProducts, updateProduct } from './inventory';
+import { Product, daysLeft, discardExpired, isLowStock, listProducts, updateProduct } from './inventory';
+import { DEFAULT_STORE_SETUP_SETTINGS, getStoreSetupSettingsOrDefault } from './storeSetupRepository';
+import type { StoreSetupSettings } from './storeSetupRepository';
 import { C, Stepper } from './ui';
-
-const ORDER_URL = 'https://www.coupang.com'; // 발주 버튼이 여는 주문 페이지
 
 type Tag = { label: string; bg: string; fg: string };
 const RED = { bg: '#FEECEB', fg: '#E53935' };
@@ -13,11 +14,11 @@ const ORANGE = { bg: '#FFF4E5', fg: '#D97706' };
 const GREEN = { bg: '#EDFAF2', fg: '#10B981' };
 
 // 상품 상태: 재고 부족 / 유통기한 임박 / 폐기 사항(유통기한 지남)
-function status(p: Product) {
+function status(p: Product, settings: StoreSetupSettings) {
   const d = daysLeft(p.expiry);
-  const low = p.stock < p.min;
+  const low = isLowStock(p.stock, settings.lowStockThresholdCount);
   const expired = d !== null && d < 0;
-  const imminent = d !== null && d >= 0 && d <= IMMINENT;
+  const imminent = d !== null && d >= 0 && d <= settings.expirationAlertDays;
   const tags: Tag[] = [{ label: `재고 ${p.stock}개`, ...(low ? RED : GREEN) }];
   if (imminent) tags.push({ label: d === 0 ? 'D-day 임박' : `D-${d} 임박`, ...ORANGE });
   if (expired) tags.push({ label: '폐기 사항 있음', ...RED });
@@ -26,19 +27,24 @@ function status(p: Product) {
 
 export default function InventoryTab({ store, onProfile, onBell }: { store: number; onProfile: () => void; onBell: () => void }) {
   const [products, setProducts] = useState<Product[] | null>(null);
+  const [alertSettings, setAlertSettings] = useState(DEFAULT_STORE_SETUP_SETTINGS);
   const [q, setQ] = useState('');
   const [open, setOpen] = useState<{ barcode: string; mode: 'edit' | 'discard' } | null>(null);
   const [editName, setEditName] = useState('');
   const [editStock, setEditStock] = useState(0);
-  const [editMin, setEditMin] = useState(0);
-  const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
-  const tops = useRef<Record<string, number>>({}); // 상품 카드별 세로 위치 (자동 스크롤용)
 
   const [error, setError] = useState('');
   const fail = (e: unknown) => setError(e instanceof Error ? e.message : '요청을 처리하지 못했어요');
   const reload = () => listProducts(store).then((l) => { setProducts(l); setError(''); }, fail);
   useEffect(() => {
     reload();
+  }, [store]);
+  useEffect(() => {
+    let active = true;
+    getStoreSetupSettingsOrDefault(store).then((settings) => {
+      if (active) setAlertSettings(settings);
+    }).catch(fail);
+    return () => { active = false; };
   }, [store]);
 
   // 같은 카드의 같은 패널을 다시 누르면 접는다
@@ -47,7 +53,6 @@ export default function InventoryTab({ store, onProfile, onBell }: { store: numb
     setOpen({ barcode: p.barcode, mode });
     setEditName(p.name);
     setEditStock(p.stock);
-    setEditMin(p.min);
   };
   const save = async (job: Promise<unknown>) => {
     try {
@@ -60,19 +65,12 @@ export default function InventoryTab({ store, onProfile, onBell }: { store: numb
   };
 
   const all = products ?? [];
-  const needOrder = all.filter((p) => status(p).low).length;
-  const imminent = all.filter((p) => status(p).imminent).length;
+  const needOrder = all.filter((p) => status(p, alertSettings).low).length;
+  const imminent = all.filter((p) => status(p, alertSettings).imminent).length;
   const list = all.filter((p) => p.name.toLowerCase().includes(q.trim().toLowerCase()));
 
-  // "발주 관리 현황"을 누르면 발주 필요·유통기한 임박 상품 중 목록 맨 위의 건으로 스크롤한다
-  const goFirstAlert = () => {
-    const first = list.find((p) => status(p).low || status(p).imminent);
-    const y = first && tops.current[first.barcode];
-    if (y !== undefined) scroll.current?.scrollTo({ y: Math.max(0, y - 12), animated: true });
-  };
-
   return (
-    <ScrollView ref={scroll} contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
+    <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
       <View style={s.header}>
         <Text style={s.title}>재고 및 발주</Text>
         <Pressable onPress={onBell} hitSlop={8}>
@@ -83,7 +81,8 @@ export default function InventoryTab({ store, onProfile, onBell }: { store: numb
         </Pressable>
       </View>
 
-      <Pressable style={s.hero} onPress={goFirstAlert}>
+      {/* TODO: 발주 관리 현황 상세 화면 연결 */}
+      <Pressable style={s.hero}>
         <View style={{ flex: 1 }}>
           <Text style={s.heroLabel}>발주 관리 현황</Text>
           <Text style={s.heroText}>발주 필요 {needOrder}건 · 유통임박 {imminent}건 대기</Text>
@@ -101,10 +100,10 @@ export default function InventoryTab({ store, onProfile, onBell }: { store: numb
       {products !== null && !list.length && <Text style={s.empty}>{q ? '검색 결과가 없어요' : '등록된 상품이 없어요'}</Text>}
 
       {list.map((p) => {
-        const st = status(p);
+        const st = status(p, alertSettings);
         const isOpen = open?.barcode === p.barcode;
         return (
-          <View key={p.barcode} style={s.item} onLayout={(e) => (tops.current[p.barcode] = e.nativeEvent.layout.y)}>
+          <View key={p.barcode} style={s.item}>
             <View style={[s.card, isOpen && s.cardHot]}>
               <View style={s.top}>
                 <View style={s.img} />
@@ -119,11 +118,12 @@ export default function InventoryTab({ store, onProfile, onBell }: { store: numb
                   </View>
                 </View>
               </View>
+              {/* TODO: 발주 동작은 발주 추천 화면 연결 후 구현 */}
               <View style={s.btns}>
                 <Pressable style={[s.btn, s.btnLine]} onPress={() => toggle(p, 'edit')}>
                   <Text style={s.btnLineText}>수정</Text>
                 </Pressable>
-                <Pressable style={[s.btn, s.btnFill]} onPress={() => Linking.openURL(ORDER_URL).catch(() => {})}>
+                <Pressable style={[s.btn, s.btnFill]}>
                   <Text style={s.btnFillText}>발주</Text>
                 </Pressable>
               </View>
@@ -140,12 +140,10 @@ export default function InventoryTab({ store, onProfile, onBell }: { store: numb
                 <TextInput style={s.input} value={editName} onChangeText={setEditName} />
                 <Text style={[s.label, { marginTop: 16 }]}>재고 수량</Text>
                 <Stepper value={editStock} onChange={setEditStock} big min={0} />
-                <Text style={[s.label, { marginTop: 16 }]}>적정 재고 (이보다 적으면 발주 필요)</Text>
-                <Stepper value={editMin} onChange={setEditMin} big min={0} />
                 <Pressable
                   disabled={!editName.trim()}
                   style={[s.panelBtn, !editName.trim() && { opacity: 0.4 }]}
-                  onPress={() => save(updateProduct(store, p.barcode, { name: editName.trim(), stock: editStock, min: editMin }))}
+                  onPress={() => save(updateProduct(store, p.barcode, { name: editName.trim(), stock: editStock }))}
                 >
                   <Text style={s.panelBtnText}>수정 완료</Text>
                 </Pressable>

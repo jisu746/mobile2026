@@ -1,6 +1,7 @@
 // 알림 목록 화면 (서버 알림, 사장님·직원 공통)
 import { useEffect, useState } from 'react';
-import { BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { BackHandler, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from './font';
 import { Ionicons } from '@expo/vector-icons';
 import NotificationSettings from './NotificationSettings';
 import { listNotifs, markRead, Notif } from './notifs';
@@ -25,7 +26,7 @@ const DEFAULT_LOOK: Look = { icon: 'notifications-outline', ...GRAY };
 
 const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 
-export default function Notifications({ storeId, onBack }: { storeId: number; onBack: () => void }) {
+export default function Notifications({ storeId, userId, onBack }: { storeId: number; userId: string; onBack: () => void }) {
   const [list, setList] = useState<Notif[] | null>(null);
   const [error, setError] = useState('');
   const [settings, setSettings] = useState(false);
@@ -47,7 +48,7 @@ export default function Notifications({ storeId, onBack }: { storeId: number; on
     return () => sub.remove();
   }, [onBack]);
 
-  if (settings) return <NotificationSettings onBack={() => setSettings(false)} />;
+  if (settings) return <NotificationSettings userId={userId} storeId={storeId} onBack={() => setSettings(false)} />;
 
   const read = (ids: number[]) => {
     if (!ids.length) return;

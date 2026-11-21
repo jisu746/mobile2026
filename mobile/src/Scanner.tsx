@@ -1,6 +1,7 @@
 // 카메라로 QR·바코드를 읽는 공통 스캔 화면 (값 직접 입력 칸 포함)
 import { ReactNode, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from './font';
 import { Ionicons } from '@expo/vector-icons';
 import { BarcodeType, CameraView, useCameraPermissions } from 'expo-camera';
 import { C } from './ui';

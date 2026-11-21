@@ -1,5 +1,6 @@
 // 앱 전체 화면 전환(로그인, 가입, 매장 설정, 사장님/직원 홈)과 로그인 상태 관리
 import { useEffect, useRef, useState } from 'react';
+import { useFonts } from 'expo-font';
 import { BackHandler, Platform, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -12,6 +13,8 @@ import StaffHome from './src/StaffHome';
 import StoreSwitcher from './src/StoreSwitcher';
 import StaffJoin from './src/StaffJoin';
 import StoreSetup, { NewStore } from './src/StoreSetup';
+import { getLocalProfile, saveLocalProfile } from './src/profileRepository';
+import { saveStoreSetupSettings } from './src/storeSetupRepository';
 
 // 화면 수가 적어서 네비게이션 라이브러리 없이 상태로 전환
 // login / s1~s4: 회원가입 / o1~o3: 사장님 매장 등록 / f1~f4: 직원 매장 참여 / home, shome: 사장님, 직원 메인
@@ -31,6 +34,7 @@ const startScreen = (acc: auth.Account): Screen =>
 const FRAME = { width: 360, height: 800, maxHeight: '100%' as const, alignSelf: 'center' as const };
 
 export default function App() {
+  const [fontsLoaded] = useFonts({ NotoSansKR: require('./assets/NotoSansKR-VF.ttf') });
   const [ready, setReady] = useState(false);
   const [screen, setScreen] = useState<Screen>('login');
   const [userId, setUserId] = useState('');
@@ -44,11 +48,20 @@ export default function App() {
   const backOf = (sc: Screen): Screen | null =>
     (sc === 'o1' || sc === 'f1') && account?.stores.length ? homeOf(account) : BACK[sc];
 
-  const enter = (id: string, acc: auth.Account) => {
+  const enter = async (id: string, acc: auth.Account) => {
+    const draft = await getLocalProfile(id);
+    const restored = draft ? {
+      ...acc,
+      name: draft.name,
+      birth: draft.birth,
+      stores: acc.stores.map((item, index) => index === acc.current && draft.storeName
+        ? { ...item, baseName: draft.storeName, name: [draft.storeName, item.branch].filter(Boolean).join(' ') }
+        : item),
+    } : acc;
     setUserId(id);
-    setAccount(acc);
-    joinBase.current = acc.stores.length;
-    setScreen(startScreen(acc));
+    setAccount(restored);
+    joinBase.current = restored.stores.length;
+    setScreen(startScreen(restored));
   };
 
   // 새로 생긴 매장을 현재 매장으로 선택한다
@@ -61,7 +74,11 @@ export default function App() {
 
   // 사장님: 매장 등록 (초대 코드를 돌려준다)
   const createStore = async (data: NewStore) => {
-    const created = await auth.createStore(data);
+    const { workParts, expirationAlertDays, lowStockThresholdCount, ...storeData } = data;
+    const created = await auth.createStore(storeData);
+    if (created.id) {
+      await saveStoreSetupSettings(created.id, { workParts, expirationAlertDays, lowStockThresholdCount });
+    }
     await selectLast((await auth.refresh()).acc);
     return created.inviteCode ?? '';
   };
@@ -95,8 +112,8 @@ export default function App() {
   };
 
   useEffect(() => {
-    auth.session().then((ss) => {
-      if (ss) enter(ss.id, ss.acc);
+    auth.session().then(async (ss) => {
+      if (ss) await enter(ss.id, ss.acc);
       setReady(true);
     });
   }, []);
@@ -112,7 +129,7 @@ export default function App() {
   }, [screen, account]);
 
   // MY 탭 화면 (사장님·직원 메인의 하단 탭에서 보여준다)
-  const renderMy = (onBell: () => void, onRecords: () => void) =>
+  const renderMy = (onBell: () => void, onRecords: () => void, onEmployeeRequests?: () => void, onEmployees?: () => void, onPayroll?: () => void, onContracts?: () => void) =>
     account && (
       <Profile
         id={userId}
@@ -122,10 +139,28 @@ export default function App() {
         onLogout={logout}
         onBell={onBell}
         onRecords={onRecords}
+        onEmployeeRequests={onEmployeeRequests ?? (() => {})}
+        onEmployees={onEmployees ?? (() => {})}
+        onPayroll={onPayroll ?? (() => {})}
+        onContracts={onContracts ?? (() => {})}
+        onSaveProfile={async ({ name, birth, storeName }) => {
+          if (!account) return;
+          // Local repository keeps this screen independent of the backend for now.
+          await saveLocalProfile(userId, { name: name.trim(), birth, ...(storeName ? { storeName: storeName.trim() } : {}) });
+          setAccount((current) => {
+            if (!current) return current;
+            const stores = current.stores.map((item, index) => {
+              if (index !== current.current || current.role !== 'owner' || !storeName) return item;
+              const baseName = storeName.trim();
+              return { ...item, baseName, name: [baseName, item.branch].filter(Boolean).join(' ') };
+            });
+            return { ...current, name: name.trim(), birth, stores };
+          });
+        }}
       />
     );
 
-  if (!ready) return null;
+  if (!ready || !fontsLoaded) return null;
 
   return (
     <SafeAreaProvider>
@@ -145,7 +180,7 @@ export default function App() {
             onDone={() => setScreen('shome')}
           />
         )}
-        {screen === 'shome' && <StaffHome storeId={store.id ?? 0} storeName={store.name} userName={account?.name ?? ''} renderMy={renderMy} onSwitchStore={() => setSwitcher(true)} />}
+        {screen === 'shome' && <StaffHome storeId={store.id ?? 0} storeName={store.name} userId={userId} userName={account?.name ?? ''} renderMy={renderMy} onSwitchStore={() => setSwitcher(true)} />}
         {screen[0] === 's' && screen !== 'shome' && (
           <Signup
             step={Number(screen[1]) as 1 | 2 | 3 | 4}
@@ -163,7 +198,7 @@ export default function App() {
             onDone={() => setScreen('home')}
           />
         )}
-        {screen === 'home' && <OwnerHome store={store} userName={account?.name ?? ''} renderMy={renderMy} onSwitchStore={() => setSwitcher(true)} />}
+        {screen === 'home' && <OwnerHome store={store} userId={userId} userName={account?.name ?? ''} renderMy={renderMy} onSwitchStore={() => setSwitcher(true)} />}
 
         {switcher && account && (
           <StoreSwitcher

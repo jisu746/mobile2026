@@ -1,7 +1,7 @@
 // 로그인 화면 (사장님/직원)
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Image, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from './font';
 import { Account, login, Role } from './auth';
 import { Button, C, Field, Pill } from './ui';
 
@@ -26,7 +26,7 @@ export default function Login({ onSignup, onLoggedIn }: Props) {
   return (
     <View style={s.root}>
       <View style={s.top}>
-        <Ionicons name="storefront" size={96} color={C.primary} />
+        <Image source={require('../assets/storemate-store-icon.png')} style={{ width: 96, height: 96 }} resizeMode="contain" accessibilityLabel="StoreMate" />
         <Text style={s.brand}>StoreMate</Text>
       </View>
 
@@ -44,21 +44,6 @@ export default function Login({ onSignup, onLoggedIn }: Props) {
         {!!error && <Text style={s.error}>{error}</Text>}
         <Button label="계속" onPress={submit} disabled={!id || !pw} />
       </View>
-
-      <View style={s.divider}>
-        <View style={s.line} />
-        <Text style={s.or}>또는</Text>
-        <View style={s.line} />
-      </View>
-
-      <Pressable style={[s.social, { backgroundColor: '#fff' }]}>
-        <Ionicons name="logo-google" size={14} color="#4285F4" />
-        <Text style={[s.socialText, { color: '#131B2E' }]}>Google 계정으로 계속하기</Text>
-      </Pressable>
-      <Pressable style={[s.social, { backgroundColor: '#FEE500' }]}>
-        <Ionicons name="chatbubble" size={14} color="#191919" />
-        <Text style={[s.socialText, { color: '#191919' }]}>카카오 1초 간편 로그인</Text>
-      </Pressable>
 
       <View style={s.bottom}>
         <Text style={s.bottomSub}>아직 계정이 없으신가요?</Text>
@@ -80,22 +65,7 @@ const s = StyleSheet.create({
   form: { gap: 12, marginTop: 20 },
   error: { fontSize: 12.5, color: '#D93025' },
   input: { height: 42, borderRadius: 8, borderColor: '#E0E0E0', fontSize: 13.7 },
-  divider: { flexDirection: 'row', alignItems: 'center', gap: 8, marginVertical: 18 },
-  line: { flex: 1, height: 1, backgroundColor: '#E6E6E6' },
-  or: { fontSize: 14, color: '#828282' },
-  social: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 7,
-    height: 42,
-    marginHorizontal: 24,
-    marginBottom: 12,
-    borderRadius: 11,
-    elevation: 2,
-  },
-  socialText: { fontSize: 12 },
-  bottom: { marginTop: 'auto', alignItems: 'center', paddingBottom: 24 },
+  bottom: { marginTop: 24, alignItems: 'center', paddingBottom: 24 },
   bottomSub: { fontSize: 14, color: C.primary },
   bottomLink: { fontSize: 16, fontWeight: '600', color: C.primary, marginTop: 2 },
 });

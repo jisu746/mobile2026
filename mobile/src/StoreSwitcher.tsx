@@ -1,5 +1,6 @@
 // 프로필 아이콘에서 열리는 매장 변경 시트 (사장님·직원 공통)
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from './font';
 import { Ionicons } from '@expo/vector-icons';
 import { Account } from './auth';
 import { C } from './ui';
@@ -17,7 +18,7 @@ export default function StoreSwitcher({ acc, onSelect, onAdd, onClose }: Props) 
         <Text style={s.title}>매장 변경</Text>
         {acc.stores.map((st, i) => (
           <Pressable key={i} style={s.row} onPress={() => onSelect(i)}>
-            <Ionicons name="storefront-outline" size={20} color={C.primary} />
+            {owner ? <Image source={require('../assets/storemate-store-icon.png')} style={{ width: 20, height: 20 }} resizeMode="contain" accessibilityLabel="StoreMate" /> : <Ionicons name="storefront-outline" size={20} color={C.primary} />}
             <View style={{ flex: 1 }}>
               <Text style={s.name}>{st.name}</Text>
               {!!st.type && <Text style={s.type}>{st.type}</Text>}
