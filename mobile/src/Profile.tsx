@@ -9,7 +9,7 @@ import { C } from './ui';
 import type { Store } from './auth';
 import { contractRepository } from './contractRepository';
 import type { EmploymentContract } from './contractRepository';
-import { hoursByDay, listSessions, MIN_WAGE } from './work';
+import { hoursByDay, hr, listSessions, useMe, won } from './work';
 
 type Props = {
   id: string;
@@ -26,7 +26,8 @@ type Props = {
   onSaveProfile: (values: { name: string; birth: string; storeName?: string }) => Promise<void>;
 };
 
-// TODO: 파트·입사일·근무 시간·예상 급여·근속은 샘플 데이터. API 연동 단계에서 서버 값으로 교체
+const dot = (d: Date) => `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
+
 export default function Profile({ id, acc, onSelect, onAdd, onLogout, onBell, onRecords, onEmployeeRequests, onEmployees, onPayroll, onContracts, onSaveProfile }: Props) {
   const owner = acc.role === 'owner';
   const [switching, setSwitching] = useState(false);
@@ -35,6 +36,14 @@ export default function Profile({ id, acc, onSelect, onAdd, onLogout, onBell, on
   const [staffContractOpen, setStaffContractOpen] = useState(false);
   const [staffHours, setStaffHours] = useState<number | null>(null);
   const store = acc.stores[acc.current];
+  const storeId = store?.id ?? 0;
+
+  // 직원: 예상 급여는 사장님이 정한 시급, 근속은 서버 입사일로 계산한다
+  const me = useMe(storeId);
+  const now = new Date();
+  const months = me.joinedAt
+    ? Math.max(0, (now.getFullYear() - me.joinedAt.getFullYear()) * 12 + now.getMonth() - me.joinedAt.getMonth() - (now.getDate() < me.joinedAt.getDate() ? 1 : 0))
+    : 0;
 
   useEffect(() => {
     if (owner || !store?.id) { setStaffHours(null); return; }
@@ -81,7 +90,7 @@ export default function Profile({ id, acc, onSelect, onAdd, onLogout, onBell, on
         {owner ? <Image source={require('../assets/storemate-store-icon.png')} style={{ width: 34, height: 34 }} resizeMode="contain" accessibilityLabel="StoreMate" /> : <Ionicons name="storefront" size={34} color={C.primary} />}
         <View style={{ flex: 1 }}>
           <Text style={s.storeName}>{store?.name ?? '소속 매장 없음'}</Text>
-          <Text style={s.storeSub}>{owner ? '사장님' : '직원'}</Text>
+          <Text style={s.storeSub}>{owner ? '사장님' : `직원${me.joinedAt ? ` · ${dot(me.joinedAt)} 입사` : ''}`}</Text>
         </View>
         <Ionicons name={switching ? 'chevron-up' : 'chevron-down'} size={20} color="#5E5C6B" />
       </Pressable>
@@ -126,11 +135,11 @@ export default function Profile({ id, acc, onSelect, onAdd, onLogout, onBell, on
       ) : (
         <>
           <View style={s.stats}>
-            <Stat label="이번 달 근무">{staffHours === null ? '—' : String(Math.round(staffHours * 10) / 10)}<Unit>시간</Unit></Stat>
-            <Stat label="기본 급여 예상">{staffHours === null ? '—' : (staffHours * MIN_WAGE / 10000).toFixed(1)}<Unit>만원</Unit></Stat>
-            <Stat label="근속">—<Unit>정보 없음</Unit></Stat>
+            <Stat label="이번 달 근무">{staffHours === null ? '—' : hr(staffHours)}<Unit>시간</Unit></Stat>
+            <Stat label="기본 급여 예상">{staffHours === null ? '—' : (Math.round((staffHours * me.wage) / 1000) / 10).toFixed(1)}<Unit>만원</Unit></Stat>
+            <Stat label="근속">{months >= 12 && <>{Math.floor(months / 12)}<Unit>년 </Unit></>}{months % 12}<Unit>개월</Unit></Stat>
           </View>
-          <Text style={s.summaryNote}>근무 기록 기반 · 시급 10,030원 참고 계산</Text>
+          <Text style={s.summaryNote}>근무 기록 기반 · 시급 {won(me.wage)}원{me.wageSet ? '' : ' (기본)'}</Text>
           <Text style={s.section}>근무 · 급여</Text>
           <View style={s.card}>
             <MenuRow icon="document-text-outline" label="근로계약서" onPress={() => setStaffContractOpen(true)} />
