@@ -41,6 +41,10 @@ export const updateProduct = (storeId: number, barcode: string, patch: { name?: 
 export const discardExpired = (storeId: number, barcode: string) =>
   api('POST', `${base(storeId)}/products/${encodeURIComponent(barcode)}/discard`);
 
+// 상품별 적정 재고가 지정되어 있으면 우선하고, 0이면 매장 가입 시 설정한 기본 기준을 쓴다.
+export const productLowStockThreshold = (productMin: number, defaultThresholdCount: number) =>
+  productMin > 0 ? productMin : defaultThresholdCount;
+
 export const isLowStock = (stock: number, thresholdCount: number) => stock <= thresholdCount;
 
 // 오늘 기준 남은 일수 (오늘 = 0, 지났으면 음수). 유통기한이 없으면 null

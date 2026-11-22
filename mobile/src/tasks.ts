@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from './api';
-import { daysLeft, isLowStock, listProducts, Product } from './inventory';
+import { daysLeft, isLowStock, listProducts, Product, productLowStockThreshold } from './inventory';
 import { DEFAULT_STORE_SETUP_SETTINGS, getStoreSetupSettingsOrDefault } from './storeSetupRepository';
 import type { StoreSetupSettings } from './storeSetupRepository';
 
@@ -31,8 +31,9 @@ export function buildTasks(products: Product[], settings: Pick<StoreSetupSetting
         icon: 'time-outline', tag: d === 0 ? 'D-day' : `D-${d}`, tone: 'urgent',
       });
     }
-    if (isLowStock(p.stock, settings.lowStockThresholdCount)) {
-      out.push({ id: `low:${p.barcode}`, kind: 'low', title: `${p.name} 발주 필요`, sub: `현재 ${p.stock}개 · 적정 ${p.min}개`, icon: 'cube-outline', tag: '발주', tone: 'action' });
+    const stockThreshold = productLowStockThreshold(p.min, settings.lowStockThresholdCount);
+    if (isLowStock(p.stock, stockThreshold)) {
+      out.push({ id: `low:${p.barcode}`, kind: 'low', title: `${p.name} 발주 필요`, sub: `현재 ${p.stock}개 · 발주 기준 ${stockThreshold}개`, icon: 'cube-outline', tag: '발주', tone: 'action' });
     }
   }
   const order = { expired: 0, soon: 1, low: 2, custom: 3 };
