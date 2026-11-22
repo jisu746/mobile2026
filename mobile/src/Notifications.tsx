@@ -5,6 +5,8 @@ import { BackHandler, Pressable, ScrollView, StyleSheet, View } from 'react-nati
 import { Text } from './font';
 import { Ionicons } from '@expo/vector-icons';
 import NotificationSettings from './NotificationSettings';
+import InventoryTab from './InventoryTab';
+import { OwnerStaffRequests } from './OwnerStaff';
 import { listNotifs, markRead, Notif } from './notifs';
 import { daysLeft, listProducts } from './inventory';
 import type { Product } from './inventory';
@@ -22,8 +24,8 @@ const PURPLE = { bg: '#F5F4FB', fg: C.primary };
 const ORANGE = { bg: '#FFF4E5', fg: '#D97706' };
 const RED = { bg: '#FEECEB', fg: '#E53935' };
 
-type DisplayNotif = Notif & { rowKey: string; localKey?: string; order?: number };
-type InventoryAlert = Notif & { localKey: string; order: number };
+type DisplayNotif = Notif & { rowKey: string; localKey?: string; order?: number; targetBarcode?: string };
+type InventoryAlert = Notif & { localKey: string; order: number; targetBarcode: string };
 
 // 서버 알림 종류별 아이콘과 색
 const LOOK: Record<string, Look> = {
@@ -55,6 +57,7 @@ function buildInventoryAlerts(products: Product[], expirationAlertDays: number, 
         createdAt: now,
         read: readKeys.has(localKey),
         localKey,
+        targetBarcode: product.barcode,
         order: days,
       });
     }
@@ -70,6 +73,7 @@ function buildInventoryAlerts(products: Product[], expirationAlertDays: number, 
         createdAt: now,
         read: readKeys.has(localKey),
         localKey,
+        targetBarcode: product.barcode,
         order: product.stock,
       });
     }
@@ -78,7 +82,7 @@ function buildInventoryAlerts(products: Product[], expirationAlertDays: number, 
   return alerts.sort((a, b) => (a.kind === b.kind ? a.order - b.order : a.kind === 'expiry' ? -1 : 1));
 }
 
-export default function Notifications({ storeId, userId, isOwner = false, onBack }: { storeId: number; userId: string; isOwner?: boolean; onBack: () => void }) {
+export default function Notifications({ storeId, userId, isOwner = false, storeName = '현재 매장', inviteCode, onBack }: { storeId: number; userId: string; isOwner?: boolean; storeName?: string; inviteCode?: string; onBack: () => void }) {
   const [list, setList] = useState<Notif[] | null>(null);
   const [inventoryAlerts, setInventoryAlerts] = useState<InventoryAlert[] | null>(isOwner ? null : []);
   const [inventoryReadKeys, setInventoryReadKeys] = useState<Set<string>>(new Set());
@@ -86,6 +90,9 @@ export default function Notifications({ storeId, userId, isOwner = false, onBack
   const [error, setError] = useState('');
   const [settings, setSettings] = useState(false);
   const [reloadVersion, setReloadVersion] = useState(0);
+  const [destination, setDestination] = useState<
+    { type: 'inventory'; barcode?: string } | { type: 'requests' } | { type: 'detail'; item: DisplayNotif } | null
+  >(null);
 
   const fail = (e: unknown) => setError(e instanceof Error ? e.message : '요청을 처리하지 못했어요');
   useEffect(() => {
@@ -136,11 +143,12 @@ export default function Notifications({ storeId, userId, isOwner = false, onBack
   // 안드로이드 뒤로가기로 알림 화면만 닫는다
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      onBack();
+      if (destination) setDestination(null);
+      else onBack();
       return true;
     });
     return () => sub.remove();
-  }, [onBack]);
+  }, [onBack, destination]);
 
   if (settings) return <NotificationSettings userId={userId} storeId={storeId} onBack={() => { setSettings(false); setReloadVersion((value) => value + 1); }} />;
 
@@ -160,6 +168,27 @@ export default function Notifications({ storeId, userId, isOwner = false, onBack
       AsyncStorage.setItem(inventoryReadKey(userId, storeId), JSON.stringify([...next])).catch(fail);
     }
   };
+
+  const open = (item: DisplayNotif) => {
+    if (!item.read) read([item]);
+    if (item.targetBarcode || item.kind === 'receipt') setDestination({ type: 'inventory', barcode: item.targetBarcode });
+    else if (item.kind === 'join' && isOwner) setDestination({ type: 'requests' });
+    else setDestination({ type: 'detail', item });
+  };
+
+  if (destination?.type === 'requests') return <OwnerStaffRequests storeId={storeId} storeName={storeName} inviteCode={inviteCode} onBack={() => setDestination(null)} />;
+  if (destination?.type === 'inventory') return <View style={s.root}>
+    <View style={s.header}><Pressable accessibilityLabel="알림으로 돌아가기" hitSlop={12} onPress={() => setDestination(null)}><Ionicons name="arrow-back" size={24} color={C.text} /></Pressable><Text style={s.title}>알림 관련 재고</Text></View>
+    <InventoryTab key={`${storeId}:${destination.barcode ?? 'all'}`} store={storeId} focusBarcode={destination.barcode} onProfile={() => setDestination(null)} onBell={() => setDestination(null)} />
+  </View>;
+  if (destination?.type === 'detail') return <View style={s.root}>
+    <View style={s.header}><Pressable accessibilityLabel="알림으로 돌아가기" hitSlop={12} onPress={() => setDestination(null)}><Ionicons name="arrow-back" size={24} color={C.text} /></Pressable><Text style={s.title}>알림 상세</Text></View>
+    <ScrollView contentContainerStyle={{ padding: 20, gap: 14 }}>
+      <Text style={{ fontSize: 18, fontWeight: '700', color: C.text }}>{destination.item.title}</Text>
+      <Text style={s.rowSub}>{destination.item.sub}</Text>
+      <Text style={s.rowSub}>{destination.item.createdAt.toLocaleString('ko-KR')}</Text>
+    </ScrollView>
+  </View>;
 
   const serverItems: DisplayNotif[] = (list ?? []).map((item) => ({ ...item, rowKey: `server:${item.id}` }));
   const localItems: DisplayNotif[] = (inventoryAlerts ?? []).map((item) => ({ ...item, rowKey: `inventory:${item.localKey}` }));
@@ -193,7 +222,7 @@ export default function Notifications({ storeId, userId, isOwner = false, onBack
         {(list === null || inventoryAlerts === null) && !error && <Text style={s.footer}>불러오는 중이에요</Text>}
         {list !== null && inventoryAlerts !== null && !all.length && !error && !inventoryError && <Text style={s.footer}>새 알림이 없어요</Text>}
         {groups.filter((g) => g.items.length).map((g) => (
-          <Section key={g.label} label={g.label} items={g.items} onRead={(item) => read([item])} />
+          <Section key={g.label} label={g.label} items={g.items} onRead={open} />
         ))}
         <Text style={s.footer}>최근 30일 알림까지 보관돼요</Text>
       </ScrollView>

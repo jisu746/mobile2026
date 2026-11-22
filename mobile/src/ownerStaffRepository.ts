@@ -1,7 +1,7 @@
-// 직원 화면 데이터 경계. 현재는 시안용 메모리 저장소다.
-// 서버에는 요청 조회(GET /api/stores/{id}/requests), 승인/거절(POST /api/members/{id}/{decision})이 있다.
-// 승인 직원 목록·근무 파트 변경·직원 제거 API가 추가되면 이 인터페이스의 서버 구현으로 교체한다.
+// 직원 화면 데이터 경계. 기본 화면은 서버 구현을 사용한다.
+// demo 구현은 아직 로컬 시안인 급여·계약서 화면의 호환을 위해 남겨 둔다.
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { api } from './api';
 
 export type StaffPerson = { id: string; name: string; email: string; part: string; time: string };
 export type OwnerStaffLists = { pending: StaffPerson[]; approved: StaffPerson[] };
@@ -13,6 +13,49 @@ export interface OwnerStaffRepository {
   updateEmployeePart(storeId: number, employeeId: string, part: string): Promise<void>;
   removeEmployee(storeId: number, employeeId: string): Promise<void>;
 }
+
+type RequestView = { memberId: number; username: string; name: string; requestedAt: string; workPart: string | null };
+type StaffView = RequestView & { hourlyWage: number | null };
+
+const person = (item: RequestView): StaffPerson => ({
+  id: String(item.memberId), name: item.name, email: item.username,
+  part: item.workPart ?? '', time: item.requestedAt?.slice(0, 10) ?? '',
+});
+
+function path(storeId: number) {
+  if (!Number.isSafeInteger(storeId) || storeId <= 0) throw new Error('매장을 선택해 주세요.');
+  return `/api/stores/${storeId}`;
+}
+
+function memberId(value: string) {
+  if (!/^[1-9]\d*$/.test(value)) throw new Error('직원 정보가 올바르지 않아요. 목록을 새로고침해 주세요.');
+  return value;
+}
+
+export const serverOwnerStaffRepository: OwnerStaffRepository = {
+  async getRequests(storeId) {
+    const base = path(storeId);
+    const [pending, approved] = await Promise.all([
+      api<RequestView[]>('GET', `${base}/requests`),
+      api<StaffView[]>('GET', `${base}/staff`),
+    ]);
+    return { pending: pending.map(person), approved: approved.map(person) };
+  },
+  async decideRequest(storeId, requestId, decision, part) {
+    path(storeId);
+    await api('POST', `/api/members/${memberId(requestId)}/${decision}`,
+      decision === 'approve' ? { workPart: part } : undefined);
+  },
+  async getEmployees(storeId) {
+    return (await api<StaffView[]>('GET', `${path(storeId)}/staff`)).map(person);
+  },
+  async updateEmployeePart(storeId, employeeId, part) {
+    await api('PUT', `${path(storeId)}/staff/${memberId(employeeId)}/part`, { workPart: part });
+  },
+  async removeEmployee(storeId, employeeId) {
+    await api('POST', `${path(storeId)}/staff/${memberId(employeeId)}/remove`);
+  },
+};
 
 const initialPending: StaffPerson[] = [
   { id: 'p1', name: '홍지수', email: 'jisu.hong@storemate.kr', part: '오후', time: '3분 전' },

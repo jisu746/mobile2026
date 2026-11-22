@@ -1,4 +1,4 @@
-// 사장님 직원 참여 요청 및 직원 관리 화면 (UI 시안)
+// 사장님 직원 참여 요청 및 직원 관리 화면 (서버 연동)
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Image, Modal, Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from './font';
@@ -6,9 +6,10 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import QRCode from 'react-native-qrcode-svg';
 import { C } from './ui';
-import { demoOwnerStaffRepository } from './ownerStaffRepository';
+import { serverOwnerStaffRepository } from './ownerStaffRepository';
 import type { OwnerStaffRepository, StaffPerson } from './ownerStaffRepository';
 import { getStoreSetupSettings } from './storeSetupRepository';
+import OwnerSchedule from './OwnerSchedule';
 const PARTS = ['오전', '오후', '마감'];
 
 function useStoreWorkParts(storeId: number) {
@@ -25,17 +26,19 @@ function useStoreWorkParts(storeId: number) {
 }
 
 const normalizePart = (value: string) => value.trim().replace(/\s*파트$/, '').trim();
-const partLabel = (value: string) => value.trim().includes('파트') ? value.trim() : `${value.trim()} 파트`;
+const partLabel = (value: string) => !value.trim() ? '미지정' : value.trim().includes('파트') ? value.trim() : `${value.trim()} 파트`;
 
 type RequestProps = { storeId: number; inviteCode?: string; storeName: string; onBack: () => void; repository?: OwnerStaffRepository };
-export function OwnerStaffRequests({ storeId, inviteCode, storeName, onBack, repository = demoOwnerStaffRepository }: RequestProps) {
+export function OwnerStaffRequests({ storeId, inviteCode, storeName, onBack, repository = serverOwnerStaffRepository }: RequestProps) {
   const workParts = useStoreWorkParts(storeId);
   const [tab, setTab] = useState<'pending' | 'approved'>('pending');
   const [pending, setPending] = useState<StaffPerson[]>([]);
   const [approved, setApproved] = useState<StaffPerson[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const code = inviteCode || 'SM-KANGNAM-8291';
+  const code = inviteCode ?? '';
+  const [busy, setBusy] = useState(false);
+  const deciding = useRef(false);
   const visible = tab === 'pending' ? pending : approved;
 
   const refresh = async () => {
@@ -55,11 +58,17 @@ export function OwnerStaffRequests({ storeId, inviteCode, storeName, onBack, rep
   useEffect(() => { void refresh(); }, [storeId, repository]);
 
   const decide = async (person: StaffPerson, approve: boolean, part: string) => {
+    if (deciding.current) return;
+    deciding.current = true;
+    setBusy(true);
     try {
       await repository.decideRequest(storeId, person.id, approve ? 'approve' : 'reject', part);
       await refresh();
     } catch (e) {
-      Alert.alert('처리 실패', e instanceof Error ? e.message : '요청을 처리하지 못했어요.');
+      setError(e instanceof Error ? e.message : '요청을 처리하지 못했어요.');
+    } finally {
+      deciding.current = false;
+      setBusy(false);
     }
   };
 
@@ -76,20 +85,21 @@ export function OwnerStaffRequests({ storeId, inviteCode, storeName, onBack, rep
           </Pressable>
         </View>
 
-        {!!error && <Text style={s.emptyText}>{error}</Text>}
+        {!!error && <Pressable onPress={() => void refresh()}><Text style={s.emptyText}>{error}{'\n'}눌러서 다시 불러오기</Text></Pressable>}
         {loading && <Text style={s.emptyText}>직원 목록을 불러오는 중이에요</Text>}
         {!loading && !error && visible.map((person) => (
-          <RequestCard key={person.id} person={person} pending={tab === 'pending'} workParts={workParts} onDecide={decide} />
+          <RequestCard key={person.id} person={person} pending={tab === 'pending'} workParts={workParts} busy={busy} onDecide={decide} />
         ))}
         {!loading && !error && !visible.length && <Text style={s.emptyText}>{tab === 'pending' ? '대기 중인 등록 요청이 없어요' : '승인된 직원이 없어요'}</Text>}
 
-        {tab === 'pending' && <InviteCard code={code} storeName={storeName} />}
+        {tab === 'pending' && (code ? <InviteCard code={code} storeName={storeName} /> : <Text style={s.emptyText}>초대 코드를 불러오려면 다시 로그인해 주세요.</Text>)}
       </ScrollView>
     </View>
   );
 }
 
-export function OwnerStaffManagement({ storeId, onBack, repository = demoOwnerStaffRepository }: { storeId: number; onBack: () => void; repository?: OwnerStaffRepository }) {
+export function OwnerStaffManagement({ storeId, onBack, repository = serverOwnerStaffRepository }: { storeId: number; onBack: () => void; repository?: OwnerStaffRepository }) {
+  const [scheduleEmployee, setScheduleEmployee] = useState<StaffPerson | null>(null);
   const workParts = useStoreWorkParts(storeId);
   const [staff, setStaff] = useState<StaffPerson[]>([]);
   const [loading, setLoading] = useState(true);
@@ -98,17 +108,24 @@ export function OwnerStaffManagement({ storeId, onBack, repository = demoOwnerSt
   const [parts, setParts] = useState<Record<string, string>>({});
   const [openPartId, setOpenPartId] = useState<string | null>(null);
   const [savedId, setSavedId] = useState<string | null>(null);
+  const [error, setError] = useState('');
+  const [removeTarget, setRemoveTarget] = useState<StaffPerson | null>(null);
+  const [busy, setBusy] = useState(false);
+  const mutating = useRef(false);
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const filtered = useMemo(() => staff.filter((p) => `${p.name} ${p.email}`.toLowerCase().includes(query.toLowerCase())), [staff, query]);
 
   const refreshStaff = async () => {
     setLoading(true);
+    setError('');
     try { setStaff(await repository.getEmployees(storeId)); }
-    catch (e) { Alert.alert('불러오기 실패', e instanceof Error ? e.message : '직원 목록을 불러오지 못했어요.'); }
+    catch (e) { setStaff([]); setError(e instanceof Error ? e.message : '직원 목록을 불러오지 못했어요.'); }
     finally { setLoading(false); }
   };
   useEffect(() => { void refreshStaff(); }, [storeId, repository]);
   useEffect(() => () => { if (savedTimer.current) clearTimeout(savedTimer.current); }, []);
+
+  if (scheduleEmployee) return <OwnerSchedule key={`${storeId}:${scheduleEmployee.id}`} storeId={storeId} employee={scheduleEmployee} onBack={() => setScheduleEmployee(null)} />;
 
   return (
     <View style={s.root}>
@@ -125,9 +142,15 @@ export function OwnerStaffManagement({ storeId, onBack, repository = demoOwnerSt
           </View>
         )}
         {loading && <Text style={s.emptyText}>직원 목록을 불러오는 중이에요</Text>}
-        {!loading && filtered.map((person) => (
+        {!!error && <Pressable onPress={() => void refreshStaff()}><Text style={s.emptyText}>{error}{'\n'}눌러서 다시 불러오기</Text></Pressable>}
+        {!loading && !error && filtered.map((person) => (
           <View key={person.id} style={[s.manageCard, openPartId === person.id && s.manageCardDropdownOpen]}>
             <PersonIdentity person={person} />
+            <Pressable disabled={busy} style={s.scheduleAction} onPress={() => setScheduleEmployee(person)}>
+              <Ionicons name="calendar-outline" size={17} color={C.primary} />
+              <Text style={s.outlineActionText}>근무 일정 관리</Text>
+              <Ionicons name="chevron-forward" size={15} color={C.primary} />
+            </Pressable>
             <View style={[s.managePartSection, openPartId === person.id && s.dropdownLayer]}>
               <Text style={s.partLabel}>근무 파트</Text>
               <View style={s.managePartRow}>
@@ -152,24 +175,45 @@ export function OwnerStaffManagement({ storeId, onBack, repository = demoOwnerSt
               </View>
             </View>
             <View style={s.manageActions}>
-              <Pressable style={s.outlineAction} onPress={async () => {
+              <Pressable disabled={busy || !workParts.length} style={[s.outlineAction, busy && { opacity: 0.5 }]} onPress={async () => {
+                if (mutating.current) return;
+                mutating.current = true;
+                setBusy(true);
                 try {
                   await repository.updateEmployeePart(storeId, person.id, parts[person.id] ?? person.part);
                   setStaff((items) => items.map((item) => item.id === person.id ? { ...item, part: parts[person.id] ?? person.part } : item));
                   setSavedId(person.id);
                   if (savedTimer.current) clearTimeout(savedTimer.current);
                   savedTimer.current = setTimeout(() => setSavedId(null), 1500);
-                } catch (e) { Alert.alert('저장 실패', e instanceof Error ? e.message : '근무 파트를 저장하지 못했어요.'); }
+                } catch (e) { setError(e instanceof Error ? e.message : '근무 파트를 저장하지 못했어요.'); }
+                finally { mutating.current = false; setBusy(false); }
               }}><Text style={s.outlineActionText}>{savedId === person.id ? '저장됨' : '저장'}</Text></Pressable>
-              <Pressable style={s.solidAction} onPress={async () => {
-                try { await repository.removeEmployee(storeId, person.id); setStaff((items) => items.filter((item) => item.id !== person.id)); }
-                catch (e) { Alert.alert('제거 실패', e instanceof Error ? e.message : '직원을 제거하지 못했어요.'); }
-              }}><Text style={s.solidActionText}>제거</Text></Pressable>
+              <Pressable disabled={busy} style={s.solidAction} onPress={() => setRemoveTarget(person)}><Text style={s.solidActionText}>제거</Text></Pressable>
             </View>
           </View>
         ))}
-        {!loading && !filtered.length && <Text style={s.emptyText}>{query ? '검색 결과가 없어요' : '등록된 직원이 없어요'}</Text>}
+        {!loading && !error && !filtered.length && <Text style={s.emptyText}>{query ? '검색 결과가 없어요' : '등록된 직원이 없어요'}</Text>}
       </ScrollView>
+      <Modal visible={removeTarget !== null} transparent animationType="fade" onRequestClose={() => { if (!busy) setRemoveTarget(null); }}>
+        <View style={s.qrModalBackdrop}><View style={s.qrModalCard}>
+          <Text style={[s.headerTitle, { flex: 0 }]}>직원 제거</Text>
+          <Text style={s.qrModalDescription}>{removeTarget?.name} 님의 매장 소속을 해제할까요? 이전 근무 기록은 유지됩니다.</Text>
+          <View style={s.manageActions}>
+            <Pressable disabled={busy} style={s.outlineAction} onPress={() => setRemoveTarget(null)}><Text style={s.outlineActionText}>취소</Text></Pressable>
+            <Pressable disabled={busy} style={s.solidAction} onPress={async () => {
+              if (!removeTarget || mutating.current) return;
+              const target = removeTarget;
+              mutating.current = true; setBusy(true);
+              try {
+                await repository.removeEmployee(storeId, target.id);
+                setStaff((items) => items.filter((item) => item.id !== target.id));
+                setRemoveTarget(null);
+              } catch (e) { setRemoveTarget(null); setError(e instanceof Error ? e.message : '직원을 제거하지 못했어요.'); }
+              finally { mutating.current = false; setBusy(false); }
+            }}><Text style={s.solidActionText}>{busy ? '처리 중' : '제거'}</Text></Pressable>
+          </View>
+        </View></View>
+      </Modal>
     </View>
   );
 }
@@ -194,7 +238,7 @@ function PersonIdentity({ person }: { person: StaffPerson }) {
   );
 }
 
-function RequestCard({ person, pending, workParts, onDecide }: { person: StaffPerson; pending: boolean; workParts: string[]; onDecide: (p: StaffPerson, approve: boolean, part: string) => void | Promise<void> }) {
+function RequestCard({ person, pending, workParts, busy, onDecide }: { person: StaffPerson; pending: boolean; workParts: string[]; busy: boolean; onDecide: (p: StaffPerson, approve: boolean, part: string) => void | Promise<void> }) {
   const [part, setPart] = useState(person.part);
   const [partOpen, setPartOpen] = useState(false);
   useEffect(() => {
@@ -233,8 +277,8 @@ function RequestCard({ person, pending, workParts, onDecide }: { person: StaffPe
         </View>
       </View>
       {pending && <View style={s.requestActions}>
-        <Pressable style={s.rejectAction} onPress={() => onDecide(person, false, part)}><Text style={s.rejectText}>거절</Text></Pressable>
-        <Pressable disabled={!workParts.length} style={[s.approveAction, !workParts.length && { opacity: 0.45 }]} onPress={() => onDecide(person, true, part)}><Text style={s.approveText}>승인</Text></Pressable>
+        <Pressable disabled={busy} style={[s.rejectAction, busy && { opacity: 0.45 }]} onPress={() => onDecide(person, false, part)}><Text style={s.rejectText}>거절</Text></Pressable>
+        <Pressable disabled={busy || !workParts.length} style={[s.approveAction, (busy || !workParts.length) && { opacity: 0.45 }]} onPress={() => onDecide(person, true, part)}><Text style={s.approveText}>{busy ? '처리 중' : '승인'}</Text></Pressable>
       </View>}
     </View>
   );
@@ -359,6 +403,7 @@ const s = StyleSheet.create({
   manageCard: { minHeight: 184, borderWidth: 1, borderColor: '#E4E2EC', borderRadius: 16, padding: 16, marginBottom: 16 },
   manageCardDropdownOpen: { position: 'relative', zIndex: 999, elevation: 24 },
   manageActions: { flexDirection: 'row', gap: 8, marginTop: 14 },
+  scheduleAction: { minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1, borderColor: '#CFCCDB', borderRadius: 10, marginTop: 12 },
   outlineAction: { flex: 1, height: 44, borderWidth: 1, borderColor: '#CFCCDB', borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
   outlineActionText: { color: C.primary, fontSize: 14, fontWeight: '600' },
   solidAction: { flex: 1, height: 44, backgroundColor: C.primary, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
