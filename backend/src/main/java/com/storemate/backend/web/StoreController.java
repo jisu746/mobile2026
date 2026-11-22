@@ -109,16 +109,22 @@ public class StoreController {
         Store s = ownedStore(account, id);
         return members.findByStoreAndStatusOrderByIdAsc(s, MemberStatus.PENDING).stream()
                 .map(m -> new Dto.MemberRequestView(m.getId(), m.getAccount().getUsername(), m.getAccount().getName(),
-                        m.getRequestedAt().toString()))
+                        m.getRequestedAt().toString(), m.getWorkPart()))
                 .toList();
     }
 
     @PostMapping("/members/{id}/{decision}")
     @Transactional
-    Dto.JoinResponse decide(@RequestAttribute(AuthInterceptor.ACCOUNT) Account account, @PathVariable Long id, @PathVariable String decision) {
+    Dto.JoinResponse decide(@RequestAttribute(AuthInterceptor.ACCOUNT) Account account, @PathVariable Long id, @PathVariable String decision,
+                            @RequestBody(required = false) Dto.MemberDecisionRequest body) {
         StoreMember m = members.findById(id).orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "요청을 찾을 수 없어요"));
         ownedStore(account, m.getStore().getId());
-        if ("approve".equals(decision)) m.setStatus(MemberStatus.APPROVED);
+        if (m.getRole() != Role.STAFF || m.getStatus() != MemberStatus.PENDING)
+            throw new ApiException(HttpStatus.CONFLICT, "대기 중인 직원 요청만 처리할 수 있어요. 목록을 새로고침해 주세요");
+        if ("approve".equals(decision)) {
+            if (body != null && body.workPart() != null) m.setWorkPart(MemberController.validWorkPart(body.workPart()));
+            m.setStatus(MemberStatus.APPROVED);
+        }
         else if ("reject".equals(decision)) m.setStatus(MemberStatus.REJECTED);
         else throw new ApiException(HttpStatus.BAD_REQUEST, "처리 방식이 올바르지 않아요");
         return new Dto.JoinResponse(m.getStatus().name().toLowerCase());

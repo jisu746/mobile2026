@@ -31,6 +31,9 @@ public class StoreMember {
     // 사장님이 정하는 시급 (정하기 전에는 null)
     private Integer hourlyWage;
 
+    @Column(length = 30)
+    private String workPart;
+
     protected StoreMember() {
     }
 
@@ -48,6 +51,8 @@ public class StoreMember {
     public MemberStatus getStatus() { return status; }
     public LocalDateTime getRequestedAt() { return requestedAt; }
     public Integer getHourlyWage() { return hourlyWage; }
+    public String getWorkPart() { return workPart; }
+    public void setWorkPart(String workPart) { this.workPart = workPart; }
     public void setStatus(MemberStatus status) { this.status = status; }
     public void setHourlyWage(Integer hourlyWage) { this.hourlyWage = hourlyWage; }
 }

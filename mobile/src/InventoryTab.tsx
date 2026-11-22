@@ -27,10 +27,11 @@ function status(p: Product, settings: StoreSetupSettings) {
   return { tags, low, imminent, expired };
 }
 
-export default function InventoryTab({ store, onProfile, onBell }: { store: number; onProfile: () => void; onBell: () => void }) {
+export default function InventoryTab({ store, onProfile, onBell, focusBarcode }: { store: number; onProfile: () => void; onBell: () => void; focusBarcode?: string }) {
   const [products, setProducts] = useState<Product[] | null>(null);
   const [alertSettings, setAlertSettings] = useState(DEFAULT_STORE_SETUP_SETTINGS);
   const [q, setQ] = useState('');
+  const [focused, setFocused] = useState(focusBarcode);
   const [open, setOpen] = useState<{ barcode: string; mode: 'edit' | 'discard' } | null>(null);
   const [editName, setEditName] = useState('');
   const [editStock, setEditStock] = useState(0);
@@ -75,7 +76,7 @@ export default function InventoryTab({ store, onProfile, onBell }: { store: numb
   const imminent = all.filter((p) => status(p, alertSettings).imminent).length;
   const query = q.trim().toLowerCase();
   const list = all
-    .filter((p) => p.name.toLowerCase().includes(query))
+    .filter((p) => (!focused || p.barcode === focused) && (p.name.toLowerCase().includes(query) || p.barcode.toLowerCase().includes(query)))
     .sort((a, b) => {
       const aStatus = status(a, alertSettings);
       const bStatus = status(b, alertSettings);
@@ -143,9 +144,14 @@ export default function InventoryTab({ store, onProfile, onBell }: { store: numb
         <TextInput style={s.searchInput} value={q} onChangeText={setQ} placeholder="목록 검색" placeholderTextColor="#999" />
       </View>
 
+      {!!focused && <View style={{ paddingVertical: 12, gap: 8 }}>
+        <Text style={{ color: C.primary, fontWeight: '700' }}>알림 대상 상품</Text>
+        <Pressable onPress={() => { setFocused(undefined); setQ(''); }}><Text style={{ color: C.primary }}>전체 상품 보기</Text></Pressable>
+      </View>}
+
       {!!error && <Text style={[s.empty, { color: '#D93025', paddingVertical: 12 }]}>{error}</Text>}
       {products === null && !error && <Text style={s.empty}>불러오는 중이에요</Text>}
-      {products !== null && !list.length && <Text style={s.empty}>{q ? '검색 결과가 없어요' : '등록된 상품이 없어요'}</Text>}
+      {products !== null && !list.length && <Text style={s.empty}>{focused ? '알림 대상 상품을 찾을 수 없어요. 전체 상품 보기를 눌러 확인해 주세요.' : q ? '검색 결과가 없어요' : '등록된 상품이 없어요'}</Text>}
 
       {list.map((p) => {
         const st = status(p, alertSettings);

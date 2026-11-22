@@ -9,6 +9,7 @@ import com.storemate.backend.domain.StoreMember;
 import com.storemate.backend.domain.WorkShift;
 import com.storemate.backend.repo.StoreMemberRepository;
 import com.storemate.backend.repo.WorkShiftRepository;
+import com.storemate.backend.repo.WorkSessionRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
@@ -28,11 +29,24 @@ public class MemberController {
     private final StoreAccess access;
     private final StoreMemberRepository members;
     private final WorkShiftRepository shifts;
+    private final WorkSessionRepository sessions;
 
-    public MemberController(StoreAccess access, StoreMemberRepository members, WorkShiftRepository shifts) {
+    public MemberController(StoreAccess access, StoreMemberRepository members, WorkShiftRepository shifts, WorkSessionRepository sessions) {
         this.access = access;
         this.members = members;
         this.shifts = shifts;
+        this.sessions = sessions;
+    }
+
+    static String validWorkPart(String value) {
+        if (value == null || value.isBlank() || value.trim().length() > 30)
+            throw new ApiException(HttpStatus.BAD_REQUEST, "근무 파트는 1~30자로 입력해주세요");
+        return value.trim();
+    }
+
+    private static Dto.StaffView view(StoreMember m) {
+        return new Dto.StaffView(m.getId(), m.getAccount().getName(), m.getHourlyWage(),
+                m.getAccount().getUsername(), m.getWorkPart(), m.getRequestedAt().toString());
     }
 
     static YearMonth month(String s) {
@@ -81,7 +95,27 @@ public class MemberController {
         Store s = access.requireOwner(owner, storeId);
         return members.findByStoreAndStatusOrderByIdAsc(s, MemberStatus.APPROVED).stream()
                 .filter(m -> m.getRole() == Role.STAFF)
-                .map(m -> new Dto.StaffView(m.getId(), m.getAccount().getName(), m.getHourlyWage())).toList();
+                .map(MemberController::view).toList();
+    }
+
+    @PutMapping("/staff/{memberId}/part")
+    @Transactional
+    public Dto.StaffView setPart(@RequestAttribute(AuthInterceptor.ACCOUNT) Account owner, @PathVariable Long storeId,
+                                 @PathVariable Long memberId, @RequestBody Dto.WorkPartRequest r) {
+        StoreMember m = staff(owner, storeId, memberId);
+        m.setWorkPart(validWorkPart(r.workPart()));
+        return view(m);
+    }
+
+    // 소속만 비활성화한다. 계정과 과거 근무·재고 이력은 삭제하지 않는다.
+    @PostMapping("/staff/{memberId}/remove")
+    @Transactional
+    public void remove(@RequestAttribute(AuthInterceptor.ACCOUNT) Account owner, @PathVariable Long storeId,
+                        @PathVariable Long memberId) {
+        StoreMember m = staff(owner, storeId, memberId);
+        if (sessions.findFirstByAccountAndStoreAndClockOutIsNull(m.getAccount(), m.getStore()).isPresent())
+            throw new ApiException(HttpStatus.CONFLICT, "근무 중인 직원은 퇴근 처리 후 제거해주세요");
+        m.setStatus(MemberStatus.REJECTED);
     }
 
     @PutMapping("/staff/{memberId}/wage")
@@ -92,7 +126,7 @@ public class MemberController {
         if (r.hourlyWage() == null || r.hourlyWage() <= 0 || r.hourlyWage() > MAX_WAGE)
             throw new ApiException(HttpStatus.BAD_REQUEST, "시급은 1원 이상 " + MAX_WAGE + "원 이하로 입력해주세요");
         m.setHourlyWage(r.hourlyWage());
-        return new Dto.StaffView(m.getId(), m.getAccount().getName(), m.getHourlyWage());
+        return view(m);
     }
 
     @GetMapping("/staff/{memberId}/shifts")

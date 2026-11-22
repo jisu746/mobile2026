@@ -22,6 +22,11 @@ const TABS: TabItem[] = [
   { label: 'MY', icon: 'person' },
 ];
 
+const BEFORE_TABS: TabItem[] = [
+  { label: '출퇴근', icon: 'log-in-outline' },
+  { label: 'MY', icon: 'person' },
+];
+
 const elapsed = (from: Date, now: number) => {
   const m = Math.max(0, Math.floor((now - from.getTime()) / 60000));
   return m >= 60 ? `${Math.floor(m / 60)}시간 ${m % 60}분째` : `${m}분째`;
@@ -115,7 +120,7 @@ export default function StaffHome({ storeId, storeName, userId, userName, render
               <Ionicons name="notifications-outline" size={24} color={C.primary} />
             </Pressable>
           )}
-          <Pressable style={s.avatar} onPress={onProfile}>
+          <Pressable accessibilityLabel={clockedAt ? '매장 변경' : '내 정보와 로그아웃'} style={s.avatar} onPress={clockedAt ? onProfile : () => setTab(3)}>
             <Ionicons name="person" size={18} color="#fff" />
           </Pressable>
         </>
@@ -162,7 +167,7 @@ export default function StaffHome({ storeId, storeName, userId, userName, render
       return (
         <View style={s.root}>
           {renderMy(onBell, () => setRecordsOpen(true))}
-          <TabBar tabs={TABS} active={3} onChange={(i) => setTab(i === 3 ? 3 : 0)} />
+          <TabBar tabs={BEFORE_TABS} active={1} onChange={(i) => setTab(i === 1 ? 3 : 0)} />
         </View>
       );
     }
@@ -176,7 +181,7 @@ export default function StaffHome({ storeId, storeName, userId, userName, render
     return (
       <View style={s.root}>
         <View style={s.pad}>{header(true, false)}</View>
-        <Text style={s.big}>{`${ME.slice(1)}님,\n${headline}`}</Text>
+        <Text style={s.big}>{`${ME}님,\n${headline}`}</Text>
         <View style={s.shift}>
           <Text style={s.shiftLabel}>근무 시간</Text>
           <Text style={s.shiftTime}>{today ? `${today.start} – ${today.end}` : '일정 없음'}</Text>
@@ -191,6 +196,8 @@ export default function StaffHome({ storeId, storeName, userId, userName, render
           {!!error && <Text style={s.error}>{error}</Text>}
         </View>
 
+        <View style={{ flex: 1 }} />
+        <TabBar tabs={BEFORE_TABS} active={0} onChange={(i) => setTab(i === 1 ? 3 : 0)} />
         <Modal transparent animationType="fade" visible={!!notice} onRequestClose={() => setNotice('')}>
           <View style={s.dim}>
             <View style={s.dialog}>
@@ -231,7 +238,7 @@ export default function StaffHome({ storeId, storeName, userId, userName, render
       {tab === 0 ? (
         <ScrollView contentContainerStyle={s.scroll}>
           {header(true)}
-          <Text style={s.hello}>{ME.slice(1)}님, 오늘도 파이팅!</Text>
+          <Text style={s.hello}>{ME}님, 오늘도 파이팅!</Text>
           <Text style={s.earn}>이번달 {won(hours * me.wage)}원 벌었어요</Text>
 
           <View style={s.status}>

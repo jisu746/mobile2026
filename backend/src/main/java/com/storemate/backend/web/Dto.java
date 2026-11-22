@@ -37,8 +37,12 @@ public final class Dto {
     public record JoinResponse(String status) {
     }
 
-    public record MemberRequestView(Long memberId, String username, String name, String requestedAt) {
+    public record MemberRequestView(Long memberId, String username, String name, String requestedAt, String workPart) {
     }
+
+    public record MemberDecisionRequest(String workPart) {}
+
+    public record WorkPartRequest(String workPart) {}
 
     // ---- 재고 ----
     // expiry 는 yyyy-MM-dd (없으면 null)
@@ -77,7 +81,7 @@ public final class Dto {
     public record MeView(Integer hourlyWage, String joinedAt) {
     }
 
-    public record StaffView(Long memberId, String name, Integer hourlyWage) {
+    public record StaffView(Long memberId, String name, Integer hourlyWage, String username, String workPart, String requestedAt) {
     }
 
     public record WageRequest(Integer hourlyWage) {

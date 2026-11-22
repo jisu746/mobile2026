@@ -5,11 +5,19 @@ import { Text } from './font';
 import { Ionicons } from '@expo/vector-icons';
 import { C } from './ui';
 import { hoursByDay, hr, listSessions, useMe, won } from './work';
+import type { Session } from './work';
 
 const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
 const key = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+
+const duration = (hours: number) => {
+  const seconds = Math.max(0, Math.round(hours * 3600));
+  const h = Math.floor(seconds / 3600), m = Math.floor(seconds / 60) % 60, sec = seconds % 60;
+  return h ? `${h}시간 ${m}분` : m ? `${m}분 ${sec}초` : `${sec}초`;
+};
+const clockText = (d: Date) => [d.getHours(), d.getMinutes(), d.getSeconds()].map(n => String(n).padStart(2, '0')).join(':');
 
 export default function WorkRecords({ storeId, onBack }: { storeId: number; onBack: () => void }) {
   const { wage, wageSet } = useMe(storeId);
@@ -18,14 +26,16 @@ export default function WorkRecords({ storeId, onBack }: { storeId: number; onBa
   const [selected, setSelected] = useState<Date>(today);
   const [days, setDays] = useState<Record<string, number> | null>(null); // 날짜별 근무 시간 (null = 불러오는 중)
   const [error, setError] = useState('');
+  const [sessions, setSessions] = useState<Session[]>([]);
   const hoursOf = (d: Date) => days?.[key(d)] ?? 0;
 
   useEffect(() => {
     let alive = true;
     setDays(null);
     setError('');
+    setSessions([]);
     listSessions(storeId, month.getFullYear(), month.getMonth() + 1).then(
-      (l) => alive && setDays(hoursByDay(l)),
+      (l) => { if (alive) { setSessions(l); setDays(hoursByDay(l)); } },
       (e) => alive && (setDays({}), setError(e instanceof Error ? e.message : '근무 기록을 불러오지 못했어요')),
     );
     return () => {
@@ -66,6 +76,8 @@ export default function WorkRecords({ storeId, onBack }: { storeId: number; onBa
 
   const selHours = hoursOf(selected);
   const selIsToday = key(selected) === key(today);
+  const selectedInMonth = selected.getFullYear() === y && selected.getMonth() === m;
+  const selectedSessions = sessions.filter(session => key(session.clockIn) === key(selected));
 
   return (
     <View style={s.root}>
@@ -100,7 +112,7 @@ export default function WorkRecords({ storeId, onBack }: { storeId: number; onBa
             </View>
           </View>
           <View style={s.metrics}>
-            <Metric label="총 근무시간" value={hr(total)} unit="시간" />
+            <Metric label="총 근무시간" value={duration(total)} unit="" />
             <Metric label="근무 일수" value={String(workDays)} unit="일" />
             <Metric label="주휴 수당(예상)" value={(holiday / 10000).toFixed(1)} unit="만" />
           </View>
@@ -129,7 +141,7 @@ export default function WorkRecords({ storeId, onBack }: { storeId: number; onBa
                     )}
                     {h > 0 && (
                       <View style={s.badge}>
-                        <Text style={s.badgeText}>{hr(h)}h</Text>
+                        <Text style={s.badgeText}>{h < 1 / 60 ? '<1분' : h < 1 ? `${Math.floor(h * 60)}분` : `${hr(h)}h`}</Text>
                       </View>
                     )}
                   </Pressable>
@@ -151,13 +163,13 @@ export default function WorkRecords({ storeId, onBack }: { storeId: number; onBa
           </View>
         )}
 
-        {!error && days !== null && selected.getMonth() === m && selHours === 0 && (
+        {!error && days !== null && selectedInMonth && selectedSessions.length === 0 && (
           <View style={s.notice}>
             <Text style={s.noticeText}>{selIsToday ? '오늘은 아직 근무 기록이 없어요.' : '이 날은 근무 기록이 없어요.'}</Text>
           </View>
         )}
 
-        {!error && days !== null && selected.getMonth() === m && selHours > 0 && (
+        {!error && days !== null && selectedInMonth && selectedSessions.length > 0 && (
           <>
             <Text style={s.detailTitle}>{selected.getMonth() + 1}월 {selected.getDate()}일 ({DAYS[selected.getDay()]}) 근무 상세</Text>
             <View style={s.detail}>
@@ -169,8 +181,17 @@ export default function WorkRecords({ storeId, onBack }: { storeId: number; onBa
               </View>
               <View style={s.detailBox}>
                 <Text style={s.metricLabel}>근무시간</Text>
-                <Text style={s.metricValue}>{hr(selHours)}<Text style={s.metricUnit}>시간</Text></Text>
+                <Text style={s.metricValue}>{duration(selHours)}</Text>
               </View>
+              {selectedSessions.map((session, index) => <View key={`${session.clockIn.toISOString()}-${index}`} style={s.detailBox}>
+                <Text style={s.metricLabel}>{index + 1}번째 근무</Text>
+                <View style={s.sessionRow}><Text style={s.sessionLabel}>출근</Text><Text style={s.sessionTime}>{clockText(session.clockIn)}</Text></View>
+                <View style={s.sessionRow}><Text style={s.sessionLabel}>퇴근</Text><Text style={s.sessionTime}>{session.clockOut
+                  ? `${key(session.clockOut) !== key(session.clockIn) ? `${session.clockOut.getMonth() + 1}/${session.clockOut.getDate()} ` : ''}${clockText(session.clockOut)}`
+                  : '근무 중'}</Text></View>
+                <View style={s.sessionRow}><Text style={s.sessionLabel}>{session.clockOut ? '근무시간' : '조회 시점 근무시간'}</Text>
+                  <Text style={s.sessionTime}>{duration(Math.max(0, ((session.clockOut ?? new Date()).getTime() - session.clockIn.getTime()) / 3600000))}</Text></View>
+              </View>)}
             </View>
           </>
         )}
@@ -225,4 +246,7 @@ const s = StyleSheet.create({
   detailPay: { fontSize: 24, fontWeight: '800', color: '#fff' },
   detailWon: { fontSize: 15, fontWeight: '600' },
   detailBox: { backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 12, padding: 12, marginTop: 16 },
+  sessionRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginTop: 8 },
+  sessionLabel: { fontSize: 12, color: 'rgba(255,255,255,0.8)' },
+  sessionTime: { fontSize: 14, fontWeight: '600', color: '#fff' },
 });
