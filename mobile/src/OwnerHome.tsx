@@ -40,7 +40,7 @@ export default function OwnerHome({ store, userId, userName, renderMy, onSwitchS
   if (staffPage === 'employees') return <OwnerStaffManagement storeId={store.id ?? 0} onBack={() => setStaffPage(null)} />;
   if (payrollOpen) return <OwnerPayroll storeId={store.id ?? 0} onClose={() => setPayrollOpen(false)} />;
   if (contractsOpen) return <OwnerContracts storeId={store.id ?? 0} onBack={() => setContractsOpen(false)} />;
-  if (notifOpen) return <Notifications storeId={store.id ?? 0} userId={userId} onBack={() => setNotifOpen(false)} />;
+  if (notifOpen) return <Notifications storeId={store.id ?? 0} userId={userId} isOwner onBack={() => setNotifOpen(false)} />;
   if (recordsOpen) return <WorkRecords storeId={store.id ?? 0} onBack={() => setRecordsOpen(false)} />;
 
   // 바코드 입고는 탭바 없이 전체 화면으로 열린다

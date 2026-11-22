@@ -1,10 +1,15 @@
 // 알림 목록 화면 (서버 알림, 사장님·직원 공통)
 import { useEffect, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BackHandler, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from './font';
 import { Ionicons } from '@expo/vector-icons';
 import NotificationSettings from './NotificationSettings';
 import { listNotifs, markRead, Notif } from './notifs';
+import { daysLeft, listProducts } from './inventory';
+import type { Product } from './inventory';
+import { DEFAULT_STORE_SETUP_SETTINGS, getStoreSetupSettingsOrDefault } from './storeSetupRepository';
+import { getNotificationPreferences } from './notificationPreferencesRepository';
 import { C } from './ui';
 import { hhmm } from './work';
 
@@ -14,6 +19,11 @@ type Look = { icon: Icon; bg: string; fg: string; outline?: boolean };
 const GREEN = { bg: '#EAF5EE', fg: '#2F7A4E' };
 const GRAY = { bg: '#F1F0F5', fg: '#5E5C6B' };
 const PURPLE = { bg: '#F5F4FB', fg: C.primary };
+const ORANGE = { bg: '#FFF4E5', fg: '#D97706' };
+const RED = { bg: '#FEECEB', fg: '#E53935' };
+
+type DisplayNotif = Notif & { rowKey: string; localKey?: string; order?: number };
+type InventoryAlert = Notif & { localKey: string; order: number };
 
 // 서버 알림 종류별 아이콘과 색
 const LOOK: Record<string, Look> = {
@@ -21,15 +31,61 @@ const LOOK: Record<string, Look> = {
   clockin: { icon: 'log-in-outline', ...GRAY, outline: true },
   join: { icon: 'person-add', ...PURPLE, outline: true },
   handover: { icon: 'swap-horizontal', ...PURPLE, outline: true },
+  expiry: { icon: 'time-outline', ...ORANGE },
+  stock: { icon: 'cube-outline', ...RED },
 };
 const DEFAULT_LOOK: Look = { icon: 'notifications-outline', ...GRAY };
 
 const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+const inventoryReadKey = (userId: string, storeId: number) => `inventoryNotificationReads:${userId}:${storeId}`;
 
-export default function Notifications({ storeId, userId, onBack }: { storeId: number; userId: string; onBack: () => void }) {
+function buildInventoryAlerts(products: Product[], expirationAlertDays: number, lowStockThresholdCount: number, expiryOn: boolean, stockOn: boolean, readKeys: Set<string>): InventoryAlert[] {
+  const alerts: InventoryAlert[] = [];
+  const now = new Date();
+
+  for (const product of products) {
+    const days = daysLeft(product.expiry);
+    if (expiryOn && days !== null && days >= 0 && days <= expirationAlertDays) {
+      const localKey = `expiry:${product.barcode}:${product.expiry}`;
+      alerts.push({
+        id: 0,
+        kind: 'expiry',
+        title: `${product.name} 유통기한 임박`,
+        sub: `${days === 0 ? '오늘 만료' : `D-${days}`} · 유통기한 ${product.expiry} · 재고 ${product.stock}개`,
+        createdAt: now,
+        read: readKeys.has(localKey),
+        localKey,
+        order: days,
+      });
+    }
+
+    const threshold = product.min > 0 ? product.min : lowStockThresholdCount;
+    if (stockOn && product.stock <= threshold) {
+      const localKey = `stock:${product.barcode}`;
+      alerts.push({
+        id: 0,
+        kind: 'stock',
+        title: `${product.name} 발주 필요`,
+        sub: `재고 ${product.stock}개 · 발주 기준 ${threshold}개 이하`,
+        createdAt: now,
+        read: readKeys.has(localKey),
+        localKey,
+        order: product.stock,
+      });
+    }
+  }
+
+  return alerts.sort((a, b) => (a.kind === b.kind ? a.order - b.order : a.kind === 'expiry' ? -1 : 1));
+}
+
+export default function Notifications({ storeId, userId, isOwner = false, onBack }: { storeId: number; userId: string; isOwner?: boolean; onBack: () => void }) {
   const [list, setList] = useState<Notif[] | null>(null);
+  const [inventoryAlerts, setInventoryAlerts] = useState<InventoryAlert[] | null>(isOwner ? null : []);
+  const [inventoryReadKeys, setInventoryReadKeys] = useState<Set<string>>(new Set());
+  const [inventoryError, setInventoryError] = useState('');
   const [error, setError] = useState('');
   const [settings, setSettings] = useState(false);
+  const [reloadVersion, setReloadVersion] = useState(0);
 
   const fail = (e: unknown) => setError(e instanceof Error ? e.message : '요청을 처리하지 못했어요');
   useEffect(() => {
@@ -37,7 +93,45 @@ export default function Notifications({ storeId, userId, onBack }: { storeId: nu
       setList([]);
       fail(e);
     });
-  }, [storeId]);
+  }, [storeId, reloadVersion]);
+
+  useEffect(() => {
+    if (!isOwner) {
+      setInventoryAlerts([]);
+      return;
+    }
+    let active = true;
+    Promise.all([
+      listProducts(storeId),
+      getStoreSetupSettingsOrDefault(storeId),
+      getNotificationPreferences(userId),
+      AsyncStorage.getItem(inventoryReadKey(userId, storeId)),
+    ]).then(([products, storeSettings, preferences, rawReadKeys]) => {
+      if (!active) return;
+      let readKeys = new Set<string>();
+      try {
+        const parsed = rawReadKeys ? JSON.parse(rawReadKeys) : [];
+        if (Array.isArray(parsed)) readKeys = new Set(parsed.filter((key): key is string => typeof key === 'string'));
+      } catch {
+        readKeys = new Set();
+      }
+      setInventoryReadKeys(readKeys);
+      setInventoryAlerts(buildInventoryAlerts(
+        products,
+        storeSettings.expirationAlertDays,
+        storeSettings.lowStockThresholdCount,
+        preferences.expiry,
+        preferences.stock,
+        readKeys,
+      ));
+      setInventoryError('');
+    }).catch((e) => {
+      if (!active) return;
+      setInventoryAlerts([]);
+      setInventoryError(e instanceof Error ? e.message : '재고 알림을 불러오지 못했어요');
+    });
+    return () => { active = false; };
+  }, [storeId, userId, isOwner, reloadVersion]);
 
   // 안드로이드 뒤로가기로 알림 화면만 닫는다
   useEffect(() => {
@@ -48,15 +142,28 @@ export default function Notifications({ storeId, userId, onBack }: { storeId: nu
     return () => sub.remove();
   }, [onBack]);
 
-  if (settings) return <NotificationSettings userId={userId} storeId={storeId} onBack={() => setSettings(false)} />;
+  if (settings) return <NotificationSettings userId={userId} storeId={storeId} onBack={() => { setSettings(false); setReloadVersion((value) => value + 1); }} />;
 
-  const read = (ids: number[]) => {
-    if (!ids.length) return;
-    setList((c) => c && c.map((n) => (ids.includes(n.id) ? { ...n, read: true } : n)));
-    markRead(storeId, ids).catch(fail);
+  const read = (items: DisplayNotif[]) => {
+    if (!items.length) return;
+    const serverIds = items.filter((item) => !item.localKey).map((item) => item.id);
+    const localKeys = items.flatMap((item) => item.localKey ? [item.localKey] : []);
+    if (serverIds.length) {
+      setList((current) => current && current.map((item) => (serverIds.includes(item.id) ? { ...item, read: true } : item)));
+      markRead(storeId, serverIds).catch(fail);
+    }
+    if (localKeys.length) {
+      const next = new Set(inventoryReadKeys);
+      localKeys.forEach((key) => next.add(key));
+      setInventoryReadKeys(next);
+      setInventoryAlerts((current) => current && current.map((item) => (localKeys.includes(item.localKey) ? { ...item, read: true } : item)));
+      AsyncStorage.setItem(inventoryReadKey(userId, storeId), JSON.stringify([...next])).catch(fail);
+    }
   };
 
-  const all = list ?? [];
+  const serverItems: DisplayNotif[] = (list ?? []).map((item) => ({ ...item, rowKey: `server:${item.id}` }));
+  const localItems: DisplayNotif[] = (inventoryAlerts ?? []).map((item) => ({ ...item, rowKey: `inventory:${item.localKey}` }));
+  const all = [...serverItems, ...localItems].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || (a.order ?? 0) - (b.order ?? 0));
   const today = new Date();
   const yesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
   const groups = [
@@ -72,7 +179,7 @@ export default function Notifications({ storeId, userId, onBack }: { storeId: nu
           <Ionicons name="arrow-back" size={24} color={C.text} />
         </Pressable>
         <Text style={s.title}>알림</Text>
-        <Pressable onPress={() => read(all.filter((n) => !n.read).map((n) => n.id))} hitSlop={8}>
+        <Pressable onPress={() => read(all.filter((n) => !n.read))} hitSlop={8}>
           <Text style={s.readAll}>모두 읽음</Text>
         </Pressable>
         <Pressable onPress={() => setSettings(true)} hitSlop={8}>
@@ -82,10 +189,11 @@ export default function Notifications({ storeId, userId, onBack }: { storeId: nu
 
       <ScrollView contentContainerStyle={s.body}>
         {!!error && <Text style={[s.footer, { color: '#D93025' }]}>{error}</Text>}
-        {list === null && !error && <Text style={s.footer}>불러오는 중이에요</Text>}
-        {list !== null && !all.length && !error && <Text style={s.footer}>새 알림이 없어요</Text>}
+        {!!inventoryError && <Text style={[s.footer, { color: '#D93025' }]}>{inventoryError}</Text>}
+        {(list === null || inventoryAlerts === null) && !error && <Text style={s.footer}>불러오는 중이에요</Text>}
+        {list !== null && inventoryAlerts !== null && !all.length && !error && !inventoryError && <Text style={s.footer}>새 알림이 없어요</Text>}
         {groups.filter((g) => g.items.length).map((g) => (
-          <Section key={g.label} label={g.label} items={g.items} onRead={(id) => read([id])} />
+          <Section key={g.label} label={g.label} items={g.items} onRead={(item) => read([item])} />
         ))}
         <Text style={s.footer}>최근 30일 알림까지 보관돼요</Text>
       </ScrollView>
@@ -93,7 +201,7 @@ export default function Notifications({ storeId, userId, onBack }: { storeId: nu
   );
 }
 
-function Section({ label, items, onRead }: { label: string; items: Notif[]; onRead: (id: number) => void }) {
+function Section({ label, items, onRead }: { label: string; items: DisplayNotif[]; onRead: (item: DisplayNotif) => void }) {
   return (
     <>
       <Text style={s.section}>{label}</Text>
@@ -102,7 +210,7 @@ function Section({ label, items, onRead }: { label: string; items: Notif[]; onRe
           const look = LOOK[i.kind] ?? DEFAULT_LOOK;
           const unread = !i.read;
           return (
-            <Pressable key={i.id} style={[s.row, unread && s.rowUnread]} onPress={() => onRead(i.id)}>
+            <Pressable key={i.rowKey} style={[s.row, unread && s.rowUnread]} onPress={() => onRead(i)}>
               {unread && <View style={s.dot} />}
               <View style={[s.icon, { backgroundColor: look.bg }, look.outline && s.iconOutline]}>
                 <Ionicons name={look.icon} size={19} color={look.fg} />
