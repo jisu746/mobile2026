@@ -10,6 +10,7 @@ import type { Store } from './auth';
 import { contractRepository } from './contractRepository';
 import type { EmploymentContract } from './contractRepository';
 import { hoursByDay, hr, listSessions, useMe, won } from './work';
+import { summarizePay } from './payCalculation';
 
 type Props = {
   id: string;
@@ -35,6 +36,7 @@ export default function Profile({ id, acc, onSelect, onAdd, onLogout, onBell, on
   const [editingProfile, setEditingProfile] = useState(false);
   const [staffContractOpen, setStaffContractOpen] = useState(false);
   const [staffHours, setStaffHours] = useState<number | null>(null);
+  const [staffPay, setStaffPay] = useState<ReturnType<typeof summarizePay> | null>(null);
   const store = acc.stores[acc.current];
   const storeId = store?.id ?? 0;
 
@@ -46,13 +48,15 @@ export default function Profile({ id, acc, onSelect, onAdd, onLogout, onBell, on
     : 0;
 
   useEffect(() => {
-    if (owner || !store?.id) { setStaffHours(null); return; }
+    if (owner || !store?.id) { setStaffHours(null); setStaffPay(null); return; }
+    setStaffHours(null); setStaffPay(null);
     let active = true;
     const now = new Date();
     listSessions(store.id, now.getFullYear(), now.getMonth() + 1).then((sessions) => {
       if (!active) return;
       setStaffHours(Object.values(hoursByDay(sessions)).reduce((sum, hours) => sum + hours, 0));
-    }).catch(() => { if (active) setStaffHours(null); });
+      setStaffPay(summarizePay(sessions));
+    }).catch(() => { if (active) { setStaffHours(null); setStaffPay(null); } });
     return () => { active = false; };
   }, [owner, store?.id]);
 
@@ -136,10 +140,11 @@ export default function Profile({ id, acc, onSelect, onAdd, onLogout, onBell, on
         <>
           <View style={s.stats}>
             <Stat label="이번 달 근무">{staffHours === null ? '—' : hr(staffHours)}<Unit>시간</Unit></Stat>
-            <Stat label="기본 급여 예상">{staffHours === null ? '—' : (Math.round((staffHours * me.wage) / 1000) / 10).toFixed(1)}<Unit>만원</Unit></Stat>
+            <Stat label="기본 급여 예상">{staffPay === null ? '—' : (Math.round(staffPay.knownPay / 1000) / 10).toFixed(1)}<Unit>만원</Unit></Stat>
             <Stat label="근속">{months >= 12 && <>{Math.floor(months / 12)}<Unit>년 </Unit></>}{months % 12}<Unit>개월</Unit></Stat>
           </View>
-          <Text style={s.summaryNote}>근무 기록 기반 · 시급 {won(me.wage)}원{me.wageSet ? '' : ' (기본)'}</Text>
+          <Text style={s.summaryNote}>근무별 보존 시급 기준 · 현재 시급 {won(me.wage)}원{me.wageSet ? '' : ' (기본)'}</Text>
+          {!!staffPay?.unconfirmed && <Text style={s.summaryNote}>시급 미확정 {staffPay.unconfirmed}건은 금액 합산에서 제외함</Text>}
           <Text style={s.section}>근무 · 급여</Text>
           <View style={s.card}>
             <MenuRow icon="document-text-outline" label="근로계약서" onPress={() => setStaffContractOpen(true)} />

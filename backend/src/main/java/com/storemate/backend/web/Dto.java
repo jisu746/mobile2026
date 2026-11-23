@@ -70,7 +70,7 @@ public final class Dto {
     public record WorkStatus(String clockedAt, String elsewhere) {
     }
 
-    public record WorkRecord(String clockIn, String clockOut) {
+    public record WorkRecord(Long sessionId, String clockIn, String clockOut, Integer hourlyWage, String wageSource) {
     }
 
     public record ActiveStaff(String name, String clockIn) {
@@ -84,8 +84,11 @@ public final class Dto {
     public record StaffView(Long memberId, String name, Integer hourlyWage, String username, String workPart, String requestedAt) {
     }
 
-    public record WageRequest(Integer hourlyWage) {
+    public record WageRequest(Integer hourlyWage, String effectiveFrom) {
     }
+    public record WageRateView(String effectiveFrom, int hourlyWage, boolean defaultRate) {}
+    public record WageHistory(int currentHourlyWage, boolean defaultRate, List<WageRateView> history) {}
+    public record LegacyWageRequest(Integer hourlyWage) {}
 
     // start/end 가 모두 null 이면 그 날의 일정을 지운다
     public record Shift(String date, String start, String end) {

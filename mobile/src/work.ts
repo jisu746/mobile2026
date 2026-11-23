@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { api } from './api';
 
 // 출퇴근과 근무 기록은 서버에 저장한다. 시각은 서버가 준 yyyy-MM-ddTHH:mm:ss 문자열을 Date 로 바꿔 쓴다.
-export type Session = { clockIn: Date; clockOut: Date | null };
+export type Session = { sessionId?: number; clockIn: Date; clockOut: Date | null; hourlyWage?: number | null; wageSource?: string | null };
 
 // 시급과 근무 일정은 사장님이 정한다. 사장님이 시급을 정하기 전에는 최저시급(2026년)으로 계산한다.
 export const MIN_WAGE = 10320;
@@ -65,8 +65,8 @@ export const clockOut =(storeId: number) => api('POST', `${base(storeId)}/clock-
 
 // month(1~12)달에 출근한 기록
 export const listSessions = (storeId: number, year: number, month: number): Promise<Session[]> =>
-  api<{ clockIn: string; clockOut: string | null }[]>('GET', `${base(storeId)}/records?month=${year}-${String(month).padStart(2, '0')}`)
-    .then((l) => l.map((r) => ({ clockIn: new Date(r.clockIn), clockOut: at(r.clockOut) })));
+  api<{ sessionId: number; clockIn: string; clockOut: string | null; hourlyWage: number | null; wageSource: string | null }[]>('GET', `${base(storeId)}/records?month=${year}-${String(month).padStart(2, '0')}`)
+    .then((l) => l.map((r) => ({ ...r, clockIn: new Date(r.clockIn), clockOut: at(r.clockOut) })));
 
 // 날짜(연-월-일)별 근무 시간. 아직 퇴근 전이면 지금까지로 센다
 export function hoursByDay(list: Session[]) {

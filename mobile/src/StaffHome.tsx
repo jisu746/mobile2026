@@ -4,6 +4,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from './font';
 import { Ionicons } from '@expo/vector-icons';
 import { ApiError } from './api';
+import { summarizePay } from './payCalculation';
 import BarcodeFlow from './BarcodeFlow';
 import InventoryTab from './InventoryTab';
 import Notifications from './Notifications';
@@ -13,7 +14,7 @@ import WorkRecords from './WorkRecords';
 import { Handover, listHandovers, resolveHandover, writeHandover } from './handover';
 import { useTasks } from './tasks';
 import { C, TabBar, TabItem } from './ui';
-import { Shift, clockIn, clockOut, currentShift, hhmm, hoursByDay, listSessions, listShifts, shiftState, useMe, won, ymd } from './work';
+import { Shift, clockIn, clockOut, currentShift, hhmm, listSessions, listShifts, shiftState, won, ymd } from './work';
 
 const TABS: TabItem[] = [
   { label: '업무/출퇴근', icon: 'checkbox-outline' },
@@ -40,9 +41,8 @@ export default function StaffHome({ storeId, storeName, userId, userName, render
   const [qr, setQr] = useState('');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState(''); // 출근할 수 없을 때 띄우는 안내창 내용
-  const [hours, setHours] = useState(0); // 이번 달 근무 시간
+  const [pay, setPay] = useState<ReturnType<typeof summarizePay> | null>(null);
   const [shifts, setShifts] = useState<Shift[]>([]); // 이번 달 내 근무 일정 (사장님이 정한 것)
-  const me = useMe(storeId);
   const [tasksOpen, setTasksOpen] = useState(false);
   const { tasks, done: taskDone, toggle: toggleTask, reload: reloadTasks } = useTasks(storeId);
   const [handovers, setHandovers] = useState<Handover[]>([]);
@@ -56,9 +56,10 @@ export default function StaffHome({ storeId, storeName, userId, userName, render
 
   const fail = (e: unknown) => setError(e instanceof Error ? e.message : '요청을 처리하지 못했어요');
   const refreshEarn = () => {
+    setPay(null);
     const d = new Date();
     listSessions(storeId, d.getFullYear(), d.getMonth() + 1).then(
-      (l) => setHours(Object.values(hoursByDay(l)).reduce((a, h) => a + h, 0)),
+      (l) => setPay(summarizePay(l)),
       fail,
     );
   };
@@ -239,7 +240,8 @@ export default function StaffHome({ storeId, storeName, userId, userName, render
         <ScrollView contentContainerStyle={s.scroll}>
           {header(true)}
           <Text style={s.hello}>{ME}님, 오늘도 파이팅!</Text>
-          <Text style={s.earn}>이번달 {won(hours * me.wage)}원 벌었어요</Text>
+          <Text style={s.earn}>{pay ? `이번 달 기본급 예상 ${won(pay.knownPay)}원` : '예상 기본급을 불러오는 중이에요'}</Text>
+          {!!pay?.unconfirmed && <Text style={s.earn}>시급 확인이 필요한 {pay.unconfirmed}건은 금액에서 제외했어요.</Text>}
 
           <View style={s.status}>
             <View style={{ flex: 1 }}>

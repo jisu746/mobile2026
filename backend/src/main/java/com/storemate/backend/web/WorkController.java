@@ -21,13 +21,15 @@ public class WorkController {
     private final WorkSessionRepository sessions;
     private final Notifier notifier;
     private final boolean anyQr;
+    private final WageService wages;
 
     public WorkController(StoreAccess access, WorkSessionRepository sessions, Notifier notifier,
-                          @Value("${storemate.dev.any-qr:false}") boolean anyQr) {
+                          @Value("${storemate.dev.any-qr:false}") boolean anyQr, WageService wages) {
         this.access = access;
         this.sessions = sessions;
         this.notifier = notifier;
         this.anyQr = anyQr;
+        this.wages = wages;
     }
 
     private Dto.WorkStatus status(Account a, Store s) {
@@ -57,7 +59,10 @@ public class WorkController {
                 throw new ApiException(HttpStatus.CONFLICT, "'" + w.getStore().getName() + "'에서 근무 중이에요. 그곳에서 퇴근한 뒤 출근해 주세요");
         });
         if (sessions.findFirstByAccountAndStoreAndClockOutIsNull(account, s).isEmpty()) {
-            WorkSession w = sessions.save(new WorkSession(account, s));
+            WorkSession w = new WorkSession(account, s);
+            var rate = wages.forNewSession(access.requireApproved(account, storeId), w.getClockIn().toLocalDate());
+            w.assignWage(rate.amount(), rate.defaultRate() ? "DEFAULT" : "SNAPSHOT", null);
+            sessions.save(w);
             notifier.send(s, Role.OWNER, account, "clockin", account.getName() + " 님이 출근했어요", w.getClockIn().toLocalTime().toString().substring(0, 5));
         }
         return status(account, s);
@@ -90,7 +95,7 @@ public class WorkController {
         YearMonth ym = MemberController.month(month);
         return sessions.findByAccountAndStoreAndClockInGreaterThanEqualAndClockInLessThanOrderByClockInAsc(
                         account, s, ym.atDay(1).atStartOfDay(), ym.plusMonths(1).atDay(1).atStartOfDay()).stream()
-                .map(w -> new Dto.WorkRecord(w.getClockIn().toString(), w.getClockOut() == null ? null : w.getClockOut().toString()))
+                .map(WageService::view)
                 .toList();
     }
 }

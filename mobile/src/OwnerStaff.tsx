@@ -10,6 +10,7 @@ import { serverOwnerStaffRepository } from './ownerStaffRepository';
 import type { OwnerStaffRepository, StaffPerson } from './ownerStaffRepository';
 import { getStoreSetupSettings } from './storeSetupRepository';
 import OwnerSchedule from './OwnerSchedule';
+import OwnerWage from './OwnerWage';
 const PARTS = ['오전', '오후', '마감'];
 
 function useStoreWorkParts(storeId: number) {
@@ -100,6 +101,7 @@ export function OwnerStaffRequests({ storeId, inviteCode, storeName, onBack, rep
 
 export function OwnerStaffManagement({ storeId, onBack, repository = serverOwnerStaffRepository }: { storeId: number; onBack: () => void; repository?: OwnerStaffRepository }) {
   const [scheduleEmployee, setScheduleEmployee] = useState<StaffPerson | null>(null);
+  const [wageEmployee, setWageEmployee] = useState<StaffPerson | null>(null);
   const workParts = useStoreWorkParts(storeId);
   const [staff, setStaff] = useState<StaffPerson[]>([]);
   const [loading, setLoading] = useState(true);
@@ -126,6 +128,7 @@ export function OwnerStaffManagement({ storeId, onBack, repository = serverOwner
   useEffect(() => () => { if (savedTimer.current) clearTimeout(savedTimer.current); }, []);
 
   if (scheduleEmployee) return <OwnerSchedule key={`${storeId}:${scheduleEmployee.id}`} storeId={storeId} employee={scheduleEmployee} onBack={() => setScheduleEmployee(null)} />;
+  if (wageEmployee) return <OwnerWage key={`${storeId}:${wageEmployee.id}`} storeId={storeId} employee={wageEmployee} onBack={() => setWageEmployee(null)} />;
 
   return (
     <View style={s.root}>
@@ -146,6 +149,11 @@ export function OwnerStaffManagement({ storeId, onBack, repository = serverOwner
         {!loading && !error && filtered.map((person) => (
           <View key={person.id} style={[s.manageCard, openPartId === person.id && s.manageCardDropdownOpen]}>
             <PersonIdentity person={person} />
+            <Pressable disabled={busy} style={s.scheduleAction} onPress={() => setWageEmployee(person)}>
+              <Ionicons name="cash-outline" size={17} color={C.primary} />
+              <Text style={s.outlineActionText}>시급 설정</Text>
+              <Ionicons name="chevron-forward" size={15} color={C.primary} />
+            </Pressable>
             <Pressable disabled={busy} style={s.scheduleAction} onPress={() => setScheduleEmployee(person)}>
               <Ionicons name="calendar-outline" size={17} color={C.primary} />
               <Text style={s.outlineActionText}>근무 일정 관리</Text>

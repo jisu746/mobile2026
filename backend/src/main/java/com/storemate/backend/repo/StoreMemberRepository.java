@@ -8,6 +8,9 @@ import java.util.List;
 import java.util.Optional;
 
 public interface StoreMemberRepository extends JpaRepository<StoreMember, Long> {
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @org.springframework.data.jpa.repository.Query("select m from StoreMember m where m.id = :id")
+    Optional<StoreMember> findLockedById(@org.springframework.data.repository.query.Param("id") Long id);
     List<StoreMember> findByAccountOrderByIdAsc(Account account);
 
     Optional<StoreMember> findByAccountAndStore(Account account, Store store);

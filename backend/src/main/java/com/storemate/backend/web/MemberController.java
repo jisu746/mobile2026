@@ -30,12 +30,14 @@ public class MemberController {
     private final StoreMemberRepository members;
     private final WorkShiftRepository shifts;
     private final WorkSessionRepository sessions;
+    private final WageService wages;
 
-    public MemberController(StoreAccess access, StoreMemberRepository members, WorkShiftRepository shifts, WorkSessionRepository sessions) {
+    public MemberController(StoreAccess access, StoreMemberRepository members, WorkShiftRepository shifts, WorkSessionRepository sessions, WageService wages) {
         this.access = access;
         this.members = members;
         this.shifts = shifts;
         this.sessions = sessions;
+        this.wages = wages;
     }
 
     static String validWorkPart(String value) {
@@ -44,8 +46,9 @@ public class MemberController {
         return value.trim();
     }
 
-    private static Dto.StaffView view(StoreMember m) {
-        return new Dto.StaffView(m.getId(), m.getAccount().getName(), m.getHourlyWage(),
+    private Dto.StaffView view(StoreMember m) {
+        var rate = wages.resolve(m, LocalDate.now());
+        return new Dto.StaffView(m.getId(), m.getAccount().getName(), rate.defaultRate() ? null : rate.amount(),
                 m.getAccount().getUsername(), m.getWorkPart(), m.getRequestedAt().toString());
     }
 
@@ -69,7 +72,8 @@ public class MemberController {
     @Transactional(readOnly = true)
     public Dto.MeView me(@RequestAttribute(AuthInterceptor.ACCOUNT) Account account, @PathVariable Long storeId) {
         StoreMember m = access.requireApproved(account, storeId);
-        return new Dto.MeView(m.getHourlyWage(), m.getRequestedAt().toLocalDate().toString());
+        var rate = wages.resolve(m, LocalDate.now());
+        return new Dto.MeView(rate.defaultRate() ? null : rate.amount(), m.getRequestedAt().toLocalDate().toString());
     }
 
     // 내 근무 일정 (month = yyyy-MM)
@@ -95,7 +99,7 @@ public class MemberController {
         Store s = access.requireOwner(owner, storeId);
         return members.findByStoreAndStatusOrderByIdAsc(s, MemberStatus.APPROVED).stream()
                 .filter(m -> m.getRole() == Role.STAFF)
-                .map(MemberController::view).toList();
+                .map(this::view).toList();
     }
 
     @PutMapping("/staff/{memberId}/part")
@@ -125,8 +129,38 @@ public class MemberController {
         StoreMember m = staff(owner, storeId, memberId);
         if (r.hourlyWage() == null || r.hourlyWage() <= 0 || r.hourlyWage() > MAX_WAGE)
             throw new ApiException(HttpStatus.BAD_REQUEST, "시급은 1원 이상 " + MAX_WAGE + "원 이하로 입력해주세요");
-        m.setHourlyWage(r.hourlyWage());
+        LocalDate from;
+        try { from = LocalDate.parse(r.effectiveFrom()); }
+        catch (RuntimeException e) { throw new ApiException(HttpStatus.BAD_REQUEST, "적용 시작일을 YYYY-MM-DD 형식으로 입력해주세요"); }
+        wages.schedule(m, owner, r.hourlyWage(), from);
         return view(m);
+    }
+
+    @GetMapping("/staff/{memberId}/wage-history")
+    @Transactional(readOnly = true)
+    public Dto.WageHistory wageHistory(@RequestAttribute(AuthInterceptor.ACCOUNT) Account owner, @PathVariable Long storeId, @PathVariable Long memberId) {
+        return wages.history(staff(owner, storeId, memberId));
+    }
+
+    @GetMapping("/staff/{memberId}/work-records")
+    @Transactional(readOnly = true)
+    public List<Dto.WorkRecord> staffRecords(@RequestAttribute(AuthInterceptor.ACCOUNT) Account owner, @PathVariable Long storeId, @PathVariable Long memberId, @RequestParam String month) {
+        StoreMember m = staff(owner, storeId, memberId);
+        YearMonth ym = month(month);
+        return sessions.findByAccountAndStoreAndClockInGreaterThanEqualAndClockInLessThanOrderByClockInAsc(
+            m.getAccount(), m.getStore(), ym.atDay(1).atStartOfDay(), ym.plusMonths(1).atDay(1).atStartOfDay()).stream().map(WageService::view).toList();
+    }
+
+    @PutMapping("/staff/{memberId}/work-records/{sessionId}/wage")
+    @Transactional
+    public Dto.WorkRecord confirmLegacyWage(@RequestAttribute(AuthInterceptor.ACCOUNT) Account owner, @PathVariable Long storeId, @PathVariable Long memberId,
+                                           @PathVariable Long sessionId, @RequestBody Dto.LegacyWageRequest r) {
+        StoreMember m = staff(owner, storeId, memberId);
+        var w = sessions.findLockedById(sessionId).filter(s -> s.getStore().getId().equals(storeId) && s.getAccount().getId().equals(m.getAccount().getId()))
+            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "근무 기록을 찾을 수 없어요"));
+        if (w.getHourlyWage() != null) throw new ApiException(HttpStatus.CONFLICT, "이미 시급을 확정한 기록이에요");
+        w.assignWage(WageService.validAmount(r.hourlyWage()), "CONFIRMED", owner);
+        return WageService.view(w);
     }
 
     @GetMapping("/staff/{memberId}/shifts")
