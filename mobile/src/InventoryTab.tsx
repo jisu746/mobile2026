@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Product, daysLeft, discardExpired, isLowStock, listProducts, productLowStockThreshold, updateProduct } from './inventory';
 import { DEFAULT_STORE_SETUP_SETTINGS, getStoreSetupSettingsOrDefault } from './storeSetupRepository';
 import type { StoreSetupSettings } from './storeSetupRepository';
-import { C, Stepper } from './ui';
+import { BellButton, C, Stepper } from './ui';
 
 const ORDER_URL = 'https://www.coupang.com'; // 발주 버튼이 여는 주문 페이지
 
@@ -27,7 +27,7 @@ function status(p: Product, settings: StoreSetupSettings) {
   return { tags, low, imminent, expired };
 }
 
-export default function InventoryTab({ store, onProfile, onBell, focusBarcode }: { store: number; onProfile: () => void; onBell: () => void; focusBarcode?: string }) {
+export default function InventoryTab({ store, onProfile, onBell, focusBarcode, unread}: { store: number; onProfile: () => void; onBell: () => void; focusBarcode?: string; unread?: boolean}) {
   const [products, setProducts] = useState<Product[] | null>(null);
   const [alertSettings, setAlertSettings] = useState(DEFAULT_STORE_SETUP_SETTINGS);
   const [q, setQ] = useState('');
@@ -122,9 +122,7 @@ export default function InventoryTab({ store, onProfile, onBell, focusBarcode }:
     >
       <View style={s.header}>
         <Text style={s.title}>재고 및 발주</Text>
-        <Pressable onPress={onBell} hitSlop={8}>
-          <Ionicons name="notifications-outline" size={26} color={C.primary} />
-        </Pressable>
+        <BellButton onPress={onBell} unread={unread} size={26} />
         <Pressable style={s.avatar} onPress={onProfile}>
           <Ionicons name="person" size={18} color="#fff" />
         </Pressable>

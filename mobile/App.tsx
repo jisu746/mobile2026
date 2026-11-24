@@ -129,7 +129,7 @@ export default function App() {
   }, [screen, account]);
 
   // MY 탭 화면 (사장님·직원 메인의 하단 탭에서 보여준다)
-  const renderMy = (onBell: () => void, onRecords: () => void, onEmployeeRequests?: () => void, onEmployees?: () => void, onPayroll?: () => void, onContracts?: () => void) =>
+  const renderMy = (onBell: () => void, onRecords: () => void, unread?: boolean, onEmployeeRequests?: () => void, onEmployees?: () => void, onPayroll?: () => void, onContracts?: () => void) =>
     account && (
       <Profile
         id={userId}
@@ -138,6 +138,7 @@ export default function App() {
         onAdd={() => setScreen(account.role === 'owner' ? 'o1' : 'f1')}
         onLogout={logout}
         onBell={onBell}
+        unread={unread}
         onRecords={onRecords}
         onEmployeeRequests={onEmployeeRequests ?? (() => {})}
         onEmployees={onEmployees ?? (() => {})}

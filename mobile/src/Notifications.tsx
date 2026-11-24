@@ -82,7 +82,7 @@ function buildInventoryAlerts(products: Product[], expirationAlertDays: number, 
   return alerts.sort((a, b) => (a.kind === b.kind ? a.order - b.order : a.kind === 'expiry' ? -1 : 1));
 }
 
-export default function Notifications({ storeId, userId, isOwner = false, storeName = '현재 매장', inviteCode, onBack }: { storeId: number; userId: string; isOwner?: boolean; storeName?: string; inviteCode?: string; onBack: () => void }) {
+export default function Notifications({ storeId, userId, isOwner = false, storeName = '현재 매장', inviteCode, onUnreadChange, onBack }: { storeId: number; userId: string; isOwner?: boolean; storeName?: string; inviteCode?: string; onUnreadChange?: (unread: boolean) => void; onBack: () => void }) {
   const [list, setList] = useState<Notif[] | null>(null);
   const [inventoryAlerts, setInventoryAlerts] = useState<InventoryAlert[] | null>(isOwner ? null : []);
   const [inventoryReadKeys, setInventoryReadKeys] = useState<Set<string>>(new Set());
@@ -149,6 +149,11 @@ export default function Notifications({ storeId, userId, isOwner = false, storeN
     });
     return () => sub.remove();
   }, [onBack, destination]);
+
+  useEffect(() => {
+    if (list === null || inventoryAlerts === null) return;
+    onUnreadChange?.(list.some((n) => !n.read) || inventoryAlerts.some((n) => !n.read));
+  }, [list, inventoryAlerts, onUnreadChange])
 
   if (settings) return <NotificationSettings userId={userId} storeId={storeId} onBack={() => { setSettings(false); setReloadVersion((value) => value + 1); }} />;
 
