@@ -1,5 +1,5 @@
 import { api } from './api';
-export function validatePasswordChange(current: string, next: string, confirmation: string) {
+function validatePasswordChange(current: string, next: string, confirmation: string) {
   if (!current) throw new Error('현재 비밀번호를 입력해 주세요.');
   if (
     next.length < 8 ||

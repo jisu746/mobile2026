@@ -10,9 +10,8 @@ import NotificationSettings from './NotificationSettings';
 import InventoryTab from './InventoryTab';
 import { OwnerStaffRequests } from './OwnerStaff';
 import { listNotifs, markRead, Notif } from './notifs';
-import { daysLeft, listProducts } from './inventory';
-import type { Product } from './inventory';
-import { DEFAULT_STORE_SETUP_SETTINGS, getStoreSetupSettingsOrDefault } from './storeSetupRepository';
+import { listProducts } from './inventory';
+import { getStoreSetupSettingsOrDefault } from './storeSetupRepository';
 import { C } from './ui';
 import { hhmm } from './work';
 
@@ -48,7 +47,6 @@ export default function Notifications({
   isOwner = false,
   storeName = '현재 매장',
   inviteCode,
-  onUnreadChange,
   onBack,
 }: {
   storeId: number;
@@ -56,7 +54,6 @@ export default function Notifications({
   isOwner?: boolean;
   storeName?: string;
   inviteCode?: string;
-  onUnreadChange?: (unread: boolean) => void;
   onBack: () => void;
 }) {
   const [list, setList] = useState<Notif[] | null>(null);
@@ -134,11 +131,6 @@ export default function Notifications({
     });
     return () => sub.remove();
   }, [onBack, destination]);
-
-  useEffect(() => {
-    if (list === null || inventoryAlerts === null) return;
-    onUnreadChange?.(list.some((n) => !n.read) || inventoryAlerts.some((n) => !n.read));
-  }, [list, inventoryAlerts, onUnreadChange]);
 
   if (settings)
     return (

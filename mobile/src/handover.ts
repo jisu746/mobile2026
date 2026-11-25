@@ -75,7 +75,7 @@ export const editHandover = (
 export const deleteHandover = (storeId: number, h: Handover) =>
   api<void>('DELETE', target(storeId, h.id, h.revision), { revision: h.revision });
 
-export type PreviousHandover = {
+type PreviousHandover = {
   author: string | null;
   workPart: string | null;
   clockIn: string | null;

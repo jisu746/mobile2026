@@ -130,15 +130,6 @@ export function TabBar({ tabs, active, onChange }: { tabs: TabItem[]; active: nu
   );
 }
 
-export function BellButton({ onPress, unread, size = 24 }: { onPress: () => void; unread?: boolean; size?: number }) {
-  return (
-    <Pressable onPress={onPress} hitSlop={8} style={{ position: 'relative' }}>
-      <Ionicons name="notifications-outline" size={size} color={C.primary} />
-      {!!unread && <View style={s.bellDot} />}
-    </Pressable>
-  );
-}
-
 const s = StyleSheet.create({
   pill: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20, borderWidth: 1 },
   pillOn: { backgroundColor: C.primary, borderColor: C.primary },
@@ -207,13 +198,4 @@ const s = StyleSheet.create({
   iconWrap: { width: 56, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
   iconWrapOn: { backgroundColor: '#ECEAF7' },
   tabText: { fontSize: 10.5, color: '#8A8896' },
-  bellDot: {
-    position: 'absolute',
-    top: 0.5,
-    right: 0.5,
-    width: 6,
-    height: 6,
-    borderRadius: 3.5,
-    backgroundColor: '#671d57',
-  },
 });

@@ -139,7 +139,6 @@ export default function App() {
   const renderMy = (
     onBell: () => void,
     onRecords: () => void,
-    unread?: boolean,
     onEmployeeRequests?: () => void,
     onEmployees?: () => void,
     onPayroll?: () => void,
@@ -153,7 +152,6 @@ export default function App() {
         onAdd={() => setScreen(account.role === 'owner' ? 'o1' : 'f1')}
         onLogout={logout}
         onBell={onBell}
-        unread={unread}
         onRecords={onRecords}
         onEmployeeRequests={onEmployeeRequests ?? (() => {})}
         onEmployees={onEmployees ?? (() => {})}

@@ -13,8 +13,8 @@ export type Product = {
   photoVersion?: string | null;
   specification?: string | null;
 };
-export type Receipt = { barcode: string; name: string; category: string; qty: number; expiry?: string };
-export type ReceiptResult = { barcode: string; name: string; before: number; after: number; min: number };
+type Receipt = { barcode: string; name: string; category: string; qty: number; expiry?: string };
+type ReceiptResult = { barcode: string; name: string; before: number; after: number; min: number };
 
 type ProductView = {
   barcode: string;

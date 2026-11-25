@@ -34,7 +34,6 @@ type Props = {
   onAdd: () => void;
   onLogout: () => void;
   onBell: () => void;
-  unread?: boolean;
   onRecords: () => void;
   onEmployeeRequests: () => void;
   onEmployees: () => void;
@@ -53,7 +52,6 @@ export default function Profile({
   onAdd,
   onLogout,
   onBell,
-  unread,
   onRecords,
   onEmployeeRequests,
   onEmployees,

@@ -229,12 +229,10 @@ function ProductSheet({
   const [expiry, setExpiry] = useState('');
   const [capturing, setCapturing] = useState(false);
   const [nameCapture, setNameCapture] = useState(false),
-    [category, setCategory] = useState(''),
-    [categories, setCategories] = useState<string[]>(['기타']);
+    [category, setCategory] = useState('');
   useEffect(() => {
     api<{ categories: string[] }>('GET', `/api/stores/${store}/template`).then(
       (v) => {
-        setCategories(v.categories);
         setCategory(v.categories[0] ?? '');
       },
       () => {},

@@ -23,9 +23,9 @@ import WorkRecords from './WorkRecords';
 import OwnerTaskRegistration from './OwnerTaskRegistration';
 import HandoverBoard from './HandoverBoard';
 import { OwnerStaffManagement, OwnerStaffRequests } from './OwnerStaff';
-import OwnerPayroll from './OwnerPayroll';
+import LiveOwnerPayroll from './LiveOwnerPayroll';
 import OwnerContracts from './OwnerContracts';
-import { Task, useTasks } from './tasks';
+import { useTasks } from './tasks';
 
 import { C, TabBar } from './ui';
 import { activeStaff, hhmm } from './work';
@@ -53,7 +53,6 @@ export default function OwnerHome({
   renderMy: (
     onBell: () => void,
     onRecords: () => void,
-    unread?: boolean,
     onEmployeeRequests?: () => void,
     onEmployees?: () => void,
     onPayroll?: () => void,
@@ -80,7 +79,7 @@ export default function OwnerHome({
     );
   if (staffPage === 'employees')
     return <OwnerStaffManagement storeId={store.id ?? 0} onBack={() => setStaffPage(null)} />;
-  if (payrollOpen) return <OwnerPayroll storeId={store.id ?? 0} onClose={() => setPayrollOpen(false)} />;
+  if (payrollOpen) return <LiveOwnerPayroll storeId={store.id ?? 0} onClose={() => setPayrollOpen(false)} />;
   if (contractsOpen) return <OwnerContracts storeId={store.id ?? 0} onBack={() => setContractsOpen(false)} />;
   if (notifOpen)
     return (
@@ -108,7 +107,6 @@ export default function OwnerHome({
         renderMy(
           onBell,
           () => setRecordsOpen(true),
-          undefined,
           () => setStaffPage('requests'),
           () => setStaffPage('employees'),
           () => setPayrollOpen(true),

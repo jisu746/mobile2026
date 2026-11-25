@@ -6,7 +6,6 @@ import { Text } from './font';
 import { Ionicons } from '@expo/vector-icons';
 import { exists, signup } from './auth';
 import { Button, C, Field, Pill, SignupHeader } from './ui';
-import { saveLocalProfile } from './profileRepository';
 
 const ID_RE = /^[a-z0-9]+$/;
 const PW_RE = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9]).+$/;
@@ -47,8 +46,6 @@ export default function Signup({ step, onStep, onBack, onDone }: Props) {
       if (step === 1 && (await exists(id))) return setIdError('이미 사용 중인 아이디예요');
       if (step === 3) {
         await signup(id, { pw, role, name, birth });
-        // Keep signup profile data available to the frontend before profile APIs are wired.
-        await saveLocalProfile(id, { name, birth });
       }
       setFormError('');
       onStep((step + 1) as 2 | 3 | 4);

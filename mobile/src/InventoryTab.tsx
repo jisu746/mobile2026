@@ -4,7 +4,7 @@ import NotificationBell from './NotificationBell';
 import { api } from './api';
 // 재고/발주 탭 화면 (상품 목록, 수정, 폐기) - 사장님·직원 공통
 import { ComponentRef, useEffect, useRef, useState } from 'react';
-import { BackHandler, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { BackHandler, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from './font';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -23,8 +23,6 @@ import { C, Stepper } from './ui';
 import StockBatches from './StockBatches';
 import InventoryTools from './InventoryTools';
 import ProductPhotoCapture, { ProductPhotoButton } from './ProductPhotoCapture';
-
-const ORDER_URL = 'https://www.coupang.com'; // 발주 버튼이 여는 주문 페이지
 
 type Tag = { label: string; bg: string; fg: string };
 const RED = { bg: '#FEECEB', fg: '#E53935' };
@@ -48,13 +46,11 @@ export default function InventoryTab({
   onProfile,
   onBell,
   focusBarcode,
-  unread,
 }: {
   store: number;
   onProfile: () => void;
   onBell: () => void;
   focusBarcode?: string;
-  unread?: boolean;
 }) {
   const [products, setProducts] = useState<Product[] | null>(null);
   const [alertSettings, setAlertSettings] = useState(DEFAULT_STORE_SETUP_SETTINGS);
@@ -222,16 +218,6 @@ export default function InventoryTab({
       const bDays = daysLeft(b.expiry) ?? Number.POSITIVE_INFINITY;
       return a.stock - b.stock || aDays - bDays || a.name.localeCompare(b.name, 'ko');
     });
-
-  // "발주 관리 현황"을 누르면 발주·유통기한 알림 상품 중 목록 맨 위의 건으로 스크롤한다
-  const goFirstAlert = () => {
-    const first = list.find((p) => {
-      const st = status(p, alertSettings);
-      return st.low || st.imminent || st.expired;
-    });
-    const y = first && tops.current[first.barcode];
-    if (y !== undefined) scroll.current?.scrollTo({ y: Math.max(0, y - 12), animated: true });
-  };
 
   return (
     <>

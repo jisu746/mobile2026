@@ -20,7 +20,7 @@ export type Session = {
 
 // 시급과 근무 일정은 사장님이 정한다. 사장님이 시급을 정하기 전에는 최저시급(2026년)으로 계산한다.
 export const MIN_WAGE = 10320;
-export type Me = { wage: number; wageSet: boolean; joinedAt: Date | null };
+type Me = { wage: number; wageSet: boolean; joinedAt: Date | null };
 export type Shift = { date: string; start: string; end: string }; // date: yyyy-MM-dd, 시각: HH:mm
 
 const dateOnly = (s: string) => {
@@ -28,7 +28,7 @@ const dateOnly = (s: string) => {
   return new Date(y, m - 1, d);
 };
 
-export const getMe = (storeId: number): Promise<Me> =>
+const getMe = (storeId: number): Promise<Me> =>
   api<{ hourlyWage: number | null; joinedAt: string }>('GET', `/api/stores/${storeId}/me`).then((r) => ({
     wage: r.hourlyWage ?? MIN_WAGE,
     wageSet: r.hourlyWage != null,

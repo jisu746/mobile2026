@@ -4,9 +4,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api } from './api';
 
 export type StaffPerson = { id: string; name: string; email: string; part: string; time: string };
-export type OwnerStaffLists = { pending: StaffPerson[]; approved: StaffPerson[] };
+type OwnerStaffLists = { pending: StaffPerson[]; approved: StaffPerson[] };
 
-export interface OwnerStaffRepository {
+interface OwnerStaffRepository {
   getRequests(storeId: number): Promise<OwnerStaffLists>;
   decideRequest(storeId: number, requestId: string, decision: 'approve' | 'reject', part?: string): Promise<void>;
   getEmployees(storeId: number): Promise<StaffPerson[]>;

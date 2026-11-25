@@ -21,5 +21,3 @@ export const listNotifs = (storeId: number) =>
 
 export const markRead = (storeId: number, ids: number[]) =>
   api('POST', `/api/stores/${storeId}/notifications/read`, { ids });
-export const hasUnreadNotifs = (storeId: number) =>
-  storeId > 0 ? listNotifs(storeId).then((l) => l.some((n) => !n.read)) : Promise.resolve(false);

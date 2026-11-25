@@ -1,4 +1,4 @@
-export type RatedSession = { clockIn: Date; clockOut: Date | null; breakSeconds?: number; hourlyWage?: number | null };
+type RatedSession = { clockIn: Date; clockOut: Date | null; breakSeconds?: number; hourlyWage?: number | null };
 export function sessionHours(session: RatedSession, now = new Date()) {
   return Math.max(
     0,

@@ -107,8 +107,6 @@ public final class Dto {
         public HandoverRequest(String content,boolean urgent){this(content,urgent,null,null);}
     }
 
-    public record ResolveRequest(boolean done) {
-    }
 
     public record HandoverConfirmationView(String name, String confirmedAt, boolean mine) {}
 

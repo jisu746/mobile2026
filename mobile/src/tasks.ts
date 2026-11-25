@@ -20,7 +20,7 @@ export type Task = {
   custom?: CustomTask;
 };
 
-export function buildTasks(
+function buildTasks(
   products: Product[],
   settings: Pick<
     StoreSetupSettings,

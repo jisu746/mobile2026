@@ -19,7 +19,7 @@ import * as Clipboard from 'expo-clipboard';
 import QRCode from 'react-native-qrcode-svg';
 import { C } from './ui';
 import { serverOwnerStaffRepository } from './ownerStaffRepository';
-import type { OwnerStaffRepository, StaffPerson } from './ownerStaffRepository';
+import type { StaffPerson } from './ownerStaffRepository';
 import { getStoreSetupSettings } from './storeSetupRepository';
 import OwnerSchedule from './OwnerSchedule';
 import OwnerWage from './OwnerWage';
@@ -55,15 +55,8 @@ type RequestProps = {
   inviteCode?: string;
   storeName: string;
   onBack: () => void;
-  repository?: OwnerStaffRepository;
 };
-export function OwnerStaffRequests({
-  storeId,
-  inviteCode,
-  storeName,
-  onBack,
-  repository = serverOwnerStaffRepository,
-}: RequestProps) {
+export function OwnerStaffRequests({ storeId, inviteCode, storeName, onBack }: RequestProps) {
   const workParts = useStoreWorkParts(storeId);
   const [tab, setTab] = useState<'pending' | 'approved'>('pending');
   const [pending, setPending] = useState<StaffPerson[]>([]);
@@ -79,7 +72,7 @@ export function OwnerStaffRequests({
     setLoading(true);
     setError('');
     try {
-      const lists = await repository.getRequests(storeId);
+      const lists = await serverOwnerStaffRepository.getRequests(storeId);
       setPending(lists.pending);
       setApproved(lists.approved);
     } catch (e) {
@@ -91,14 +84,14 @@ export function OwnerStaffRequests({
 
   useEffect(() => {
     void refresh();
-  }, [storeId, repository]);
+  }, [storeId]);
 
   const decide = async (person: StaffPerson, approve: boolean, part: string) => {
     if (deciding.current) return;
     deciding.current = true;
     setBusy(true);
     try {
-      await repository.decideRequest(storeId, person.id, approve ? 'approve' : 'reject', part);
+      await serverOwnerStaffRepository.decideRequest(storeId, person.id, approve ? 'approve' : 'reject', part);
       await refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : '요청을 처리하지 못했어요.');
@@ -157,15 +150,7 @@ export function OwnerStaffRequests({
   );
 }
 
-export function OwnerStaffManagement({
-  storeId,
-  onBack,
-  repository = serverOwnerStaffRepository,
-}: {
-  storeId: number;
-  onBack: () => void;
-  repository?: OwnerStaffRepository;
-}) {
+export function OwnerStaffManagement({ storeId, onBack }: { storeId: number; onBack: () => void }) {
   const [scheduleEmployee, setScheduleEmployee] = useState<StaffPerson | null>(null);
   const [wageEmployee, setWageEmployee] = useState<StaffPerson | null>(null);
   const workParts = useStoreWorkParts(storeId);
@@ -190,7 +175,7 @@ export function OwnerStaffManagement({
     setLoading(true);
     setError('');
     try {
-      setStaff(await repository.getEmployees(storeId));
+      setStaff(await serverOwnerStaffRepository.getEmployees(storeId));
     } catch (e) {
       setStaff([]);
       setError(e instanceof Error ? e.message : '직원 목록을 불러오지 못했어요.');
@@ -200,7 +185,7 @@ export function OwnerStaffManagement({
   };
   useEffect(() => {
     void refreshStaff();
-  }, [storeId, repository]);
+  }, [storeId]);
   useEffect(
     () => () => {
       if (savedTimer.current) clearTimeout(savedTimer.current);
@@ -341,7 +326,11 @@ export function OwnerStaffManagement({
                     mutating.current = true;
                     setBusy(true);
                     try {
-                      await repository.updateEmployeePart(storeId, person.id, parts[person.id] ?? person.part);
+                      await serverOwnerStaffRepository.updateEmployeePart(
+                        storeId,
+                        person.id,
+                        parts[person.id] ?? person.part,
+                      );
                       setStaff((items) =>
                         items.map((item) =>
                           item.id === person.id ? { ...item, part: parts[person.id] ?? person.part } : item,
@@ -397,7 +386,7 @@ export function OwnerStaffManagement({
                   mutating.current = true;
                   setBusy(true);
                   try {
-                    await repository.removeEmployee(storeId, target.id);
+                    await serverOwnerStaffRepository.removeEmployee(storeId, target.id);
                     setStaff((items) => items.filter((item) => item.id !== target.id));
                     setRemoveTarget(null);
                   } catch (e) {

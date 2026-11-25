@@ -17,7 +17,6 @@ import TaskList from './TaskList';
 import HandoverBoard from './HandoverBoard';
 import WorkRecords from './WorkRecords';
 import { Handover, previousHandovers, listHandovers, resolveHandover, writeHandover } from './handover';
-import { hasUnreadNotifs } from './notifs';
 import { useTasks } from './tasks';
 import { C, TabBar, TabItem } from './ui';
 import { Shift, clockIn, clockOut, currentShift, hhmm, listSessions, listShifts, shiftState, won, ymd } from './work';
@@ -51,7 +50,7 @@ export default function StaffHome({
   storeName: string;
   userId: string;
   userName: string;
-  renderMy: (onBell: () => void, onRecords: () => void, unread?: boolean) => ReactNode;
+  renderMy: (onBell: () => void, onRecords: () => void) => ReactNode;
   onSwitchStore: () => void;
 }) {
   const ME = userName;
@@ -74,7 +73,6 @@ export default function StaffHome({
   const [draft, setDraft] = useState('');
   const [tab, setTab] = useState(0);
   const [notifOpen, setNotifOpen] = useState(false);
-  const [hasUnread, setHasUnread] = useState(false);
   const [recordsOpen, setRecordsOpen] = useState(false);
   const onBell = () => setNotifOpen(true);
   const [now, setNow] = useState(Date.now());
@@ -85,9 +83,6 @@ export default function StaffHome({
     const d = new Date();
     listSessions(storeId, d.getFullYear(), d.getMonth() + 1).then((l) => setPay(summarizePay(l)), fail);
   };
-  const refreshUnread = () => {
-    hasUnreadNotifs(storeId).then(setHasUnread, () => {});
-  };
 
   useEffect(() => {
     const d = new Date();
@@ -97,10 +92,6 @@ export default function StaffHome({
     listShifts(storeId, d.getFullYear(), d.getMonth() + 1).then(setShifts, fail);
     refreshEarn();
   }, [storeId]);
-
-  useEffect(() => {
-    if (!notifOpen) refreshUnread();
-  }, [storeId, notifOpen, tab, clockedAt]);
 
   // 근무 중 메인 화면으로 돌아올 때마다 업무(재고 기준)와 인수인계를 새로 받는다
   useEffect(() => {
@@ -128,7 +119,6 @@ export default function StaffHome({
     if (!clockedAt || recordsOpen) return;
     const t = setInterval(() => {
       setNow(Date.now());
-      refreshUnread();
     }, 30000);
     return () => clearInterval(t);
   }, [clockedAt, recordsOpen]);
@@ -173,15 +163,7 @@ export default function StaffHome({
     </View>
   );
 
-  if (notifOpen)
-    return (
-      <Notifications
-        storeId={storeId}
-        userId={userId}
-        onUnreadChange={setHasUnread}
-        onBack={() => setNotifOpen(false)}
-      />
-    );
+  if (notifOpen) return <Notifications storeId={storeId} userId={userId} onBack={() => setNotifOpen(false)} />;
   if (recordsOpen) return <WorkRecords storeId={storeId} onBack={() => setRecordsOpen(false)} />;
   if (summaryOpen) return <ShiftSummary storeId={storeId} owner={false} onBack={() => setSummaryOpen(false)} />;
   if (!ready) return <View style={s.root} />;
@@ -220,7 +202,7 @@ export default function StaffHome({
     if (tab === 3) {
       return (
         <View style={s.root}>
-          {renderMy(onBell, () => setRecordsOpen(true), hasUnread)}
+          {renderMy(onBell, () => setRecordsOpen(true))}
           <TabBar tabs={BEFORE_TABS} active={1} onChange={(i) => setTab(i === 1 ? 3 : 0)} />
         </View>
       );
@@ -472,9 +454,9 @@ export default function StaffHome({
           {!!error && <Text style={[s.error, { color: '#D93025' }]}>{error}</Text>}
         </ScrollView>
       ) : tab === 2 ? (
-        <InventoryTab store={storeId} onProfile={onProfile} onBell={onBell} unread={hasUnread} />
+        <InventoryTab store={storeId} onProfile={onProfile} onBell={onBell} />
       ) : tab === 3 ? (
-        renderMy(onBell, () => setRecordsOpen(true), hasUnread)
+        renderMy(onBell, () => setRecordsOpen(true))
       ) : (
         <View style={s.empty}>
           <Text style={s.emptyText}>{TABS[tab].label} 화면은 준비 중이에요</Text>
