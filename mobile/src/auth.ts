@@ -1,5 +1,6 @@
 // 계정·매장 서버 연동 (가입, 로그인, 매장 등록·참여, 현재 매장 선택)
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {unregisterPushDevice} from './pushRegistration';
 import { api, ApiError, clearToken, getToken, setToken } from './api';
 
 // 계정·매장은 서버(Spring)에 저장한다. 앱에는 로그인 토큰과 "현재 매장" 선택만 남긴다.
@@ -60,8 +61,8 @@ export async function refresh() {
   return { id: v.username, acc: await toAccount(v) };
 }
 
-export async function updateProfile(name: string, birth: string) {
-  const updated = await api<AccountView>('PUT', '/api/me', { name, birth });
+export async function updateProfile(input:{username:string;name:string;birth:string;expectedName:string;expectedBirth:string;storeId?:number;storeName?:string;expectedStoreName?:string}) {
+  const updated = await api<AccountView>('PUT', '/api/me', input);
   return toAccount(updated);
 }
 
@@ -97,6 +98,7 @@ export const lookupStore = (code: string) =>
 export const joinStore = (code: string) => api<{ status: string }>('POST', '/api/stores/join', { code });
 
 export async function logout() {
+  try{await unregisterPushDevice();}catch{}
   try {
     await api('POST', '/api/auth/logout');
   } catch {

@@ -1,7 +1,12 @@
+import ShiftSummary from './ShiftSummary';
+import NotificationBell from './NotificationBell';
+import {api} from './api';
 // 사장님 홈 화면 (업무 진행률, 근무 현황)과 하단 탭 연결
 import { ReactNode, useCallback, useEffect, useState } from 'react';
-import { Image, Linking, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { Text } from './font';
+import { Image, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, TextProps, View } from 'react-native';
+import { Text as AppText } from './font';
+
+function Text(props: TextProps) { return <AppText {...props} style={[Platform.OS === 'android' && { fontFamily: 'sans-serif', includeFontPadding: false }, props.style]} />; }
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
 import BarcodeFlow from './BarcodeFlow';
@@ -9,11 +14,12 @@ import InventoryTab from './InventoryTab';
 import Notifications from './Notifications';
 import WorkRecords from './WorkRecords';
 import OwnerTaskRegistration from './OwnerTaskRegistration';
+import HandoverBoard from './HandoverBoard';
 import { OwnerStaffManagement, OwnerStaffRequests } from './OwnerStaff';
 import OwnerPayroll from './OwnerPayroll';
 import OwnerContracts from './OwnerContracts';
 import { Task, useTasks } from './tasks';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+
 import { C, TabBar } from './ui';
 import { activeStaff, hhmm } from './work';
 
@@ -56,29 +62,23 @@ export default function OwnerHome({ store, userId, userName, renderMy, onSwitchS
 }
 
 function Dashboard({ storeId, store, onProfile, onBell }: { storeId: number; store: { name: string; type: string }; onProfile: () => void; onBell: () => void }) {
-  const { tasks, done, error } = useTasks(storeId);
-  const [detail, setDetail] = useState<'pending' | 'register' | null>(null);
-  const [customTasks, setCustomTasks] = useState<Task[]>([]);
-  const onEntriesChange = useCallback((entries: { id: string; title: string; description: string; urgent: boolean }[]) => {
-    setCustomTasks(entries.map((entry) => ({ id: `custom:${entry.id}`, kind: 'custom', title: entry.title, sub: entry.description, icon: 'checkbox-outline', tag: entry.urgent ? '긴급' : '일반', tone: entry.urgent ? 'urgent' : 'normal' })));
-  }, []);
-  useEffect(() => {
-    AsyncStorage.getItem(`ownerTasks:${storeId}`).then((raw) => {
-      const entries = raw ? JSON.parse(raw) : [];
-      if (Array.isArray(entries)) onEntriesChange(entries);
-    }).catch(() => {});
-  }, [storeId, onEntriesChange]);
+  const { tasks, done, error, reload } = useTasks(storeId);
+  const [detail, setDetail] = useState<'pending' | 'register' | 'handovers' | 'staff' | 'summary' | null>(null);
+  const onEntriesChange = useCallback(() => reload(), [reload]);
+  const [planned,setPlanned]=useState<{memberId:number;name:string;start:string;end:string;working:boolean}[]>([]);
+  const [taskFilter,setTaskFilter]=useState<'all'|'low'|'expiry'>('all');
+  useEffect(()=>{api<typeof planned>('GET',`/api/stores/${storeId}/dashboard/scheduled`).then(setPlanned,()=>{});},[storeId]);
   const [staff, setStaff] = useState<{ name: string; clockIn: Date }[]>([]);
   useEffect(() => {
     activeStaff(storeId).then(setStaff, () => {});
   }, [storeId]);
 
-  const allTasks = [...tasks, ...customTasks];
+  const allTasks = tasks;
   const doneCount = allTasks.filter((t) => done.includes(t.id)).length;
   const pct = allTasks.length ? Math.round((doneCount / allTasks.length) * 100) : 0;
-  const todos = allTasks.filter((t) => !done.includes(t.id));
+  const todos = allTasks.filter((t) => (taskFilter!=='all'||!done.includes(t.id))&&(taskFilter==='all'||taskFilter==='low'&&t.kind==='low'||taskFilter==='expiry'&&(t.kind==='soon'||t.kind==='expired')));
   const STATS: { label: string; value: string; icon: Icon; color: string }[] = [
-    { label: '유통기한 임박', value: `${tasks.filter((t) => t.kind !== 'low').length}개`, icon: 'time-outline', color: C.primary },
+    { label: '유통기한 임박', value: `${tasks.filter((t) => t.kind === 'expired' || t.kind === 'soon').length}개`, icon: 'time-outline', color: C.primary },
     { label: '재고 부족', value: `${tasks.filter((t) => t.kind === 'low').length}개`, icon: 'clipboard-outline', color: C.primary },
     { label: '근무 중', value: `${staff.length}명`, icon: 'people-outline', color: C.primary },
   ];
@@ -87,16 +87,18 @@ function Dashboard({ storeId, store, onProfile, onBell }: { storeId: number; sto
     <>
       <ScrollView contentContainerStyle={s.scroll}>
         <View style={s.header}>
-          <Image source={require('../assets/storemate-store-icon.png')} style={{ width: 34, height: 34 }} resizeMode="contain" accessibilityLabel="StoreMate" />
-          <View style={{ flex: 1 }}>
-            <Text style={s.storeName} numberOfLines={1}>{store.name}</Text>
-            <Text style={s.mode}>관리자 모드</Text>
-          </View>
-          <Pressable onPress={onBell} hitSlop={8}>
-            <Ionicons name="notifications-outline" size={24} color={C.primary} />
+          <Pressable accessibilityRole="button" accessibilityLabel={`매장 변경, 현재 매장 ${store.name}`} accessibilityHint="매장 목록을 열어요" onPress={onProfile} style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44 }}>
+            <Image source={require('../assets/storemate-store-icon.png')} style={{ width: 34, height: 34 }} resizeMode="contain" />
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={[s.storeName, { flexShrink: 1 }]} numberOfLines={1}>{store.name}</Text>
+                <Ionicons name="chevron-down" size={18} color={C.primary} />
+              </View>
+              <Text style={s.mode}>관리자 모드</Text>
+            </View>
           </Pressable>
-          <Pressable style={s.avatar} onPress={onProfile}>
-            <Ionicons name="person" size={18} color="#fff" />
+          <Pressable onPress={onBell} hitSlop={8}>
+            <NotificationBell storeId={storeId}/>
           </Pressable>
         </View>
 
@@ -106,9 +108,9 @@ function Dashboard({ storeId, store, onProfile, onBell }: { storeId: number; sto
           {!!store.type && <Text style={s.storeRowType}>{store.type}</Text>}
         </View>
 
-        <Pressable accessibilityRole="button" accessibilityLabel="오늘 업무 진행률" style={s.hero} onPress={() => setDetail('pending')}>
+        <Pressable accessibilityRole="button" accessibilityLabel="오늘 업무 진행률" style={s.hero} onPress={() => {setTaskFilter('all');setDetail('pending');}}>
           <Ring pct={pct} />
-          <View style={{ flex: 1 }}>
+          <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={s.heroLabel}>오늘 업무 진행률</Text>
             <Text style={s.heroValue}>{doneCount} / {allTasks.length} 완료</Text>
             <Text style={s.heroSub}>재고 데이터 기반 업무 자동 생성</Text>
@@ -118,13 +120,13 @@ function Dashboard({ storeId, store, onProfile, onBell }: { storeId: number; sto
 
         <View style={s.stats}>
           {STATS.map((x) => (
-            <View key={x.label} style={[s.stat, { borderColor: x.color + '55' }]}>
+            <Pressable key={x.label} onPress={()=>{setTaskFilter(x.label==='재고 부족'?'low':x.label==='유통기한 임박'?'expiry':'all');setDetail(x.label==='근무 중'?'staff':'pending');}} style={[s.stat, { borderColor: x.color + '55' }]}>
               <View style={s.statHead}>
                 <Ionicons name={x.icon} size={14} color={x.color} />
                 <Text style={[s.statLabel, { color: x.color }]}>{x.label}</Text>
               </View>
               <Text style={s.statValue}>{x.value}</Text>
-            </View>
+            </Pressable>
           ))}
         </View>
 
@@ -133,12 +135,14 @@ function Dashboard({ storeId, store, onProfile, onBell }: { storeId: number; sto
           <Ionicons name="chevron-forward" size={20} color={C.text} />
         </Pressable>
 
-        <Text style={[s.section, { marginTop: 26, marginBottom: 12 }]}>근무 현황</Text>
+        <Pressable style={[s.card,s.detail]} onPress={()=>setDetail('summary')}><Text style={s.todoTitle}>교대 요약</Text><Ionicons name="chevron-forward" size={20} color={C.text}/></Pressable>
+        <Pressable style={[s.card, s.detail]} onPress={() => setDetail('handovers')}><Text style={s.todoTitle}>인수인계 목록·관리</Text><Ionicons name="chevron-forward" size={20} color={C.text}/></Pressable>
+        <Text style={[s.section, { marginTop: 26, marginBottom: 12 }]}>오늘 근무 예정 {planned.length}명 · 근무 현황</Text>{planned.map(p=><Text key={p.memberId} style={s.todoSub}>{p.name} · {p.start}~{p.end} · {p.working?'근무 중':'출근 전/퇴근 완료'}</Text>)}
         {!staff.length && <Text style={[s.todoSub, { marginBottom: 10 }]}>지금 근무 중인 직원이 없어요</Text>}
         {staff.map((p, i) => (
           <View key={i} style={[s.card, s.staff]}>
             <View style={s.staffAvatar}>
-              <Text style={s.staffInitial}>{p.name[0]}</Text>
+              <Ionicons name="person-outline" size={24} color={C.primary}/>
             </View>
             <View>
               <Text style={s.todoTitle}>{p.name}</Text>
@@ -150,13 +154,13 @@ function Dashboard({ storeId, store, onProfile, onBell }: { storeId: number; sto
     <Modal visible={detail !== null} animationType="slide" onRequestClose={() => setDetail(null)}>
       <View style={s.root}>
         <View style={s.modalFrame}>
-          {detail === 'register' ? <OwnerTaskRegistration key={storeId} storeId={storeId} onBack={() => setDetail(null)} onEntriesChange={onEntriesChange} /> : (
+          {detail === 'summary'?<ShiftSummary storeId={storeId} owner onBack={()=>setDetail(null)}/>:detail === 'staff'?<View style={s.root}><View style={s.pendingHeader}><Pressable onPress={()=>setDetail(null)} accessibilityLabel="뒤로"><Ionicons name="arrow-back" size={24}/></Pressable><Text style={s.section}>현재 근무 중 {staff.length}명</Text></View><ScrollView contentContainerStyle={s.scroll}>{!staff.length&&<Text>현재 근무 중인 직원이 없어요.</Text>}{staff.map((p,i)=><View key={i} style={[s.card,s.staff]}><Ionicons name="person-outline" size={24} color={C.primary}/><View><Text style={s.todoTitle}>{p.name}</Text><Text style={s.todoSub}>{hhmm(p.clockIn)} 출근</Text></View></View>)}</ScrollView></View>:detail === 'handovers' ? <HandoverBoard storeId={storeId} onBack={() => setDetail(null)} /> : detail === 'register' ? <OwnerTaskRegistration key={storeId} storeId={storeId} onBack={() => setDetail(null)} onEntriesChange={onEntriesChange} /> : (
             <View style={s.root}>
               <View style={s.pendingHeader}>
                 <Pressable accessibilityRole="button" accessibilityLabel="뒤로" hitSlop={12} onPress={() => setDetail(null)}>
                   <Ionicons name="arrow-back" size={24} color={C.text} />
                 </Pressable>
-                <Text style={s.section}>오늘 업무 진행률</Text>
+                <Text style={s.section}>{taskFilter==='low'?'재고 부족 상품':taskFilter==='expiry'?'유통기한 확인 상품':'오늘 업무 진행률'}</Text>
               </View>
               <ScrollView contentContainerStyle={s.scroll}>
                 <View style={s.sectionHead}>
@@ -168,7 +172,7 @@ function Dashboard({ storeId, store, onProfile, onBell }: { storeId: number; sto
                   {todos.map((t, i) => (
                     <View key={t.id} style={[s.todo, i > 0 && s.line]}>
                       <Ionicons name={t.icon} size={22} color={C.primary} />
-                      <View style={{ flex: 1 }}>
+                      <View style={{ flex: 1, minWidth: 0 }}>
                         <Text style={s.todoTitle}>{t.title}</Text>
                         {!!t.sub && <Text style={s.todoSub}>{t.sub}</Text>}
                       </View>
@@ -188,7 +192,7 @@ function Dashboard({ storeId, store, onProfile, onBell }: { storeId: number; sto
 }
 
 function Ring({ pct }: { pct: number }) {
-  const size = 62, stroke = 6, r = (size - stroke) / 2, len = 2 * Math.PI * r;
+  const size = Platform.OS === 'android' ? 52 : 62, stroke = 5, r = (size - stroke) / 2, len = 2 * Math.PI * r;
   return (
     <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
       <Svg width={size} height={size}>
@@ -233,17 +237,17 @@ const s = StyleSheet.create({
   pendingHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingTop: 32, height: 88 },
   scroll: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 24 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  storeName: { fontSize: 15, fontWeight: '700', color: C.text },
-  mode: { fontSize: 10.5, fontWeight: '600', color: C.primary, marginTop: 1 },
+  storeName: { lineHeight: 22, fontSize: 15, fontWeight: '700', color: C.text },
+  mode: { lineHeight: 16, fontSize: 10.5, fontWeight: '600', color: C.primary, marginTop: 1 },
   avatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center' },
   storeRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 18 },
   storeRowName: { fontSize: 14, fontWeight: '700', color: C.text },
   storeRowType: { fontSize: 11, color: '#828282' },
-  hero: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: C.primary, borderRadius: 18, padding: 16, marginTop: 12 },
-  heroLabel: { fontSize: 11.5, color: 'rgba(255,255,255,0.8)' },
-  heroValue: { fontSize: 20, fontWeight: '800', color: '#fff', marginTop: 2 },
-  heroSub: { fontSize: 10.5, color: 'rgba(255,255,255,0.75)', marginTop: 3 },
-  ringText: { position: 'absolute', fontSize: 13, fontWeight: '800', color: '#fff' },
+  hero: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: C.primary, borderRadius: 18, padding: 14, marginTop: 12 },
+  heroLabel: { lineHeight: 17, fontSize: 11.5, color: 'rgba(255,255,255,0.8)' },
+  heroValue: { lineHeight: 28, fontSize: 20, fontWeight: '800', color: '#fff', marginTop: 2 },
+  heroSub: { lineHeight: 16, fontSize: 10.5, color: 'rgba(255,255,255,0.75)', marginTop: 3 },
+  ringText: { position: 'absolute', lineHeight: 18, fontSize: 13, fontWeight: '800', color: '#fff' },
   stats: { flexDirection: 'row', gap: 8, marginTop: 12 },
   stat: { flex: 1, minWidth: 0, minHeight: 98, borderWidth: 1, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 6, backgroundColor: '#fff', justifyContent: 'center' },
   statHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },

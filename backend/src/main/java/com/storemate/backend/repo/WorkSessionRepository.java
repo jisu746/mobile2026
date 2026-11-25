@@ -9,6 +9,9 @@ import java.util.List;
 import java.util.Optional;
 
 public interface WorkSessionRepository extends JpaRepository<WorkSession, Long> {
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @org.springframework.data.jpa.repository.Query("select w from WorkSession w where w.id = :id")
+    Optional<WorkSession> findLockedById(@org.springframework.data.repository.query.Param("id") Long id);
     Optional<WorkSession> findFirstByAccountAndStoreAndClockOutIsNull(Account account, Store store);
 
     // 어느 매장이든 지금 근무 중인 기록 (다른 매장에 동시에 출근하지 못하게 막을 때)

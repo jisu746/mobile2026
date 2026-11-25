@@ -1,3 +1,4 @@
+import QrSaveButton from './QrSaveButton';
 // 사장님 첫 로그인 매장 등록 화면 (매장 정보 입력 → 초대 QR/코드)
 import { useState } from 'react';
 import { Image, Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
@@ -19,6 +20,8 @@ const TYPES: { label: string; icon: keyof typeof MaterialIcons.glyphMap; width: 
   { label: '만화카페', icon: 'menu-book', width: 97 },
   { label: '소매점', icon: 'shopping-basket', width: 81 },
   { label: '음식점', icon: 'restaurant', width: 80 },
+  { label: '화장품', icon: 'face', width: 81 },
+  { label: '의류점', icon: 'checkroom', width: 81 },
   { label: '기타', icon: 'more-horiz', width: 70 },
 ];
 const DEFAULT_PARTS: WorkPartSetting[] = [
@@ -202,11 +205,7 @@ export default function StoreSetup({ step, onStep, onBack, onCreate, onDone }: P
                 <Ionicons name="share-social-outline" size={16} color={C.primary} />
                 <Text style={s.actionText}>공유하기</Text>
               </Pressable>
-              {/* TODO: QR 이미지 저장은 미디어 권한이 필요해 이후 구현 */}
-              <Pressable style={[s.action, s.actionLine]}>
-                <Ionicons name="download-outline" size={16} color={C.primary} />
-                <Text style={s.actionText}>QR 저장</Text>
-              </Pressable>
+              <QrSaveButton code={code}/>
             </View>
           </>
         )}

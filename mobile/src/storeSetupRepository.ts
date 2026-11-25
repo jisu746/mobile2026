@@ -1,10 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {api} from './api';
 
 export type WorkPartSetting = { id: string; name: string; start: string; end: string };
 export type StoreSetupSettings = {
   workParts: WorkPartSetting[];
+  revision?:number;
   expirationAlertDays: number;
   lowStockThresholdCount: number;
+  expiryEnabled?:boolean;
+  categories?:string[];
 };
 
 export const DEFAULT_STORE_SETUP_SETTINGS: StoreSetupSettings = {
@@ -19,22 +23,6 @@ export const DEFAULT_STORE_SETUP_SETTINGS: StoreSetupSettings = {
 
 const keyFor = (storeId: number) => `storeSetupSettings:${storeId}`;
 
-export async function getStoreSetupSettings(storeId: number): Promise<StoreSetupSettings | null> {
-  const raw = await AsyncStorage.getItem(keyFor(storeId));
-  return raw ? JSON.parse(raw) as StoreSetupSettings : null;
-}
-
-export async function getStoreSetupSettingsOrDefault(storeId: number): Promise<StoreSetupSettings> {
-  const saved = await getStoreSetupSettings(storeId);
-  return saved ? {
-    ...DEFAULT_STORE_SETUP_SETTINGS,
-    ...saved,
-    workParts: Array.isArray(saved.workParts) ? saved.workParts : DEFAULT_STORE_SETUP_SETTINGS.workParts,
-    lowStockThresholdCount: Number.isInteger((saved as Partial<StoreSetupSettings>).lowStockThresholdCount)
-      ? (saved as StoreSetupSettings).lowStockThresholdCount
-      : DEFAULT_STORE_SETUP_SETTINGS.lowStockThresholdCount,
-  } : { ...DEFAULT_STORE_SETUP_SETTINGS, workParts: DEFAULT_STORE_SETUP_SETTINGS.workParts.map((part) => ({ ...part })) };
-}
-
-export const saveStoreSetupSettings = (storeId: number, settings: StoreSetupSettings) =>
-  AsyncStorage.setItem(keyFor(storeId), JSON.stringify(settings));
+export async function getStoreSetupSettings(storeId:number):Promise<StoreSetupSettings|null>{const [settings,template]=await Promise.all([api<StoreSetupSettings>('GET',`/api/stores/${storeId}/operation-settings`),api<{expiryEnabled:boolean;categories:string[]}>('GET',`/api/stores/${storeId}/template`)]);return {...settings,expiryEnabled:template.expiryEnabled,categories:template.categories};}
+export async function getStoreSetupSettingsOrDefault(storeId:number):Promise<StoreSetupSettings>{return (await getStoreSetupSettings(storeId))??DEFAULT_STORE_SETUP_SETTINGS;}
+export async function saveStoreSetupSettings(storeId:number,settings:StoreSetupSettings){const saved=await api<StoreSetupSettings>('PUT',`/api/stores/${storeId}/operation-settings`,{...settings,revision:settings.revision??0});await AsyncStorage.setItem(keyFor(storeId),JSON.stringify(saved));return saved;}

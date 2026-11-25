@@ -16,6 +16,7 @@ class MemberControllerTest {
     StoreMemberRepository members = mock(StoreMemberRepository.class);
     WorkShiftRepository shifts = mock(WorkShiftRepository.class);
     WorkSessionRepository sessions = mock(WorkSessionRepository.class);
+    WageService wages = mock(WageService.class);
     Account owner = mock(Account.class);
     Store store = mock(Store.class);
     Account employee = new Account("staff1", "hash", Role.STAFF, "직원", "20000101");
@@ -27,7 +28,8 @@ class MemberControllerTest {
         when(access.requireOwner(owner, 3L)).thenReturn(store);
         member = new StoreMember(employee, store, Role.STAFF, MemberStatus.APPROVED);
         when(members.findById(8L)).thenReturn(Optional.of(member));
-        controller = new MemberController(access, members, shifts, sessions);
+        when(wages.resolve(any(), any())).thenReturn(new WageService.Rate(10320, true));
+        controller = new MemberController(access, members, shifts, sessions, wages);
     }
 
     @Test void savesTrimmedPartAndReturnsIt() {

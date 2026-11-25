@@ -1,6 +1,6 @@
 // 카메라로 QR·바코드를 읽는 공통 스캔 화면 (값 직접 입력 칸 포함)
 import { ReactNode, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from './font';
 import { Ionicons } from '@expo/vector-icons';
 import { BarcodeType, CameraView, useCameraPermissions } from 'expo-camera';
@@ -51,13 +51,13 @@ export default function Scanner({
       </View>
 
       <View style={s.camera}>
-        <View pointerEvents="none" style={s.frame}>
+        {code === null && <View pointerEvents="none" style={s.frame}>
           <View style={[s.corner, { top: 0, left: 0, borderTopWidth: 4, borderLeftWidth: 4, borderTopLeftRadius: 14 }]} />
           <View style={[s.corner, { top: 0, right: 0, borderTopWidth: 4, borderRightWidth: 4, borderTopRightRadius: 14 }]} />
           <View style={[s.corner, { bottom: 0, left: 0, borderBottomWidth: 4, borderLeftWidth: 4, borderBottomLeftRadius: 14 }]} />
           <View style={[s.corner, { bottom: 0, right: 0, borderBottomWidth: 4, borderRightWidth: 4, borderBottomRightRadius: 14 }]} />
           <View style={s.line} />
-        </View>
+        </View>}
         {perm?.granted ? (
           <CameraView
             style={StyleSheet.absoluteFill}
@@ -78,15 +78,17 @@ export default function Scanner({
             <Text style={s.permText}>카메라 권한 허용하기</Text>
           </Pressable>
         )}
-        <Text pointerEvents="none" style={s.hint}>{hint}</Text>
+        {code === null && <Text pointerEvents="none" style={s.hint}>{hint}</Text>}
 
         {manualEntry && code === null && (
           <View style={s.manual}>
             <TextInput
               style={s.manualInput}
+              autoCapitalize="none"
+              autoCorrect={false}
               value={typed}
               onChangeText={(t) => setTyped(manualEntry === 'text' ? t : t.replace(/\D/g, ''))}
-              placeholder={manualEntry === 'text' ? '값 직접 입력 (아무거나)' : '바코드 번호 직접 입력'}
+              placeholder={types.length === 1 && types[0] === 'qr' ? 'QR 코드 직접 입력' : '바코드 직접 입력'}
               placeholderTextColor="#A3A1B0"
               keyboardType={manualEntry === 'text' ? 'default' : 'number-pad'}
               maxLength={manualEntry === 'text' ? 20 : 14}
@@ -140,15 +142,15 @@ const s = StyleSheet.create({
   camera: { flex: 1, backgroundColor: '#1E1B2B', alignItems: 'center', justifyContent: 'center' },
   permBtn: { paddingHorizontal: 20, height: 44, borderRadius: 22, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   permText: { fontSize: 14, fontWeight: '700', color: C.primary },
-  frame: { position: 'absolute', width: 220, height: 220 },
+  frame: { position: 'absolute', width: 220, height: 220, zIndex: 1 },
   corner: { position: 'absolute', width: 46, height: 46, borderColor: '#fff' },
   line: { position: 'absolute', left: 20, right: 20, top: '50%', height: 2, backgroundColor: '#8F86D6' },
   manual: { position: 'absolute', left: 16, right: 16, bottom: 20, flexDirection: 'row', gap: 8 },
-  manualInput: { flex: 1, minWidth: 0, height: 48, borderRadius: 12, backgroundColor: '#fff', paddingHorizontal: 14, fontSize: 15, color: C.text },
+  manualInput: { flex: 1, minWidth: 0, height: 48, borderRadius: 12, backgroundColor: '#fff', paddingHorizontal: 14, fontSize: 15, color: C.text, ...(Platform.OS === 'android' ? { fontFamily: 'sans-serif', paddingVertical: 0, includeFontPadding: false, textAlignVertical: 'center' as const } : {}) },
   manualBtn: { width: 64, height: 48, borderRadius: 12, backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center' },
   manualBtnText: { fontSize: 14, fontWeight: '700', color: '#fff' },
   hint: { position: 'absolute', bottom: 150, color: '#fff', fontSize: 13, fontWeight: '600' },
-  sheet: { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 28 },
+  sheet: { zIndex: 2, position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 28 },
   handle: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: '#E1DFEA', marginBottom: 14 },
   found: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 },
   foundIcon: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#F0EEF8', alignItems: 'center', justifyContent: 'center' },

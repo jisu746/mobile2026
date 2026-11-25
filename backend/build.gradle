@@ -29,4 +29,8 @@ dependencies {
 
 tasks.named('test') {
 	useJUnitPlatform()
+	doFirst {
+		def mockitoAgent = classpath.files.find { it.name.startsWith('mockito-core-') && it.name.endsWith('.jar') }
+		if (mockitoAgent != null) jvmArgs("-javaagent:${mockitoAgent.absolutePath}")
+	}
 }

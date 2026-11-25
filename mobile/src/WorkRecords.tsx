@@ -1,11 +1,17 @@
+import WorkBreakEditor from './WorkBreakEditor';
+import {sessionHours} from './payCalculation';
 // 근무 기록 화면 (달력, 예상 급여) - MY 에서 열린다
 import { useEffect, useState } from 'react';
-import { BackHandler, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { Text } from './font';
+import { BackHandler, Platform, Pressable, ScrollView, StyleSheet, TextProps, View } from 'react-native';
+import { Text as AppText } from './font';
 import { Ionicons } from '@expo/vector-icons';
 import { C } from './ui';
-import { hoursByDay, hr, listSessions, useMe, won } from './work';
+import { hoursByDay, hr, listSessions, won } from './work';
 import type { Session } from './work';
+import { summarizePay } from './payCalculation';
+import PayrollSettlement from './PayrollSettlement';
+
+function Text(props: TextProps) { return <AppText {...props} style={[Platform.OS === 'android' && {fontFamily:'sans-serif',includeFontPadding:false},props.style]} />; }
 
 const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
@@ -20,12 +26,12 @@ const duration = (hours: number) => {
 const clockText = (d: Date) => [d.getHours(), d.getMinutes(), d.getSeconds()].map(n => String(n).padStart(2, '0')).join(':');
 
 export default function WorkRecords({ storeId, onBack }: { storeId: number; onBack: () => void }) {
-  const { wage, wageSet } = useMe(storeId);
   const today = startOfDay(new Date());
   const [month, setMonth] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   const [selected, setSelected] = useState<Date>(today);
   const [days, setDays] = useState<Record<string, number> | null>(null); // 날짜별 근무 시간 (null = 불러오는 중)
   const [error, setError] = useState('');
+  const [version,setVersion]=useState(0);
   const [sessions, setSessions] = useState<Session[]>([]);
   const hoursOf = (d: Date) => days?.[key(d)] ?? 0;
 
@@ -41,7 +47,7 @@ export default function WorkRecords({ storeId, onBack }: { storeId: number; onBa
     return () => {
       alive = false;
     };
-  }, [storeId, month]);
+  }, [storeId, month,version]);
 
   // 안드로이드 뒤로가기로 근무 기록 화면만 닫는다
   useEffect(() => {
@@ -60,24 +66,20 @@ export default function WorkRecords({ storeId, onBack }: { storeId: number; onBa
 
   // 이번 달 요약
   let total = 0, workDays = 0;
-  const weekly: Record<string, number> = {};
   for (let d = new Date(y, m, 1); d.getMonth() === m; d.setDate(d.getDate() + 1)) {
     const h = hoursOf(d);
     if (!h) continue;
     total += h;
     workDays += 1;
-    const monday = new Date(d);
-    monday.setDate(d.getDate() - ((d.getDay() + 6) % 7));
-    weekly[key(monday)] = (weekly[key(monday)] ?? 0) + h;
   }
-  // 주휴 수당(예상): 주 15시간 이상 근무한 주마다 (주 근무시간 ÷ 40 × 8시간) × 시급
-  const holiday = Object.values(weekly).reduce((a, h) => a + (h >= 15 ? (Math.min(h, 40) / 40) * 8 * wage : 0), 0);
   const isThisMonth = y === today.getFullYear() && m === today.getMonth();
 
   const selHours = hoursOf(selected);
   const selIsToday = key(selected) === key(today);
   const selectedInMonth = selected.getFullYear() === y && selected.getMonth() === m;
   const selectedSessions = sessions.filter(session => key(session.clockIn) === key(selected));
+  const pay = summarizePay(sessions);
+  const selectedPay = summarizePay(selectedSessions);
 
   return (
     <View style={s.root}>
@@ -88,7 +90,7 @@ export default function WorkRecords({ storeId, onBack }: { storeId: number; onBa
         <Text style={s.title}>근무 기록</Text>
       </View>
 
-      <ScrollView contentContainerStyle={s.body}>
+      <ScrollView style={{flex:1}} overScrollMode="never" bounces={false} decelerationRate={Platform.OS === 'android' ? 0 : 'normal'} removeClippedSubviews={Platform.OS === 'android'} keyboardShouldPersistTaps="handled" contentContainerStyle={s.body}>
         <View style={s.monthRow}>
           <Text style={s.month}>{y}년 {m + 1}월</Text>
           <View style={s.navs}>
@@ -104,19 +106,25 @@ export default function WorkRecords({ storeId, onBack }: { storeId: number; onBa
         <View style={s.hero}>
           <View style={s.heroTop}>
             <View>
-              <Text style={s.heroLabel}>{isThisMonth ? '이번 달' : `${m + 1}월`} 예상 급여</Text>
-              <Text style={s.heroPay}>{won(total * wage)}<Text style={s.heroWon}>원</Text></Text>
+              <Text style={s.heroLabel}>{isThisMonth ? '이번 달' : `${m + 1}월`} 기본급 예상</Text>
+              <Text style={s.heroPay}>{won(pay.knownPay)}<Text style={s.heroWon}>원</Text></Text>
             </View>
             <View style={s.pill}>
-              <Text style={s.pillText}>시급 {won(wage)}원 기준{wageSet ? '' : ' (기본)'}</Text>
+              <Text style={s.pillText}>근무별 보존 시급 기준</Text>
             </View>
           </View>
           <View style={s.metrics}>
             <Metric label="총 근무시간" value={duration(total)} unit="" />
             <Metric label="근무 일수" value={String(workDays)} unit="일" />
-            <Metric label="주휴 수당(예상)" value={(holiday / 10000).toFixed(1)} unit="만" />
+
+          </View>
+          <View style={s.allowance}>
+            <Text style={s.metricLabel}>주휴·가산 수당</Text>
+            <Text style={s.allowanceValue}>별도 확인</Text>
           </View>
         </View>
+
+        <PayrollSettlement storeId={storeId} period={`${y}-${String(m+1).padStart(2,'0')}`}/>{!!pay.unconfirmed && <Text style={{ color: '#B3261E', fontSize: 12, lineHeight: 20, marginTop: 12 }}>기존 근무 {pay.unconfirmed}건은 적용 시급 확인이 필요해 금액에서 제외했어요. 관리자가 직원 시급 설정에서 확인할 수 있어요.</Text>}
 
         <View style={s.calendar}>
           <View style={s.weekRow}>
@@ -174,9 +182,9 @@ export default function WorkRecords({ storeId, onBack }: { storeId: number; onBa
             <Text style={s.detailTitle}>{selected.getMonth() + 1}월 {selected.getDate()}일 ({DAYS[selected.getDay()]}) 근무 상세</Text>
             <View style={s.detail}>
               <View style={s.heroTop}>
-                <Text style={s.detailPay}>{won(selHours * wage)}<Text style={s.detailWon}> 원</Text></Text>
+                <Text style={s.detailPay}>{won(selectedPay.knownPay)}<Text style={s.detailWon}> 원{selectedPay.unconfirmed ? ' (확정분)' : ''}</Text></Text>
                 <View style={s.pill}>
-                  <Text style={s.pillText}>시급 {won(wage)}원{wageSet ? '' : ' (기본)'}</Text>
+                  <Text style={s.pillText}>근무별 적용 시급</Text>
                 </View>
               </View>
               <View style={s.detailBox}>
@@ -185,12 +193,15 @@ export default function WorkRecords({ storeId, onBack }: { storeId: number; onBa
               </View>
               {selectedSessions.map((session, index) => <View key={`${session.clockIn.toISOString()}-${index}`} style={s.detailBox}>
                 <Text style={s.metricLabel}>{index + 1}번째 근무</Text>
+                <View style={s.sessionRow}><Text style={s.sessionLabel}>적용 시급</Text><Text style={s.sessionTime}>{session.hourlyWage == null ? '확인 필요 · 금액 제외' : `${won(session.hourlyWage)}원${session.wageSource === 'DEFAULT' ? ' (기본값 보존)' : ''}`}</Text></View>
                 <View style={s.sessionRow}><Text style={s.sessionLabel}>출근</Text><Text style={s.sessionTime}>{clockText(session.clockIn)}</Text></View>
                 <View style={s.sessionRow}><Text style={s.sessionLabel}>퇴근</Text><Text style={s.sessionTime}>{session.clockOut
                   ? `${key(session.clockOut) !== key(session.clockIn) ? `${session.clockOut.getMonth() + 1}/${session.clockOut.getDate()} ` : ''}${clockText(session.clockOut)}`
                   : '근무 중'}</Text></View>
+                <Text style={{fontSize:12,lineHeight:20,color:'#DAD5ED'}}>휴게 {Math.floor((session.breakSeconds??0)/60)}분 · 실근무 기준</Text>{session.sessionId!=null&&<WorkBreakEditor storeId={storeId} sessionId={session.sessionId} onSaved={()=>setVersion(v=>v+1)}/>}
                 <View style={s.sessionRow}><Text style={s.sessionLabel}>{session.clockOut ? '근무시간' : '조회 시점 근무시간'}</Text>
-                  <Text style={s.sessionTime}>{duration(Math.max(0, ((session.clockOut ?? new Date()).getTime() - session.clockIn.getTime()) / 3600000))}</Text></View>
+                  <Text style={s.sessionTime}>{duration(sessionHours(session))}</Text></View>
+                {!!session.correctedAt && <Text style={[s.sessionLabel, { marginTop: 10 }]}>관리자 퇴근 처리 · {session.correctedBy ?? '관리자'}{'\n'}{session.correctedAt.replace('T', ' ')}{'\n'}사유: {session.correctionReason}</Text>}
               </View>)}
             </View>
           </>
@@ -213,32 +224,34 @@ const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#fff' },
   header: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 20, height: 56 },
   title: { flex: 1, fontSize: 18, fontWeight: '700', color: C.text },
-  body: { paddingHorizontal: 20, paddingBottom: 30 },
+  body: { paddingHorizontal: 20, paddingBottom: 60 },
   monthRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4, marginBottom: 14 },
   month: { fontSize: 22, fontWeight: '800', color: C.text, letterSpacing: -0.4 },
   navs: { flexDirection: 'row', gap: 4 },
   nav: { width: 34, height: 34, borderRadius: 8, borderWidth: 1, borderColor: '#CFCCDB', alignItems: 'center', justifyContent: 'center' },
   hero: { backgroundColor: C.primary, borderRadius: 20, padding: 20, shadowColor: C.primary, shadowOpacity: 0.22, shadowRadius: 18, shadowOffset: { width: 0, height: 6 }, elevation: 4 },
-  heroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  heroLabel: { fontSize: 13, fontWeight: '500', color: 'rgba(255,255,255,0.85)' },
-  heroPay: { fontSize: 30, fontWeight: '800', color: '#fff', letterSpacing: -0.8, marginTop: 4 },
+  heroTop: { alignItems: 'flex-start', gap: 8 },
+  heroLabel: { lineHeight: 20, fontSize: 13, fontWeight: '500', color: 'rgba(255,255,255,0.85)' },
+  heroPay: { lineHeight: 40, fontSize: 30, fontWeight: '800', color: '#fff', letterSpacing: -0.8, marginTop: 4 },
   heroWon: { fontSize: 18, fontWeight: '600' },
-  pill: { backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
-  pillText: { fontSize: 11.5, fontWeight: '600', color: '#fff' },
+  pill: { maxWidth: '100%', backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
+  pillText: { lineHeight: 18, fontSize: 11.5, fontWeight: '600', color: '#fff' },
   metrics: { flexDirection: 'row', gap: 8, marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.15)' },
-  metric: { flex: 1, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 12, paddingTop: 10, paddingHorizontal: 8, paddingBottom: 8 },
-  metricLabel: { fontSize: 10.5, letterSpacing: -0.4, color: 'rgba(255,255,255,0.75)' },
-  metricValue: { fontSize: 17, fontWeight: '700', color: '#fff', marginTop: 2 },
+  metric: { flex: 1, minWidth: 0, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 12, paddingTop: 10, paddingHorizontal: 8, paddingBottom: 8 },
+  metricLabel: { lineHeight: 16, fontSize: 10.5, letterSpacing: -0.4, color: 'rgba(255,255,255,0.75)' },
+  metricValue: { lineHeight: 25, fontSize: 17, fontWeight: '700', color: '#fff', marginTop: 2 },
+  allowance: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 10 },
+  allowanceValue: { fontSize: 13, fontWeight: '600', color: '#fff' },
   metricUnit: { fontSize: 12, fontWeight: '500' },
   calendar: { borderWidth: 1, borderColor: '#E4E2EC', borderRadius: 18, paddingVertical: 16, paddingHorizontal: 12, marginTop: 14, gap: 6 },
   weekRow: { flexDirection: 'row' },
   weekday: { flex: 1, textAlign: 'center', fontSize: 12.5, fontWeight: '600', color: '#5E5C6B', marginBottom: 4 },
   cell: { flex: 1, height: 52, alignItems: 'center', paddingTop: 4, borderRadius: 10, borderWidth: 1.5, borderColor: 'transparent' },
   cellSel: { borderColor: C.primary, backgroundColor: '#F5F4FB' },
-  dayNum: { fontSize: 13.5, fontWeight: '500', color: C.text },
+  dayNum: { lineHeight: 20, fontSize: 13.5, fontWeight: '500', color: C.text },
   dayToday: { fontWeight: '700', color: C.primary },
   badge: { marginTop: 3, backgroundColor: '#ECEAF7', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
-  badgeText: { fontSize: 10, fontWeight: '700', color: C.primary },
+  badgeText: { lineHeight: 13, fontSize: 10, fontWeight: '700', color: C.primary },
   notice: { backgroundColor: C.primary, borderRadius: 20, padding: 20, marginTop: 16 },
   noticeText: { fontSize: 15, fontWeight: '700', color: '#fff' },
   detailTitle: { fontSize: 15, fontWeight: '800', color: C.text, marginTop: 22, marginBottom: 10 },
@@ -247,6 +260,6 @@ const s = StyleSheet.create({
   detailWon: { fontSize: 15, fontWeight: '600' },
   detailBox: { backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 12, padding: 12, marginTop: 16 },
   sessionRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginTop: 8 },
-  sessionLabel: { fontSize: 12, color: 'rgba(255,255,255,0.8)' },
-  sessionTime: { fontSize: 14, fontWeight: '600', color: '#fff' },
+  sessionLabel: { lineHeight: 19, fontSize: 12, color: 'rgba(255,255,255,0.8)' },
+  sessionTime: { lineHeight: 21, fontSize: 14, fontWeight: '600', color: '#fff' },
 });

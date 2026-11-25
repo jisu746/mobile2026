@@ -1,5 +1,6 @@
 // 공통 색상과 화면 부품 (알약, 입력칸, 버튼, 수량 조절, 하단 탭)
-import { Image, Pressable, StyleSheet, TextInputProps, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Image, Keyboard, Platform, Pressable, StyleSheet, TextInputProps, View } from 'react-native';
 import { Text, TextInput } from './font';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -65,6 +66,14 @@ export type TabItem = { label: string; icon: keyof typeof Ionicons.glyphMap };
 
 // 하단 탭 바 (사장님·직원 홈 공통)
 export function TabBar({ tabs, active, onChange }: { tabs: TabItem[]; active: number; onChange: (i: number) => void }) {
+  const [keyboardVisible,setKeyboardVisible]=useState(() => Platform.OS === 'android' && Keyboard.isVisible());
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const show=Keyboard.addListener('keyboardDidShow',()=>setKeyboardVisible(true));
+    const hide=Keyboard.addListener('keyboardDidHide',()=>setKeyboardVisible(false));
+    return()=>{show.remove();hide.remove();};
+  },[]);
+  if (keyboardVisible) return null;
   return (
     <View style={s.bar}>
       {tabs.map((t, i) => (
@@ -109,8 +118,8 @@ const s = StyleSheet.create({
   headerText: { position: 'absolute', top: 28, left: 0, right: 0, textAlign: 'center', fontSize: 17, fontWeight: '900', color: C.primary, fontFamily: 'NotoSansKR' },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   stepBtn: { backgroundColor: '#ECEAF7', alignItems: 'center', justifyContent: 'center' },
-  qtyBig: { fontSize: 26, fontWeight: '700', color: C.text, minWidth: 64, textAlign: 'center' },
-  qty: { fontSize: 16, fontWeight: '700', color: C.text, minWidth: 44, textAlign: 'center' },
+  qtyBig: { lineHeight: 34, includeFontPadding: false, fontSize: 26, fontWeight: '700', color: C.text, minWidth: 64, textAlign: 'center' },
+  qty: { lineHeight: 24, includeFontPadding: false, fontSize: 16, fontWeight: '700', color: C.text, minWidth: 44, textAlign: 'center' },
   unit: { fontSize: 14, fontWeight: '400', color: '#5E5C6B' },
   bar: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: '#EEEDF3', backgroundColor: '#fff', paddingVertical: 8 },
   tab: { flex: 1, alignItems: 'center', gap: 2 },

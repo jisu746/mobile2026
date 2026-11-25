@@ -3,11 +3,11 @@ import { api, ApiError } from './api';
 
 // 상품·재고는 서버(Spring)에 저장한다. storeId 는 서버가 준 매장 번호.
 // expiry 는 앱에서 YYYY.MM.DD, 서버와는 YYYY-MM-DD 로 주고받는다.
-export type Product = { barcode: string; name: string; category: string; stock: number; min: number; expiry?: string };
+export type Product = { barcode: string; name: string; category: string; stock: number; min: number; expiry?: string; photoVersion?:string|null; specification?:string|null };
 export type Receipt = { barcode: string; name: string; category: string; qty: number; expiry?: string };
 export type ReceiptResult = { barcode: string; name: string; before: number; after: number; min: number };
 
-type ProductView = { barcode: string; name: string; category: string | null; stock: number; min: number; expiry: string | null };
+type ProductView = { barcode: string; name: string; category: string | null; stock: number; min: number; expiry: string | null; photoVersion?:string|null; specification?:string|null };
 
 const toDot = (d: string | null) => (d ? d.replace(/-/g, '.') : undefined);
 const toDash = (d?: string) => (d ? d.replace(/\./g, '-') : null);
@@ -28,14 +28,18 @@ export async function getProduct(storeId: number, barcode: string) {
 }
 
 // 입고: 재고를 더하고, 등록되지 않은 상품은 새로 등록한다. 상품별 입고 전후 수량을 돌려준다.
-export const receive = (storeId: number, items: Receipt[]) =>
+export const receive = (storeId: number, items: Receipt[], clientKey?:string) =>
   api<ReceiptResult[]>('POST', `${base(storeId)}/receipts`, {
+    clientKey,
     items: items.map((i) => ({ barcode: i.barcode, name: i.name, category: i.category, qty: i.qty, expiry: toDash(i.expiry) })),
   });
 
 // 상품명·재고 수량·적정 재고 수정
-export const updateProduct = (storeId: number, barcode: string, patch: { name?: string; stock?: number; min?: number }) =>
+export const updateProduct = (storeId: number, barcode: string, patch: { name?: string; stock?: number; min?: number; expectedStock?:number }) =>
   api('PUT', `${base(storeId)}/products/${encodeURIComponent(barcode)}`, patch);
+
+export const deleteProduct = (storeId: number, barcode: string, expectedStock: number) =>
+  api('DELETE', `${base(storeId)}/products/${encodeURIComponent(barcode)}?expectedStock=${expectedStock}`);
 
 // 유통기한이 지난 상품을 재고에서 제외
 export const discardExpired = (storeId: number, barcode: string) =>
