@@ -38,7 +38,7 @@ public class TaskController {
     public List<String> mark(@RequestAttribute(AuthInterceptor.ACCOUNT) Account account, @PathVariable Long storeId,
                              @RequestBody Dto.DoneRequest r) {
         Store s = access.requireMember(account, storeId);
-        if (r.key() == null || r.key().isBlank() || r.key().length() > 60)
+        if (r.key() == null || r.key().isBlank() || r.key().length() > 60 || r.key().startsWith("custom:"))
             throw new ApiException(HttpStatus.BAD_REQUEST, "업무 번호가 올바르지 않아요");
         LocalDate today = LocalDate.now();
         var existing = done.findByStoreAndTaskKeyAndDay(s, r.key(), today);

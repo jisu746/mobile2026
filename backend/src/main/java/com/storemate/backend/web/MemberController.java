@@ -48,7 +48,7 @@ public class MemberController {
 
     private Dto.StaffView view(StoreMember m) {
         var rate = wages.resolve(m, LocalDate.now());
-        return new Dto.StaffView(m.getId(), m.getAccount().getName(), rate.defaultRate() ? null : rate.amount(),
+        return new Dto.StaffView(m.getId(), m.getDisplayName(), rate.defaultRate() ? null : rate.amount(),
                 m.getAccount().getUsername(), m.getWorkPart(), m.getRequestedAt().toString());
     }
 

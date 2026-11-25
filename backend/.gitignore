@@ -38,3 +38,8 @@ out/
 
 ## sql비밀번호
 ##src/main/resources/application.properties
+# StoreMate private runtime configuration
+.env
+.env.*
+!.env.example
+!src/main/resources/application.properties.example

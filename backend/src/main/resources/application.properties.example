@@ -1,8 +1,11 @@
 spring.application.name=backend
-spring.datasource.url=${STOREMATE_DB_URL:jdbc:mysql://localhost:3306/smartstore}
-spring.datasource.username=${STOREMATE_DB_USERNAME:root}
-spring.datasource.password=${STOREMATE_DB_PASSWORD}
+spring.datasource.url=${DB_URL:jdbc:mysql://localhost:3306/storemate?serverTimezone=Asia/Seoul}
+spring.datasource.username=${DB_USERNAME:root}
+spring.datasource.password=${DB_PASSWORD}
 spring.jpa.hibernate.ddl-auto=update
-storemate.dev.auto-approve=false
+spring.jpa.open-in-view=false
 storemate.dev.any-qr=false
-storemate.dev.seed-products=true
+storemate.dev.auto-approve=false
+storemate.push.enabled=${PUSH_ENABLED:false}
+storemate.push.access-token=${EXPO_ACCESS_TOKEN:}
+storemate.ocr.google-api-key=${GOOGLE_VISION_API_KEY:}

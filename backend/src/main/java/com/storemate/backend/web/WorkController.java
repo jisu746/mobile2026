@@ -17,6 +17,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/stores/{storeId}/work")
 public class WorkController {
+    @org.springframework.beans.factory.annotation.Autowired private com.storemate.backend.repo.AccountRepository accounts;
     private final StoreAccess access;
     private final WorkSessionRepository sessions;
     private final Notifier notifier;
@@ -49,8 +50,10 @@ public class WorkController {
     @Transactional
     public Dto.WorkStatus clockIn(@RequestAttribute(AuthInterceptor.ACCOUNT) Account account, @PathVariable Long storeId,
                                   @RequestBody Dto.ClockInRequest r) {
+        if(accounts!=null)accounts.findLockedByUsername(account.getUsername()).orElseThrow(()->new ApiException(HttpStatus.UNAUTHORIZED,"로그인을 다시 해주세요"));
         Store s = access.requireMember(account, storeId);
         if (account.getRole() != Role.STAFF) throw new ApiException(HttpStatus.FORBIDDEN, "직원만 출근할 수 있어요");
+        StoreDetailsController.checkLocation(s,r);
         if (!anyQr && (r.code() == null || !s.getInviteCode().equalsIgnoreCase(r.code().trim())))
             throw new ApiException(HttpStatus.BAD_REQUEST, "이 매장의 출근 QR이 아니에요");
         // 다른 매장에서 근무 중이면 출근할 수 없다 (같은 매장에서 이미 출근 중이면 아래에서 그대로 돌려준다)
@@ -80,8 +83,11 @@ public class WorkController {
     @Transactional
     public Dto.WorkStatus clockOut(@RequestAttribute(AuthInterceptor.ACCOUNT) Account account, @PathVariable Long storeId) {
         Store s = access.requireMember(account, storeId);
-        WorkSession w = sessions.findFirstByAccountAndStoreAndClockOutIsNull(account, s)
+        WorkSession candidate = sessions.findFirstByAccountAndStoreAndClockOutIsNull(account, s)
                 .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT, "출근 기록이 없어요"));
+        WorkSession w = sessions.findLockedById(candidate.getId())
+                .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT, "출근 기록이 없어요"));
+        if (w.getClockOut() != null) throw new ApiException(HttpStatus.CONFLICT, "이미 퇴근 처리된 기록이에요");
         w.clockOut();
         return status(account, s);
     }

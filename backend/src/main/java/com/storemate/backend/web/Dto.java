@@ -46,31 +46,33 @@ public final class Dto {
 
     // ---- 재고 ----
     // expiry 는 yyyy-MM-dd (없으면 null)
-    public record ProductView(String barcode, String name, String category, int stock, int min, String expiry) {
+    public record ProductView(String barcode, String name, String category, int stock, int min, String expiry, String photoVersion, String specification) {
     }
 
     public record ReceiptItem(String barcode, String name, String category, int qty, String expiry) {
     }
 
-    public record ReceiptRequest(List<ReceiptItem> items) {
+    public record ReceiptRequest(List<ReceiptItem> items, String clientKey) {
     }
 
     public record ReceiptResult(String barcode, String name, int before, int after, int min) {
     }
 
-    public record UpdateProductRequest(String name, Integer stock, Integer min) {
+    public record UpdateProductRequest(String name, Integer stock, Integer min, Integer expectedStock) {
     }
 
     // ---- 출퇴근 ----
     // 시각은 yyyy-MM-dd'T'HH:mm:ss (서버 시간대). clockedAt 이 null 이면 출근 전
-    public record ClockInRequest(String code) {
+    public record ClockInRequest(String code,Double latitude,Double longitude,Double accuracy,Long locationAt) {
+        public ClockInRequest(String code){this(code,null,null,null,null);}
     }
 
     // elsewhere: 다른 매장에서 근무 중이면 그 매장 이름 (이 매장에는 출근할 수 없다)
     public record WorkStatus(String clockedAt, String elsewhere) {
     }
 
-    public record WorkRecord(Long sessionId, String clockIn, String clockOut, Integer hourlyWage, String wageSource) {
+    public record WorkRecord(Long sessionId, String clockIn, String clockOut, Integer hourlyWage, String wageSource, String correctedBy, String correctedAt, String correctionReason,long breakSeconds,long breakRevision,String breaks) {
+        public WorkRecord(Long id,String in,String out,Integer wage,String source,String by,String at,String reason){this(id,in,out,wage,source,by,at,reason,0,0,null);}
     }
 
     public record ActiveStaff(String name, String clockIn) {
@@ -101,16 +103,19 @@ public final class Dto {
     public record DoneRequest(String key, boolean done) {
     }
 
-    public record HandoverRequest(String content, boolean urgent) {
+    public record HandoverRequest(String content, boolean urgent,String title,Long relatedTaskId) {
+        public HandoverRequest(String content,boolean urgent){this(content,urgent,null,null);}
     }
 
     public record ResolveRequest(boolean done) {
     }
 
-    public record HandoverView(Long id, String author, boolean mine, String content, boolean urgent, boolean resolved, String createdAt) {
+    public record HandoverConfirmationView(String name, String confirmedAt, boolean mine) {}
+
+    public record HandoverView(Long id, String author, boolean mine, String content, boolean urgent, boolean resolved, String createdAt, long revision, String updatedAt, boolean canEdit, boolean canDelete, boolean confirmedByMe, java.util.List<HandoverConfirmationView> confirmations,String title,Long relatedTaskId,String relatedTaskTitle,String relatedTaskStatus) {
     }
 
-    public record NotificationView(Long id, String kind, String title, String sub, String createdAt, boolean read) {
+    public record NotificationView(Long id, String kind, String title, String sub, String createdAt, boolean read,Long targetId) {
     }
 
     public record ReadRequest(List<Long> ids) {

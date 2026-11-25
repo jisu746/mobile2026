@@ -9,6 +9,10 @@ import java.util.List;
 import java.util.Optional;
 
 public interface WorkSessionRepository extends JpaRepository<WorkSession, Long> {
+    List<WorkSession> findByClockOutIsNullOrderByClockInAsc();
+    Optional<WorkSession> findFirstByAccountAndStoreAndClockInLessThanEqualOrderByClockInDesc(Account account,Store store,LocalDateTime before);
+    Optional<WorkSession> findFirstByStoreAndAccountNotAndClockOutLessThanEqualOrderByClockOutDescIdDesc(Store store,Account account,LocalDateTime before);
+    List<WorkSession> findTop100ByClockOutIsNullAndClockInBeforeOrderByClockInAsc(LocalDateTime before);
     @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
     @org.springframework.data.jpa.repository.Query("select w from WorkSession w where w.id = :id")
     Optional<WorkSession> findLockedById(@org.springframework.data.repository.query.Param("id") Long id);

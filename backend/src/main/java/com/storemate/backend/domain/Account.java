@@ -44,7 +44,9 @@ public class Account {
     public Long getId() { return id; }
     public String getUsername() { return username; }
     public String getPasswordHash() { return passwordHash; }
+    public void changePasswordHash(String hash) { this.passwordHash=hash; }
     public Role getRole() { return role; }
     public String getName() { return name; }
     public String getBirth() { return birth; }
+    public void updateProfile(String name, String birth) { this.name=name;this.birth=birth; }
 }

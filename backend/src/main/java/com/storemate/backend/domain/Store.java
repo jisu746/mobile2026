@@ -37,6 +37,11 @@ public class Store {
     private Account owner;
 
     private LocalDateTime createdAt = LocalDateTime.now();
+    private Double latitude,longitude;
+    private Integer attendanceRadius;
+    private Long detailRevision;
+    public Double getLatitude(){return latitude;}public Double getLongitude(){return longitude;}public int getAttendanceRadius(){return attendanceRadius==null?0:attendanceRadius;}public long getDetailRevision(){return detailRevision==null?0:detailRevision;}
+    public void details(String name,String type,String branch,String address,String addressDetail,String open,String close,Double lat,Double lng,int radius){this.name=name;this.type=type;this.branch=branch;this.address=address;this.addressDetail=addressDetail;openTime=open;closeTime=close;latitude=lat;longitude=lng;attendanceRadius=radius;detailRevision=getDetailRevision()+1;}
 
     protected Store() {
     }
@@ -56,6 +61,7 @@ public class Store {
 
     public Long getId() { return id; }
     public String getName() { return name; }
+    public void rename(String name) { this.name=name; }
     public String getType() { return type; }
     public String getBranch() { return branch; }
     public String getAddress() { return address; }

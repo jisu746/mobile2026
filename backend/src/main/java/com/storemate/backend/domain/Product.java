@@ -28,9 +28,22 @@ public class Product {
 
     // 최소 재고 (이보다 적으면 발주 필요)
     private int minStock;
+    @Column(length=100) private String specification;
+    private Integer targetStock;
+    public String getSpecification(){return specification;}
+    public int getTargetStock(){return targetStock==null?0:targetStock;}
+    public void metadata(String category,String specification,int targetStock){this.category=category;this.specification=specification;this.targetStock=targetStock;}
 
     // 가장 빠른 유통기한 (모르면 비어 있음)
     private LocalDate expiry;
+    @Column(length=36) private String photoVersion;
+    public String getPhotoVersion(){return photoVersion;}
+    public void setPhotoVersion(String version){photoVersion=version;}
+    private java.time.LocalDateTime deletedAt;
+    @ManyToOne(fetch=FetchType.LAZY) private Account deletedBy;
+    public boolean isDeleted(){return deletedAt!=null;}
+    public void archive(Account actor){deletedAt=java.time.LocalDateTime.now().withNano(0);deletedBy=actor;photoVersion=null;}
+    public void restore(String name,String category){deletedAt=null;deletedBy=null;this.name=name;this.category=category;this.minStock=0;}
 
     protected Product() {
     }

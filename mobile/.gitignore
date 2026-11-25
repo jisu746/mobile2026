@@ -43,3 +43,8 @@ yarn-error.*
 # local tooling
 .claude/
 AGENTS.md
+
+# StoreMate private runtime configuration
+.env
+.env.*
+!.env.example

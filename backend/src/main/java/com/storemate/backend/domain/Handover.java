@@ -20,9 +20,21 @@ public class Handover {
 
     @Column(nullable = false, length = 500)
     private String content;
+    @Column(length=100) private String title;
+    @ManyToOne(fetch=FetchType.LAZY) private StoreTask relatedTask;
+    public String getTitle(){return title;}
+    public StoreTask getRelatedTask(){return relatedTask;}
+    public void describe(String title,StoreTask task){this.title=title;relatedTask=task;}
 
     private boolean urgent;
     private boolean resolved;
+    private boolean archived;
+    private long revision;
+    @ManyToOne(fetch=FetchType.LAZY) private WorkSession workSession;
+    @Column(length=30) private String workPart;
+    public WorkSession getWorkSession(){return workSession;} public String getWorkPart(){return workPart;}
+    public void attachWork(WorkSession session,String part){workSession=session;workPart=part;}
+    private LocalDateTime updatedAt;
     private LocalDateTime createdAt = LocalDateTime.now().withNano(0);
 
     protected Handover() {
@@ -43,4 +55,11 @@ public class Handover {
     public boolean isResolved() { return resolved; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setResolved(boolean resolved) { this.resolved = resolved; }
+    public boolean isArchived() { return archived; }
+    public long getRevision() { return revision; }
+    public LocalDateTime getUpdatedAt() { return updatedAt; }
+    public void edit(String content, boolean urgent) {
+        this.content=content; this.urgent=urgent; resolved=false; revision++; updatedAt=LocalDateTime.now().withNano(0);
+    }
+    public void archive() { archived=true; revision++; }
 }

@@ -61,8 +61,9 @@ public class AuthController {
     }
 
     @PostMapping("/auth/login")
+    @org.springframework.transaction.annotation.Transactional
     Dto.LoginResponse login(@RequestBody Dto.LoginRequest r) {
-        Account a = accounts.findByUsername(r.username() == null ? "" : r.username()).orElse(null);
+        Account a = accounts.findLockedByUsername(r.username() == null ? "" : r.username()).orElse(null);
         // 아이디가 없는지, 비밀번호가 틀렸는지, 유형이 다른지는 구분해서 알려주지 않는다
         if (a == null || r.password() == null || !encoder.matches(r.password(), a.getPasswordHash()) || a.getRole() != role(r.role()))
             throw new ApiException(HttpStatus.UNAUTHORIZED, "아이디 또는 비밀번호가 일치하지 않아요");

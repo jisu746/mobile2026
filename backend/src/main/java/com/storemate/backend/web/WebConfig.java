@@ -18,7 +18,7 @@ public class WebConfig implements WebMvcConfigurer {
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(auth)
                 .addPathPatterns("/api/**")
-                .excludePathPatterns("/api/auth/signup", "/api/auth/login", "/api/auth/exists");
+                .excludePathPatterns("/api/auth/signup", "/api/auth/login", "/api/auth/exists", "/api/auth/social/**");
     }
 
     // 개발용: 웹(localhost:8081)에서 호출할 수 있게 모든 출처를 허용한다. 배포 전에 앱 주소로 좁힌다.

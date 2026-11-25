@@ -2,5 +2,5 @@
 package com.storemate.backend.domain;
 
 public enum MovementType {
-    IN, ADJUST, DISCARD
+    IN, ADJUST, DISCARD, DELETE, OUT
 }

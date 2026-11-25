@@ -31,6 +31,8 @@ public class Notification {
     private String sub;
 
     private LocalDateTime createdAt = LocalDateTime.now().withNano(0);
+    private Long targetId;
+    public Long getTargetId(){return targetId;}public void target(Long id){targetId=id;}
 
     protected Notification() {
     }
@@ -44,6 +46,7 @@ public class Notification {
         this.sub = sub;
     }
 
+    public Store getStore(){return store;} public Role getAudience(){return audience;}
     public Long getId() { return id; }
     public Long getActorId() { return actorId; }
     public String getKind() { return kind; }

@@ -51,6 +51,8 @@ public class WageService {
         return new Dto.WageHistory(current.amount(), current.defaultRate(), history);
     }
     public static Dto.WorkRecord view(WorkSession w) {
-        return new Dto.WorkRecord(w.getId(), w.getClockIn().toString(), w.getClockOut() == null ? null : w.getClockOut().toString(), w.getHourlyWage(), w.getWageSource());
+        return new Dto.WorkRecord(w.getId(), w.getClockIn().toString(), w.getClockOut() == null ? null : w.getClockOut().toString(), w.getHourlyWage(), w.getWageSource(),
+            w.getClockOutCorrectedBy() == null ? null : w.getClockOutCorrectedBy().getName(),
+            w.getClockOutCorrectedAt() == null ? null : w.getClockOutCorrectedAt().toString(), w.getClockOutCorrectionReason(),w.getBreakSeconds(),w.getBreakRevision(),w.getBreaksJson());
     }
 }
