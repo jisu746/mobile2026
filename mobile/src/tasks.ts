@@ -1,10 +1,11 @@
 // 재고로 오늘의 업무를 만들고 완료 표시를 서버와 맞추는 모듈 (useTasks)
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from './api';
 import { daysLeft, isLowStock, listProducts, Product, productLowStockThreshold } from './inventory';
 import { DEFAULT_STORE_SETUP_SETTINGS, getStoreSetupSettingsOrDefault } from './storeSetupRepository';
 import type { StoreSetupSettings } from './storeSetupRepository';
+import { CustomTask, customTasks, taskStatus } from './customTasks';
 
 // 오늘의 업무는 재고에서 만든다: 유통기한 지남 → 폐기, 임박 → 확인, 재고 부족 → 발주.
 // 서버에는 어떤 업무를 마쳤는지(id)만 저장한다.
@@ -16,12 +17,13 @@ export type Task = {
   icon: keyof typeof Ionicons.glyphMap;
   tag: string;
   tone: 'action' | 'urgent' | 'normal';
+  custom?: CustomTask;
 };
 
-export function buildTasks(products: Product[], settings: Pick<StoreSetupSettings, 'expirationAlertDays' | 'lowStockThresholdCount'> = DEFAULT_STORE_SETUP_SETTINGS): Task[] {
+export function buildTasks(products: Product[], settings: Pick<StoreSetupSettings, 'expirationAlertDays' | 'lowStockThresholdCount'|'expiryEnabled'> = DEFAULT_STORE_SETUP_SETTINGS): Task[] {
   const out: Task[] = [];
   for (const p of products) {
-    const d = daysLeft(p.expiry);
+    const d = settings.expiryEnabled===false?null:daysLeft(p.expiry);
     if (d !== null && d < 0) {
       out.push({ id: `expired:${p.barcode}`, kind: 'expired', title: `${p.name} 폐기 처리`, sub: '유통기한이 지났어요', icon: 'time-outline', tag: '폐기', tone: 'urgent' });
     } else if (d !== null && d <= settings.expirationAlertDays) {
@@ -45,6 +47,7 @@ const mark = (storeId: number, key: string, done: boolean) => api<string[]>('POS
 
 // 업무 목록과 완료 표시. reload 로 다시 불러온다 (재고가 바뀐 뒤 화면에 돌아올 때)
 export function useTasks(storeId: number) {
+  const request = useRef(0);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [done, setDone] = useState<string[]>([]);
   const [error, setError] = useState('');
@@ -60,18 +63,21 @@ export function useTasks(storeId: number) {
   }, [storeId]);
 
   const reload = useCallback(() => {
-    Promise.all([listProducts(storeId), doneKeys(storeId)]).then(([p, d]) => {
-      setTasks(buildTasks(p, alertSettings));
-      setDone(d);
+    const current = ++request.current;
+    Promise.all([listProducts(storeId), doneKeys(storeId), customTasks.list(storeId)]).then(([p, d, shared]) => {
+      if (current !== request.current) return;
+      setTasks([...buildTasks(p, alertSettings), ...shared.map((t): Task => ({id:`custom:${t.id}`,kind:'custom',title:t.title,sub:t.description,icon:'checkbox-outline',tag:taskStatus(t),tone:t.urgent?'urgent':'normal',custom:t}))]);
+      setDone([...d.filter(id=>!id.startsWith('custom:')), ...shared.filter(t=>t.status==='APPROVED').map(t=>`custom:${t.id}`)]);
       setError('');
-    }, fail);
+    }, e => { if (current === request.current) fail(e); });
   }, [storeId, alertSettings]);
-  useEffect(reload, [reload]);
+  useEffect(() => { reload(); return () => { request.current++; }; }, [reload]);
 
   const toggle = (id: string) => {
+    if(id.startsWith('custom:')) return;
     const on = !done.includes(id);
     setDone((c) => (on ? [...c, id] : c.filter((x) => x !== id)));
-    mark(storeId, id, on).then(setDone, (e) => {
+    mark(storeId, id, on).then(keys => setDone(current => [...keys.filter(key=>!key.startsWith('custom:')), ...current.filter(key=>key.startsWith('custom:'))]), (e) => {
       fail(e);
       reload();
     });

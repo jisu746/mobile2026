@@ -1,3 +1,7 @@
+import ShiftSummary from './ShiftSummary';
+import NotificationBell from './NotificationBell';
+import ClockOutConfirm from './ClockOutConfirm';
+import ShiftLocationStatus from './ShiftLocationStatus';
 // 직원 홈 화면 (출근 전/후, 업무, 인수인계)과 하단 탭 연결
 import { ReactNode, useEffect, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -10,8 +14,9 @@ import InventoryTab from './InventoryTab';
 import Notifications from './Notifications';
 import Scanner from './Scanner';
 import TaskList from './TaskList';
+import HandoverBoard from './HandoverBoard';
 import WorkRecords from './WorkRecords';
-import { Handover, listHandovers, resolveHandover, writeHandover } from './handover';
+import { Handover, previousHandovers, listHandovers, resolveHandover, writeHandover } from './handover';
 import { useTasks } from './tasks';
 import { C, TabBar, TabItem } from './ui';
 import { Shift, clockIn, clockOut, currentShift, hhmm, listSessions, listShifts, shiftState, won, ymd } from './work';
@@ -40,12 +45,16 @@ export default function StaffHome({ storeId, storeName, userId, userName, render
   const [scanning, setScanning] = useState(false);
   const [qr, setQr] = useState('');
   const [error, setError] = useState('');
+  const [confirmOut,setConfirmOut]=useState(false);
   const [notice, setNotice] = useState(''); // 출근할 수 없을 때 띄우는 안내창 내용
   const [pay, setPay] = useState<ReturnType<typeof summarizePay> | null>(null);
   const [shifts, setShifts] = useState<Shift[]>([]); // 이번 달 내 근무 일정 (사장님이 정한 것)
   const [tasksOpen, setTasksOpen] = useState(false);
-  const { tasks, done: taskDone, toggle: toggleTask, reload: reloadTasks } = useTasks(storeId);
+  const [handoverOpen, setHandoverOpen] = useState(false);
+  const [summaryOpen,setSummaryOpen]=useState(false);
+  const { tasks, done: taskDone, toggle: toggleTask, reload: reloadTasks, error: taskError } = useTasks(storeId);
   const [handovers, setHandovers] = useState<Handover[]>([]);
+  const [previousMemos,setPreviousMemos]=useState<Handover[]>([]);
   const [writing, setWriting] = useState<'urgent' | 'memo' | null>(null);
   const [draft, setDraft] = useState('');
   const [tab, setTab] = useState(0);
@@ -73,10 +82,11 @@ export default function StaffHome({ storeId, storeName, userId, userName, render
 
   // 근무 중 메인 화면으로 돌아올 때마다 업무(재고 기준)와 인수인계를 새로 받는다
   useEffect(() => {
-    if (!clockedAt || tab !== 0 || tasksOpen) return;
+    if (!clockedAt || tab !== 0 || tasksOpen || handoverOpen) return;
     reloadTasks();
     listHandovers(storeId).then(setHandovers, fail);
-  }, [clockedAt, tab, tasksOpen, storeId]);
+    previousHandovers(storeId).then(v=>setPreviousMemos(v.items),fail);
+  }, [clockedAt, tab, tasksOpen, handoverOpen, storeId]);
 
   const sendMemo = () => {
     if (!writing || !draft.trim()) return;
@@ -87,13 +97,13 @@ export default function StaffHome({ storeId, storeName, userId, userName, render
     }, fail);
   };
   const toggleUrgent = (h: Handover) =>
-    resolveHandover(storeId, h.id, !h.resolved).then((n) => setHandovers((c) => c.map((x) => (x.id === n.id ? n : x))), fail);
+    resolveHandover(storeId, h.id, !h.confirmedByMe, h.revision).then((n) => setHandovers((c) => c.map((x) => (x.id === n.id ? n : x))), fail);
 
   useEffect(() => {
-    if (!clockedAt) return;
+    if (!clockedAt || recordsOpen) return;
     const t = setInterval(() => setNow(Date.now()), 30000);
     return () => clearInterval(t);
-  }, [clockedAt]);
+  }, [clockedAt, recordsOpen]);
 
   // 다른 매장에서 근무 중이면 스캔 화면을 열지 않고 바로 안내창을 띄운다
   const startClockIn = async () => {
@@ -109,28 +119,27 @@ export default function StaffHome({ storeId, storeName, userId, userName, render
 
   const header = (avatar: boolean, bell = true) => (
     <View style={s.header}>
-      <Ionicons name="storefront" size={34} color={C.primary} />
-      <View style={{ flex: 1 }}>
-        <Text style={s.storeName} numberOfLines={1}>{storeName}</Text>
-        <Text style={s.role}>직원 | {ME}</Text>
-      </View>
-      {avatar && (
-        <>
-          {bell && (
-            <Pressable onPress={onBell} hitSlop={8}>
-              <Ionicons name="notifications-outline" size={24} color={C.primary} />
-            </Pressable>
-          )}
-          <Pressable accessibilityLabel={clockedAt ? '매장 변경' : '내 정보와 로그아웃'} style={s.avatar} onPress={clockedAt ? onProfile : () => setTab(3)}>
-            <Ionicons name="person" size={18} color="#fff" />
-          </Pressable>
-        </>
+      <Pressable accessibilityRole="button" accessibilityLabel={`매장 변경, 현재 매장 ${storeName}`} accessibilityHint="매장 목록을 열어요" onPress={onProfile} style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44 }}>
+        <Ionicons name="storefront" size={34} color={C.primary} />
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Text style={[s.storeName, { flexShrink: 1 }]} numberOfLines={1}>{storeName}</Text>
+            <Ionicons name="chevron-down" size={18} color={C.primary} />
+          </View>
+          <Text style={s.role}>직원 | {ME}</Text>
+        </View>
+      </Pressable>
+      {avatar && bell && (
+        <Pressable accessibilityRole="button" accessibilityLabel="알림" onPress={onBell} hitSlop={8}>
+          <NotificationBell storeId={storeId}/>
+        </Pressable>
       )}
     </View>
   );
 
   if (notifOpen) return <Notifications storeId={storeId} userId={userId} onBack={() => setNotifOpen(false)} />;
   if (recordsOpen) return <WorkRecords storeId={storeId} onBack={() => setRecordsOpen(false)} />;
+  if(summaryOpen)return <ShiftSummary storeId={storeId} owner={false} onBack={()=>setSummaryOpen(false)}/>;
   if (!ready) return <View style={s.root} />;
 
   // 근무 시간 전
@@ -181,7 +190,7 @@ export default function StaffHome({ storeId, storeName, userId, userName, render
     }[shiftState(today)];
     return (
       <View style={s.root}>
-        <View style={s.pad}>{header(true, false)}</View>
+        <View style={s.pad}>{header(true, false)}<Pressable onPress={()=>setSummaryOpen(true)} style={{padding:16,borderWidth:1,borderColor:"#D8D3E8",borderRadius:14,marginVertical:12}}><Text style={{fontWeight:"700",color:C.primary}}>교대 요약 · 남은 업무와 전달 사항 〉</Text></Pressable></View>
         <Text style={s.big}>{`${ME}님,\n${headline}`}</Text>
         <View style={s.shift}>
           <Text style={s.shiftLabel}>근무 시간</Text>
@@ -190,7 +199,7 @@ export default function StaffHome({ storeId, storeName, userId, userName, render
             <Ionicons name="qr-code" size={14} color="#fff" />
             <Text style={s.locText}>QR 코드를 스캔해주세요</Text>
           </View>
-          <Pressable style={s.clockIn} onPress={startClockIn}>
+          <ShiftLocationStatus storeId={storeId}/><Pressable style={s.clockIn} onPress={startClockIn}>
             <Ionicons name="log-in-outline" size={18} color={C.text} />
             <Text style={s.clockInText}>출근하기</Text>
           </Pressable>
@@ -216,18 +225,20 @@ export default function StaffHome({ storeId, storeName, userId, userName, render
 
   // 메인 화면에 보일 요약: 긴급 인수인계(24시간 이내), 이전 근무자 메모, 업무 건수
   const urgent = handovers.filter((h) => h.urgent && now - h.createdAt.getTime() < 24 * 3600000);
-  const prev = handovers.find((h) => !h.urgent && !h.mine);
-  const soon = tasks.filter((t) => t.kind !== 'low').length;
+  const prev = previousMemos.find((h) => !h.urgent)??previousMemos[0];
+  const soon = tasks.filter((t) => t.kind === 'expired' || t.kind === 'soon').length;
   const low = tasks.filter((t) => t.kind === 'low').length;
   const homeTasks = [
     ...(soon ? [{ title: '유통기한 임박 상품 확인', icon: 'time-outline' as const, tag: `${soon}개 품목`, warn: true }] : []),
     ...(low ? [{ title: '재고 부족 상품 보충', icon: 'clipboard-outline' as const, tag: `${low}개 품목`, warn: true }] : []),
-    { title: '좌석 정리', icon: 'checkmark-circle-outline' as const, tag: '일반', warn: false },
+    ...tasks.filter(t=>t.kind==='custom').map(t=>({title:t.title,icon:'checkmark-circle-outline' as const,tag:t.tag,warn:t.tone==='urgent'})),
   ];
+
+  if (handoverOpen) return <HandoverBoard storeId={storeId} onBack={() => setHandoverOpen(false)} />;
 
   if (tasksOpen) {
     return (
-      <TaskList tasks={tasks} done={taskDone} onToggle={toggleTask} onBack={() => setTasksOpen(false)} />
+      <TaskList error={taskError} storeId={storeId} onReload={reloadTasks} tasks={tasks} done={taskDone} onToggle={toggleTask} onBack={() => setTasksOpen(false)} />
     );
   }
 
@@ -238,7 +249,7 @@ export default function StaffHome({ storeId, storeName, userId, userName, render
     <View style={s.root}>
       {tab === 0 ? (
         <ScrollView contentContainerStyle={s.scroll}>
-          {header(true)}
+          {header(true)}<Pressable onPress={()=>setSummaryOpen(true)} style={{padding:16,borderWidth:1,borderColor:"#D8D3E8",borderRadius:14,marginVertical:12}}><Text style={{fontWeight:"700",color:C.primary}}>교대 요약 · 남은 업무와 전달 사항 〉</Text></Pressable>
           <Text style={s.hello}>{ME}님, 오늘도 파이팅!</Text>
           <Text style={s.earn}>{pay ? `이번 달 기본급 예상 ${won(pay.knownPay)}원` : '예상 기본급을 불러오는 중이에요'}</Text>
           {!!pay?.unconfirmed && <Text style={s.earn}>시급 확인이 필요한 {pay.unconfirmed}건은 금액에서 제외했어요.</Text>}
@@ -254,8 +265,7 @@ export default function StaffHome({ storeId, storeName, userId, userName, render
             <Pressable
               style={s.clockOut}
               onPress={() => {
-                setError('');
-                clockOut(storeId).then(() => { setClockedAt(null); refreshEarn(); }, fail);
+                setConfirmOut(true);
               }}
             >
               <Ionicons name="log-out-outline" size={16} color={C.primary} />
@@ -277,9 +287,9 @@ export default function StaffHome({ storeId, storeName, userId, userName, render
               </View>
               {urgent.map((u) => (
                 <View key={u.id} style={s.urgentRow}>
-                  <Text style={[s.rowTitle, { flex: 1, marginRight: 8 }]} numberOfLines={2}>{u.content}</Text>
-                  <Pressable style={[s.doneBtn, u.resolved && { opacity: 0.45 }]} onPress={() => toggleUrgent(u)}>
-                    <Text style={s.doneText}>완료</Text>
+                  <View style={{flex:1,marginRight:8}}><Text style={s.rowTitle} numberOfLines={2}>{u.content}</Text><Text style={s.memoTime}>확인 {u.confirmations.length}명{u.confirmedByMe ? ' · 나 확인함' : ''}</Text></View>
+                  <Pressable style={[s.doneBtn, u.confirmedByMe && { opacity: 0.45 }]} onPress={() => toggleUrgent(u)}>
+                    <Text style={s.doneText}>{u.confirmedByMe?'확인 취소':'확인'}</Text>
                   </Pressable>
                 </View>
               ))}
@@ -302,6 +312,7 @@ export default function StaffHome({ storeId, storeName, userId, userName, render
             ))}
           </View>
 
+          <Pressable style={s.sectionRow} onPress={() => setHandoverOpen(true)}><Text style={s.sectionInRow}>인수인계 목록·관리</Text><Ionicons name="chevron-forward" size={18} color={C.text}/></Pressable>
           <Text style={s.section}>이전 근무자 인수인계</Text>
           <View style={[s.card, { padding: 14 }]}>
             {prev ? (
@@ -367,6 +378,7 @@ export default function StaffHome({ storeId, storeName, userId, userName, render
           <Text style={s.emptyText}>{TABS[tab].label} 화면은 준비 중이에요</Text>
         </View>
       )}
+      {confirmOut&&clockedAt&&<ClockOutConfirm storeId={storeId} clockedAt={clockedAt} pending={tasks.filter(t=>!taskDone.includes(t.id)).length} onCancel={()=>setConfirmOut(false)} onConfirm={async()=>{await clockOut(storeId);setConfirmOut(false);setClockedAt(null);refreshEarn();}}/>}
       <TabBar tabs={TABS} active={tab} onChange={setTab} />
     </View>
   );
@@ -409,7 +421,7 @@ const s = StyleSheet.create({
   warn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#9C93D6', alignItems: 'center', justifyContent: 'center' },
   urgentTitle: { fontSize: 13.5, fontWeight: '700', color: C.text },
   urgentSub: { fontSize: 10.5, color: '#5E5C6B', marginTop: 1 },
-  urgentRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#fff', borderRadius: 10, paddingLeft: 14, paddingRight: 10, height: 48 },
+  urgentRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#fff', borderRadius: 10, paddingLeft: 14, paddingRight: 10, paddingVertical: 10, minHeight: 60 },
   rowTitle: { fontSize: 13.5, fontWeight: '700', color: C.text },
   doneBtn: { backgroundColor: C.primary, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 6 },
   doneText: { fontSize: 11.5, fontWeight: '700', color: '#fff' },

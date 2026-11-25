@@ -1,3 +1,4 @@
+import {installPushHandler} from './src/pushRegistration';
 // 앱 전체 화면 전환(로그인, 가입, 매장 설정, 사장님/직원 홈)과 로그인 상태 관리
 import { useEffect, useRef, useState } from 'react';
 import { useFonts } from 'expo-font';
@@ -13,7 +14,7 @@ import StaffHome from './src/StaffHome';
 import StoreSwitcher from './src/StoreSwitcher';
 import StaffJoin from './src/StaffJoin';
 import StoreSetup, { NewStore } from './src/StoreSetup';
-import { getLocalProfile, saveLocalProfile } from './src/profileRepository';
+
 import { saveStoreSetupSettings } from './src/storeSetupRepository';
 
 // 화면 수가 적어서 네비게이션 라이브러리 없이 상태로 전환
@@ -34,6 +35,7 @@ const startScreen = (acc: auth.Account): Screen =>
 const FRAME = { width: 360, height: 800, maxHeight: '100%' as const, alignSelf: 'center' as const };
 
 export default function App() {
+  useEffect(()=>{void installPushHandler().catch(()=>{});},[]);
   const [fontsLoaded] = useFonts({ NotoSansKR: require('./assets/NotoSansKR-VF.ttf') });
   const [ready, setReady] = useState(false);
   const [screen, setScreen] = useState<Screen>('login');
@@ -49,15 +51,7 @@ export default function App() {
     (sc === 'o1' || sc === 'f1') && account?.stores.length ? homeOf(account) : BACK[sc];
 
   const enter = async (id: string, acc: auth.Account) => {
-    const draft = await getLocalProfile(id);
-    const restored = draft ? {
-      ...acc,
-      name: draft.name,
-      birth: draft.birth,
-      stores: acc.stores.map((item, index) => index === acc.current && draft.storeName
-        ? { ...item, baseName: draft.storeName, name: [draft.storeName, item.branch].filter(Boolean).join(' ') }
-        : item),
-    } : acc;
+    const restored = acc;
     setUserId(id);
     setAccount(restored);
     joinBase.current = restored.stores.length;
@@ -143,19 +137,12 @@ export default function App() {
         onEmployees={onEmployees ?? (() => {})}
         onPayroll={onPayroll ?? (() => {})}
         onContracts={onContracts ?? (() => {})}
-        onSaveProfile={async ({ name, birth, storeName }) => {
-          if (!account) return;
-          // Local repository keeps this screen independent of the backend for now.
-          await saveLocalProfile(userId, { name: name.trim(), birth, ...(storeName ? { storeName: storeName.trim() } : {}) });
-          setAccount((current) => {
-            if (!current) return current;
-            const stores = current.stores.map((item, index) => {
-              if (index !== current.current || current.role !== 'owner' || !storeName) return item;
-              const baseName = storeName.trim();
-              return { ...item, baseName, name: [baseName, item.branch].filter(Boolean).join(' ') };
-            });
-            return { ...current, name: name.trim(), birth, stores };
-          });
+        onSaveProfile={async ({name,birth,storeName})=>{
+          if(!account)throw new Error('다시 로그인해 주세요.');
+          const store=account.stores[account.current];
+          const updated=await auth.updateProfile({username:userId,name,birth,expectedName:account.name,expectedBirth:account.birth??'',
+            ...(account.role==='owner'&&store&&storeName!==undefined?{storeId:store.id,storeName,expectedStoreName:store.baseName??store.name}:{})});
+          setAccount(current=>current===account?updated:current);
         }}
       />
     );

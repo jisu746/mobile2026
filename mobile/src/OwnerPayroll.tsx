@@ -6,12 +6,17 @@ import { TextInput } from './font';
 import { Ionicons } from '@expo/vector-icons';
 import { C } from './ui';
 import { demoPayrollRepository } from './payrollRepository';
+import LiveOwnerPayroll from './LiveOwnerPayroll';
 import type { PayrollEmployee, PayrollRepository, PayrollShift } from './payrollRepository';
 
 type Props = { storeId: number; onClose: () => void; repository?: PayrollRepository };
 const money = (value: number) => Math.round(value).toLocaleString('ko-KR');
 
-export default function OwnerPayroll({ storeId, onClose, repository = demoPayrollRepository }: Props) {
+export default function OwnerPayroll(props: Props) {
+  return props.repository ? <DemoOwnerPayroll {...props} /> : <LiveOwnerPayroll storeId={props.storeId} onClose={props.onClose} />;
+}
+
+function DemoOwnerPayroll({ storeId, onClose, repository = demoPayrollRepository }: Props) {
   const period = new Date();
   const year = period.getFullYear();
   const month = period.getMonth() + 1;

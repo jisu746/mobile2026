@@ -1,3 +1,5 @@
+import {buildInventoryAlerts} from './inventoryNotificationAlerts';
+import LinkedTasks from './LinkedTasks';
 // 알림 목록 화면 (서버 알림, 사장님·직원 공통)
 import { useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -11,7 +13,6 @@ import { listNotifs, markRead, Notif } from './notifs';
 import { daysLeft, listProducts } from './inventory';
 import type { Product } from './inventory';
 import { DEFAULT_STORE_SETUP_SETTINGS, getStoreSetupSettingsOrDefault } from './storeSetupRepository';
-import { getNotificationPreferences } from './notificationPreferencesRepository';
 import { C } from './ui';
 import { hhmm } from './work';
 
@@ -41,46 +42,6 @@ const DEFAULT_LOOK: Look = { icon: 'notifications-outline', ...GRAY };
 const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 const inventoryReadKey = (userId: string, storeId: number) => `inventoryNotificationReads:${userId}:${storeId}`;
 
-function buildInventoryAlerts(products: Product[], expirationAlertDays: number, lowStockThresholdCount: number, expiryOn: boolean, stockOn: boolean, readKeys: Set<string>): InventoryAlert[] {
-  const alerts: InventoryAlert[] = [];
-  const now = new Date();
-
-  for (const product of products) {
-    const days = daysLeft(product.expiry);
-    if (expiryOn && days !== null && days >= 0 && days <= expirationAlertDays) {
-      const localKey = `expiry:${product.barcode}:${product.expiry}`;
-      alerts.push({
-        id: 0,
-        kind: 'expiry',
-        title: `${product.name} 유통기한 임박`,
-        sub: `${days === 0 ? '오늘 만료' : `D-${days}`} · 유통기한 ${product.expiry} · 재고 ${product.stock}개`,
-        createdAt: now,
-        read: readKeys.has(localKey),
-        localKey,
-        targetBarcode: product.barcode,
-        order: days,
-      });
-    }
-
-    const threshold = product.min > 0 ? product.min : lowStockThresholdCount;
-    if (stockOn && product.stock <= threshold) {
-      const localKey = `stock:${product.barcode}`;
-      alerts.push({
-        id: 0,
-        kind: 'stock',
-        title: `${product.name} 발주 필요`,
-        sub: `재고 ${product.stock}개 · 발주 기준 ${threshold}개 이하`,
-        createdAt: now,
-        read: readKeys.has(localKey),
-        localKey,
-        targetBarcode: product.barcode,
-        order: product.stock,
-      });
-    }
-  }
-
-  return alerts.sort((a, b) => (a.kind === b.kind ? a.order - b.order : a.kind === 'expiry' ? -1 : 1));
-}
 
 export default function Notifications({ storeId, userId, isOwner = false, storeName = '현재 매장', inviteCode, onBack }: { storeId: number; userId: string; isOwner?: boolean; storeName?: string; inviteCode?: string; onBack: () => void }) {
   const [list, setList] = useState<Notif[] | null>(null);
@@ -91,7 +52,7 @@ export default function Notifications({ storeId, userId, isOwner = false, storeN
   const [settings, setSettings] = useState(false);
   const [reloadVersion, setReloadVersion] = useState(0);
   const [destination, setDestination] = useState<
-    { type: 'inventory'; barcode?: string } | { type: 'requests' } | { type: 'detail'; item: DisplayNotif } | null
+    { type: 'tasks'; taskId?:number|null } | { type: 'inventory'; barcode?: string } | { type: 'requests' } | { type: 'detail'; item: DisplayNotif } | null
   >(null);
 
   const fail = (e: unknown) => setError(e instanceof Error ? e.message : '요청을 처리하지 못했어요');
@@ -111,9 +72,8 @@ export default function Notifications({ storeId, userId, isOwner = false, storeN
     Promise.all([
       listProducts(storeId),
       getStoreSetupSettingsOrDefault(storeId),
-      getNotificationPreferences(userId),
       AsyncStorage.getItem(inventoryReadKey(userId, storeId)),
-    ]).then(([products, storeSettings, preferences, rawReadKeys]) => {
+    ]).then(([products, storeSettings, rawReadKeys]) => {
       if (!active) return;
       let readKeys = new Set<string>();
       try {
@@ -125,10 +85,10 @@ export default function Notifications({ storeId, userId, isOwner = false, storeN
       setInventoryReadKeys(readKeys);
       setInventoryAlerts(buildInventoryAlerts(
         products,
-        storeSettings.expirationAlertDays,
+        storeSettings.expiryEnabled===false?-1:storeSettings.expirationAlertDays,
         storeSettings.lowStockThresholdCount,
-        preferences.expiry,
-        preferences.stock,
+        true,
+        true,
         readKeys,
       ));
       setInventoryError('');
@@ -171,11 +131,13 @@ export default function Notifications({ storeId, userId, isOwner = false, storeN
 
   const open = (item: DisplayNotif) => {
     if (!item.read) read([item]);
-    if (item.targetBarcode || item.kind === 'receipt') setDestination({ type: 'inventory', barcode: item.targetBarcode });
+    if(item.kind==='task')setDestination({type:'tasks',taskId:item.targetId});
+    else if (item.targetBarcode || item.kind === 'receipt') setDestination({ type: 'inventory', barcode: item.targetBarcode });
     else if (item.kind === 'join' && isOwner) setDestination({ type: 'requests' });
     else setDestination({ type: 'detail', item });
   };
 
+  if(destination?.type==='tasks')return <LinkedTasks storeId={storeId} taskId={destination.taskId} owner={isOwner} onBack={()=>setDestination(null)}/>;
   if (destination?.type === 'requests') return <OwnerStaffRequests storeId={storeId} storeName={storeName} inviteCode={inviteCode} onBack={() => setDestination(null)} />;
   if (destination?.type === 'inventory') return <View style={s.root}>
     <View style={s.header}><Pressable accessibilityLabel="알림으로 돌아가기" hitSlop={12} onPress={() => setDestination(null)}><Ionicons name="arrow-back" size={24} color={C.text} /></Pressable><Text style={s.title}>알림 관련 재고</Text></View>

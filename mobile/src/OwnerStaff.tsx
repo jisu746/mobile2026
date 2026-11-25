@@ -1,7 +1,12 @@
+import EmployeePermissions from './EmployeePermissions';
+import QrSaveButton from './QrSaveButton';
+import EmployeeContact from './EmployeeContact';
 // 사장님 직원 참여 요청 및 직원 관리 화면 (서버 연동)
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Image, Modal, Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
-import { Text, TextInput } from './font';
+import { Alert, Image, Modal, Platform, Pressable, ScrollView, Share, StyleSheet, TextProps, View } from 'react-native';
+import { Text as AppText, TextInput } from './font';
+
+function Text(props: TextProps) { return <AppText {...props} style={[Platform.OS === 'android' && { fontFamily: 'sans-serif', includeFontPadding: false }, props.style]} />; }
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import QRCode from 'react-native-qrcode-svg';
@@ -159,7 +164,7 @@ export function OwnerStaffManagement({ storeId, onBack, repository = serverOwner
               <Text style={s.outlineActionText}>근무 일정 관리</Text>
               <Ionicons name="chevron-forward" size={15} color={C.primary} />
             </Pressable>
-            <View style={[s.managePartSection, openPartId === person.id && s.dropdownLayer]}>
+            <EmployeeContact storeId={storeId} memberId={Number(person.id)}/><EmployeePermissions storeId={storeId} memberId={Number(person.id)}/><View style={[s.managePartSection, openPartId === person.id && s.dropdownLayer]}>
               <Text style={s.partLabel}>근무 파트</Text>
               <View style={s.managePartRow}>
                 <View style={[s.managePartPicker, openPartId === person.id && s.dropdownLayer]}>
@@ -332,7 +337,7 @@ function InviteCard({ code, storeName }: { code: string; storeName: string }) {
                 </Pressable>
               </View>
             </View>
-            <Pressable style={s.qrShareButton} onPress={() => Share.share({ message: `[${storeName}] StoreMate 초대 코드: ${code}` })}>
+            <QrSaveButton code={code}/><Pressable style={s.qrShareButton} onPress={() => Share.share({ message: `[${storeName}] StoreMate 초대 코드: ${code}` })}>
               <Ionicons name="share-social-outline" size={17} color={C.primary} /><Text style={s.qrShareText}>공유하기</Text>
             </Pressable>
           </View>
@@ -382,13 +387,13 @@ const s = StyleSheet.create({
   approveText: { fontSize: 14, fontWeight: '600', color: '#fff' },
   inviteCard: { marginTop: 4, backgroundColor: C.primary, borderRadius: 8, padding: 14, gap: 10 },
   inviteHead: { flexDirection: 'row', justifyContent: 'space-between' },
-  inviteCaption: { color: '#fff', fontSize: 10, fontWeight: '500' },
-  codeRow: { height: 40, backgroundColor: '#fff', borderRadius: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12 },
-  codeText: { color: '#004AC6', fontSize: 16, fontWeight: '800', letterSpacing: 0.5, flex: 1 },
-  copyButton: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: C.primary, borderRadius: 6, paddingHorizontal: 10, paddingVertical: 5 },
-  copyText: { color: '#fff', fontSize: 12, fontWeight: '600' },
+  inviteCaption: { lineHeight: 16, color: '#fff', fontSize: 10, fontWeight: '500' },
+  codeRow: { height: 48, backgroundColor: '#fff', borderRadius: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12 },
+  codeText: { lineHeight: 24, color: '#004AC6', fontSize: 16, fontWeight: '800', letterSpacing: 0.5, flex: 1 },
+  copyButton: { height: 32, justifyContent: 'center', flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: C.primary, borderRadius: 6, paddingHorizontal: 10, paddingVertical: 5 },
+  copyText: { lineHeight: 18, color: '#fff', fontSize: 12, fontWeight: '600' },
   qrRow: { height: 40, backgroundColor: '#fff', borderRadius: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 12 },
-  qrRowText: { color: '#004AC6', fontSize: 16, fontWeight: '800' },
+  qrRowText: { lineHeight: 24, color: '#004AC6', fontSize: 16, fontWeight: '800' },
   qrModalBackdrop: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(20,18,35,0.4)', padding: 20 },
   qrModalCard: { width: '100%', maxWidth: 360, borderRadius: 20, backgroundColor: '#fff', padding: 20, alignItems: 'stretch' },
   qrClose: { alignSelf: 'flex-end', padding: 2 },

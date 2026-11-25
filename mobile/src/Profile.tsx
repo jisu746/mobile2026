@@ -1,10 +1,18 @@
+import NotificationBell from './NotificationBell';
+import StoreDetailsEditor from './StoreDetailsEditor';
 // MY 탭 화면 (프로필, 소속 매장, 로그아웃) - 사장님·직원 공통
-import { ReactNode, useEffect, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { Text, TextInput } from './font';
+import { ReactNode, useEffect, useRef, useState } from 'react';
+import { Image, Platform, Pressable, ScrollView, StyleSheet, TextInputProps, TextProps, View } from 'react-native';
+import { Text as AppText, TextInput } from './font';
 import { Ionicons } from '@expo/vector-icons';
 import { Account } from './auth';
+import { validateProfile } from './profileValidation';
 import NotificationSettings from './NotificationSettings';
+import ChangePassword from './ChangePassword';
+import StoreOperationEditor from './StoreOperationEditor';
+import StoreTemplateEditor from './StoreTemplateEditor';
+
+function Text(props: TextProps) { return <AppText {...props} style={[Platform.OS === 'android' && { fontFamily: 'sans-serif', includeFontPadding: false }, props.style]} />; }
 import { C } from './ui';
 import type { Store } from './auth';
 import { contractRepository } from './contractRepository';
@@ -34,6 +42,7 @@ export default function Profile({ id, acc, onSelect, onAdd, onLogout, onBell, on
   const [switching, setSwitching] = useState(false);
   const [showNotificationSettings, setShowNotificationSettings] = useState(false);
   const [editingProfile, setEditingProfile] = useState(false);
+  const [changingPassword,setChangingPassword]=useState(false);
   const [staffContractOpen, setStaffContractOpen] = useState(false);
   const [staffHours, setStaffHours] = useState<number | null>(null);
   const [staffPay, setStaffPay] = useState<ReturnType<typeof summarizePay> | null>(null);
@@ -60,6 +69,7 @@ export default function Profile({ id, acc, onSelect, onAdd, onLogout, onBell, on
     return () => { active = false; };
   }, [owner, store?.id]);
 
+  if (changingPassword) return <ChangePassword username={id} onBack={()=>setChangingPassword(false)} onLogout={onLogout}/>;
   if (staffContractOpen) return <StaffContractScreen employeeId={id} employeeName={acc.name} storeId={store?.id ?? 0} onBack={() => setStaffContractOpen(false)} />;
   if (showNotificationSettings) return <NotificationSettings userId={id} storeId={store?.id ?? 0} onBack={() => setShowNotificationSettings(false)} />;
   if (editingProfile) return <ProfileEditScreen acc={acc} store={owner ? store : undefined} onBack={() => setEditingProfile(false)} onSave={onSaveProfile} />;
@@ -69,18 +79,15 @@ export default function Profile({ id, acc, onSelect, onAdd, onLogout, onBell, on
       <View style={s.header}>
         <Text style={s.title}>MY</Text>
         <Pressable onPress={onBell} hitSlop={8}>
-          <Ionicons name="notifications-outline" size={26} color={C.primary} />
+          <NotificationBell storeId={acc.stores[acc.current]?.id ?? 0}/>
         </Pressable>
-        <View style={s.avatar}>
-          <Ionicons name="person" size={18} color="#fff" />
-        </View>
       </View>
 
       <View style={s.me}>
-        <View style={s.initial}>
-          <Text style={s.initialText}>{acc.name.slice(0, 1)}</Text>
+        <View style={s.initial} accessible accessibilityRole="image" accessibilityLabel={owner ? '사장님 프로필' : '직원 프로필'}>
+          <Ionicons name={owner ? 'briefcase-outline' : 'person-outline'} size={28} color={C.primary} />
         </View>
-        <View style={{ flex: 1 }}>
+        <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={s.name}>{acc.name}</Text>
           <Text style={s.sub}>{id}</Text>
           {!!initialBirthInput(acc.birth) && <Text style={s.sub}>생년월일 {formatBirthInput(acc.birth)}</Text>}
@@ -131,7 +138,7 @@ export default function Profile({ id, acc, onSelect, onAdd, onLogout, onBell, on
             <MenuRow icon="document-text-outline" label="근로계약서 관리" onPress={onContracts} />
           </View>
 
-          <Text style={[s.section, s.ownerSettings]}>앱 설정</Text>
+          <Text style={[s.section, s.ownerSettings]}>앱 설정</Text><StoreOperationEditor storeId={storeId}/><StoreTemplateEditor storeId={storeId}/><StoreDetailsEditor storeId={storeId}/>
           <View style={[s.card, { marginTop: 12 }]}>
             <MenuRow icon="notifications-outline" label="알림 설정" gray onPress={() => setShowNotificationSettings(true)} />
           </View>
@@ -157,6 +164,8 @@ export default function Profile({ id, acc, onSelect, onAdd, onLogout, onBell, on
           </View>
         </>
       )}
+      <Text style={s.section}>계정 설정</Text>
+      <View style={s.card}><MenuRow icon="lock-closed-outline" label="비밀번호 변경" onPress={()=>setChangingPassword(true)}/></View>
       <Pressable style={s.logout} onPress={onLogout}>
         <Text style={s.logoutText}>로그아웃</Text>
       </Pressable>
@@ -210,13 +219,14 @@ function ProfileEditScreen({ acc, store, onBack, onSave }: { acc: Account; store
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [formError, setFormError] = useState('');
+  const working=useRef(false);
 
   const save = async () => {
-    const cleanName = name.trim();
-    if (!cleanName) { setFormError('이름을 입력해 주세요.'); return; }
-    if (!/^\d{8}$/.test(birth)) { setFormError('생년월일을 YYYY.MM.DD 형식으로 입력해 주세요.'); return; }
+    if(working.current)return;
+    let cleanName:string;
+    try{cleanName=validateProfile(name,birth).name;}catch(e){setFormError(e instanceof Error?e.message:'이름과 생년월일을 확인해 주세요.');return;}
     if (store && !storeName.trim()) { setFormError('매장 이름을 입력해 주세요.'); return; }
-    setSaving(true);
+    working.current=true;setSaving(true);
     setSaved(false);
     setFormError('');
     try {
@@ -225,7 +235,7 @@ function ProfileEditScreen({ acc, store, onBack, onSave }: { acc: Account; store
       setTimeout(onBack, 2200);
     } catch (error) {
       setFormError(error instanceof Error ? `저장하지 못했어요: ${error.message}` : '프로필 정보를 저장하지 못했어요.');
-    } finally { setSaving(false); }
+    } finally { working.current=false;setSaving(false); }
   };
 
   return (
@@ -236,21 +246,21 @@ function ProfileEditScreen({ acc, store, onBack, onSave }: { acc: Account; store
       </View>
       <ScrollView contentContainerStyle={s.editBody} keyboardShouldPersistTaps="handled">
         <EditField label="이름">
-          <TextInput value={name} onChangeText={(value) => { setName(value); setSaved(false); setFormError(''); }} placeholder="이름" maxLength={30} style={s.editInput} />
+          <ProfileInput value={name} onChangeText={(value) => { setName(value); setSaved(false); setFormError(''); }} placeholder="이름" maxLength={30} />
         </EditField>
         <EditField label="생년월일">
-          <TextInput
+          <ProfileInput
             value={formatBirthInput(birth)}
             onChangeText={(value) => { setBirth(value.replace(/\D/g, '').slice(0, 8)); setSaved(false); setFormError(''); }}
             placeholder="YYYY.MM.DD"
             placeholderTextColor="#A3A1B0"
             keyboardType="number-pad"
             maxLength={10}
-            style={s.editInput}
+           
           />
         </EditField>
         {store && <EditField label="매장 이름">
-          <TextInput value={storeName} onChangeText={(value) => { setStoreName(value); setSaved(false); setFormError(''); }} placeholder="매장 이름" maxLength={50} style={s.editInput} />
+          <ProfileInput value={storeName} onChangeText={(value) => { setStoreName(value); setSaved(false); setFormError(''); }} placeholder="매장 이름" maxLength={50} />
         </EditField>}
         {!!formError && <Text style={s.editError}>{formError}</Text>}
         <Pressable disabled={saving} style={[s.editSaveButton, saved && s.editSavedButton, saving && { opacity: 0.6 }]} onPress={() => void save()}>
@@ -261,6 +271,9 @@ function ProfileEditScreen({ acc, store, onBack, onSave }: { acc: Account; store
   );
 }
 
+function ProfileInput(props: TextInputProps) {
+  return <View style={s.editInputFrame}><TextInput {...props} underlineColorAndroid="transparent" style={s.editInput} /></View>;
+}
 function formatBirthInput(value: string) {
   const digits = value.replace(/\D/g, '').slice(0, 8);
   if (digits.length <= 4) return digits;
@@ -313,11 +326,12 @@ function OwnerMenuRow({ icon, title, subtitle, onPress }: { icon: keyof typeof I
 const s = StyleSheet.create({
   editRoot: { flex: 1, backgroundColor: '#fff' },
   editHeader: { height: 48, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, gap: 12 },
-  editTitle: { fontSize: 18, fontWeight: '700', color: C.text },
+  editTitle: { lineHeight: 26, fontSize: 18, fontWeight: '700', color: C.text },
   editBody: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 28 },
   editField: { marginBottom: 18 },
-  editLabel: { fontSize: 14, fontWeight: '600', color: C.text, marginBottom: 8 },
-  editInput: { height: 48, borderWidth: 1, borderColor: '#E4E2EC', borderRadius: 10, paddingHorizontal: 12, fontSize: 15, color: C.text },
+  editLabel: { lineHeight: 20, fontSize: 14, fontWeight: '600', color: C.text, marginBottom: 8 },
+  editInputFrame: { height: 48, borderWidth: 1, borderColor: '#E4E2EC', borderRadius: 10, overflow: 'hidden', backgroundColor: '#fff' },
+  editInput: { flex: 1, width: '100%', borderWidth: 0, borderBottomWidth: 0, borderBottomColor: 'transparent', outlineWidth: 0, backgroundColor: '#fff', paddingHorizontal: 12, fontSize: 15, color: C.text, ...(Platform.OS === 'android' ? { fontFamily: 'sans-serif', paddingVertical: 0, includeFontPadding: false, textAlignVertical: 'center' as const } : {}) },
   editSaveButton: { height: 48, borderRadius: 12, backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center', marginTop: 10 },
   editSavedButton: { backgroundColor: '#ECEAF7' },
   editSavedText: { color: C.primary },
@@ -329,11 +343,10 @@ const s = StyleSheet.create({
   avatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center' },
   me: { flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 12 },
   initial: { width: 54, height: 54, borderRadius: 27, backgroundColor: '#ECEAF7', alignItems: 'center', justifyContent: 'center' },
-  initialText: { fontSize: 20, fontWeight: '700', color: C.primary },
-  name: { fontSize: 19, fontWeight: '700', color: C.text },
-  sub: { fontSize: 13, color: '#5E5C6B', marginTop: 2 },
-  editBtn: { height: 34, paddingHorizontal: 14, borderRadius: 17, borderWidth: 1, borderColor: '#CFCCDB', alignItems: 'center', justifyContent: 'center' },
-  editText: { fontSize: 13.5, fontWeight: '700', color: C.primary },
+  name: { lineHeight: 26, fontSize: 19, fontWeight: '700', color: C.text },
+  sub: { lineHeight: 20, fontSize: 13, color: '#5E5C6B', marginTop: 2 },
+  editBtn: { ...(Platform.OS === 'android' ? { alignSelf: 'flex-start' as const, marginTop: 2 } : {}), height: 34, paddingHorizontal: 14, borderRadius: 17, borderWidth: 1, borderColor: '#CFCCDB', alignItems: 'center', justifyContent: 'center' },
+  editText: { lineHeight: 20, fontSize: 13.5, fontWeight: '700', color: C.primary },
   card: { borderWidth: 1, borderColor: '#E4E2EC', borderRadius: 12, backgroundColor: '#fff' },
   storeCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, marginTop: 18 },
   storeName: { fontSize: 15, fontWeight: '700', color: C.text },

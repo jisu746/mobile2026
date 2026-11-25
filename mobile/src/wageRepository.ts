@@ -2,7 +2,7 @@ import { api } from './api';
 
 export type WageRate = { effectiveFrom: string; hourlyWage: number; defaultRate: boolean };
 export type StaffWage = { memberId: number; name: string; hourlyWage: number | null; history: WageRate[] };
-export type LegacyRecord = { sessionId: number; clockIn: string; clockOut: string | null; hourlyWage: number | null; wageSource: string | null };
+export type LegacyRecord = { breakSeconds?:number;breakRevision?:number;breaks?:string|null; sessionId: number; clockIn: string; clockOut: string | null; hourlyWage: number | null; wageSource: string | null; correctedBy?: string | null; correctedAt?: string | null; correctionReason?: string | null };
 export function validateEffectiveDate(value: string) {
   const now=new Date();const today=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Error('적용 시작일을 YYYY-MM-DD 형식으로 입력해 주세요.');

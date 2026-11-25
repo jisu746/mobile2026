@@ -4,7 +4,8 @@ import { Animated, BackHandler, Modal, Pressable, ScrollView, StyleSheet, View }
 import { Text } from './font';
 import { Ionicons } from '@expo/vector-icons';
 import { C } from './ui';
-import { DEFAULT_NOTIFICATION_PREFERENCES, getNotificationPreferences, NotificationPreferences, saveNotificationPreferences } from './notificationPreferencesRepository';
+import {registerPushDevice} from './pushRegistration';
+import { DEFAULT_NOTIFICATION_PREFERENCES, getNotificationPreferences, NotificationPreferences, saveNotificationPreferences, validateNotificationPreferences } from './notificationPreferencesRepository';
 import { DEFAULT_STORE_SETUP_SETTINGS, getStoreSetupSettingsOrDefault } from './storeSetupRepository';
 
 type NotificationToggleKey = 'task' | 'expiry' | 'stock' | 'memo' | 'pay';
@@ -12,8 +13,8 @@ const KINDS: { id: NotificationToggleKey; title: string; sub?: string }[] = [
   { id: 'task', title: '업무 배정 · 승인', sub: '새 업무, 완료 승인/반려' },
   { id: 'expiry', title: '유통기한 임박' },
   { id: 'stock', title: '재고 부족' },
-  { id: 'memo', title: '인수인계 메모', sub: '내 근무 직전 파트의 메모' },
-  { id: 'pay', title: '근무표 · 급여', sub: '근무표 확정, 급여 명세서 도착' },
+  { id: 'memo', title: '인수인계 메모', sub: '매장의 인수인계 메모' },
+  { id: 'pay', title: '근무표 · 급여', sub: '근무표·급여 알림 설정' },
 ];
 
 export default function NotificationSettings({ userId, storeId, onBack }: { userId: string; storeId: number; onBack: () => void }) {
@@ -21,9 +22,14 @@ export default function NotificationSettings({ userId, storeId, onBack }: { user
   const [storeSettings, setStoreSettings] = useState(DEFAULT_STORE_SETUP_SETTINGS);
   const [timeEditorOpen, setTimeEditorOpen] = useState(false);
 
-  useEffect(() => {
-    getNotificationPreferences(userId).then(setOn).catch(() => {});
-  }, [userId]);
+  const [ready,setReady]=useState(false),[saving,setSaving]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[retry,setRetry]=useState(0);
+  const [timeDraft,setTimeDraft]=useState({quietStart:'23:00',quietEnd:'08:00'});
+  const working=useRef(false),accountRef=useRef(userId);accountRef.current=userId;
+  useEffect(()=>{
+    let active=true;setReady(false);setError('');setNotice('');setOn(DEFAULT_NOTIFICATION_PREFERENCES);
+    getNotificationPreferences(userId).then(value=>{if(active){setOn(value);setReady(true);}},e=>{if(active)setError(e instanceof Error?e.message:'설정을 불러오지 못했어요.');});
+    return()=>{active=false;};
+  },[userId,retry]);
 
   useEffect(() => {
     let active = true;
@@ -42,19 +48,19 @@ export default function NotificationSettings({ userId, storeId, onBack }: { user
     return () => sub.remove();
   }, [onBack]);
 
-  const toggle = (id: keyof Pick<NotificationPreferences, 'push' | 'task' | 'expiry' | 'stock' | 'memo' | 'pay' | 'quiet'>, v: boolean) => {
-    const next = { ...on, [id]: v };
-    setOn(next);
-    void saveNotificationPreferences(userId, next);
+  const saveNext=async(next:NotificationPreferences)=>{
+    if(!ready||working.current)return false;
+    try{validateNotificationPreferences(next);}catch(e){setError(e instanceof Error?e.message:'시간을 확인해 주세요.');return false;}
+    working.current=true;setSaving(true);setError('');setNotice('');
+    try{const saved=await saveNotificationPreferences(userId,next);if(accountRef.current!==userId)return false;setOn(saved);setNotice('계정에 저장했어요.');return true;}
+    catch(e){if(accountRef.current===userId){setError(e instanceof Error?e.message:'저장하지 못했어요.');setReady(false);}return false;}
+    finally{working.current=false;setSaving(false);}
   };
-
-  const changeTime = (field: 'quietStart' | 'quietEnd', delta: number) => {
-    const [hour, minute] = on[field].split(':').map(Number);
-    const nextMinutes = (hour * 60 + minute + delta + 1440) % 1440;
-    const next = { ...on, [field]: `${String(Math.floor(nextMinutes / 60)).padStart(2, '0')}:${String(nextMinutes % 60).padStart(2, '0')}` };
-    setOn(next);
-    void saveNotificationPreferences(userId, next);
-  };
+  const toggle=(id:keyof Pick<NotificationPreferences,'push'|'task'|'expiry'|'stock'|'memo'|'pay'|'quiet'>,v:boolean)=>{void saveNext({...on,[id]:v});};
+  const changeTime=(field:'quietStart'|'quietEnd',delta:number)=>setTimeDraft(current=>{
+    const [hour,minute]=current[field].split(':').map(Number),minutes=(hour*60+minute+delta+1440)%1440;
+    return {...current,[field]:`${String(Math.floor(minutes/60)).padStart(2,'0')}:${String(minutes%60).padStart(2,'0')}`};
+  });
 
   return (
     <View style={s.root}>
@@ -66,11 +72,17 @@ export default function NotificationSettings({ userId, storeId, onBack }: { user
       </View>
 
       <ScrollView contentContainerStyle={s.body}>
+        <Text style={s.rowSub}>이 계정에 저장되어 다른 기기에서도 유지돼요. 푸시 수신은 설치한 앱에서 기기를 연결한 뒤 사용할 수 있어요.</Text>
+        {!ready&&!error&&<Text style={s.rowSub}>설정을 불러오는 중이에요…</Text>}
+        {saving&&<Text style={s.rowSub}>저장 중…</Text>}
+        {!!notice&&<Text style={[s.rowSub,{color:'#237A45'}]}>{notice}</Text>}
+        {!!error&&<><Text style={[s.rowSub,{color:'#B3261E'}]}>{error}</Text><Pressable onPress={()=>setRetry(v=>v+1)}><Text style={[s.rowSub,{color:C.primary,paddingVertical:12}]}>다시 불러오기</Text></Pressable></>}
+        <View pointerEvents={!ready||saving?'none':'auto'} style={{opacity:ready&&!saving?1:.5}}>
         <View style={s.card}>
           <Row title="푸시 알림 받기" sub="꺼도 알림 목록에는 계속 쌓여요" value={on.push} onChange={(v) => toggle('push', v)} />
         </View>
 
-        <Text style={s.section}>받을 알림</Text>
+        <Pressable disabled={saving} onPress={async()=>{setSaving(true);try{setNotice(await registerPushDevice());}catch(e){setError(e instanceof Error?e.message:'푸시 연결 실패');}finally{setSaving(false);}}}><Text style={[s.rowSub,{color:C.primary,paddingVertical:12}]}>이 기기 푸시 알림 연결</Text></Pressable><Text style={s.section}>받을 푸시 알림</Text>
         <View style={s.card}>
           {KINDS.map((k, i) => (
             <Row
@@ -78,7 +90,7 @@ export default function NotificationSettings({ userId, storeId, onBack }: { user
               line={i > 0}
               title={k.title}
               sub={k.id === 'expiry'
-                ? `매장 기준 D-${storeSettings.expirationAlertDays} · 오전 9시`
+                ? `매장 기준 D-${storeSettings.expirationAlertDays}`
                 : k.id === 'stock' ? `재고 ${storeSettings.lowStockThresholdCount}개 이하` : k.sub ?? ''}
               value={on[k.id]}
               onChange={(v) => toggle(k.id, v)}
@@ -88,8 +100,8 @@ export default function NotificationSettings({ userId, storeId, onBack }: { user
 
         <Text style={s.section}>방해 금지</Text>
         <View style={s.card}>
-          <Row title="근무 외 시간 알림 끄기" sub="근무 시작 30분 전부터 다시 받아요" value={on.quiet} onChange={(v) => toggle('quiet', v)} />
-          <Pressable style={[s.row, s.line]} onPress={() => setTimeEditorOpen(true)}>
+          <Row title="방해 금지 사용" sub="지정한 시간 동안 푸시를 미루고 종료 후 전송" value={on.quiet} onChange={(v) => toggle('quiet', v)} />
+          <Pressable style={[s.row, s.line]} onPress={() => {setTimeDraft({quietStart:on.quietStart,quietEnd:on.quietEnd});setTimeEditorOpen(true);}}>
             <View style={s.moon}>
               <Ionicons name="moon-outline" size={18} color={C.text} />
             </View>
@@ -100,14 +112,17 @@ export default function NotificationSettings({ userId, storeId, onBack }: { user
             <Ionicons name="chevron-forward" size={20} color="#5E5C6B" />
           </Pressable>
         </View>
+        </View>
       </ScrollView>
-      <Modal transparent visible={timeEditorOpen} animationType="fade" onRequestClose={() => setTimeEditorOpen(false)}>
+      <Modal transparent visible={timeEditorOpen} animationType="fade" onRequestClose={() => {if(!saving)setTimeEditorOpen(false);}}>
         <View style={s.modalBackdrop}>
           <View style={s.modalCard}>
             <Text style={s.modalTitle}>방해 금지 시간</Text>
-            <TimeRow label="시작" value={on.quietStart} onChange={(delta) => changeTime('quietStart', delta)} />
-            <TimeRow label="종료" value={on.quietEnd} onChange={(delta) => changeTime('quietEnd', delta)} />
-            <Pressable style={s.modalDone} onPress={() => setTimeEditorOpen(false)}><Text style={s.modalDoneText}>확인</Text></Pressable>
+            <View pointerEvents={saving?'none':'auto'}><TimeRow label="시작" value={timeDraft.quietStart} onChange={(delta) => changeTime('quietStart', delta)} />
+            <TimeRow label="종료" value={timeDraft.quietEnd} onChange={(delta) => changeTime('quietEnd', delta)} /></View>
+            {!!error&&<Text style={[s.rowSub,{color:'#B3261E'}]}>{error}</Text>}
+            <Pressable disabled={saving||!ready} style={[s.modalDone,(saving||!ready)&&{opacity:.5}]} onPress={()=>{void saveNext({...on,...timeDraft}).then(saved=>{if(saved)setTimeEditorOpen(false);});}}><Text style={s.modalDoneText}>{saving?'저장 중…':'저장'}</Text></Pressable>
+            <Pressable disabled={saving} onPress={()=>setTimeEditorOpen(false)} style={{padding:12}}><Text style={[s.rowSub,{textAlign:'center'}]}>취소</Text></Pressable>
           </View>
         </View>
       </Modal>

@@ -1,9 +1,10 @@
+import {clockInLocation} from './location';
 // 출근·퇴근·근무 기록 서버 연동과 시간·금액 표기 도우미
 import { useEffect, useState } from 'react';
 import { api } from './api';
 
 // 출퇴근과 근무 기록은 서버에 저장한다. 시각은 서버가 준 yyyy-MM-ddTHH:mm:ss 문자열을 Date 로 바꿔 쓴다.
-export type Session = { sessionId?: number; clockIn: Date; clockOut: Date | null; hourlyWage?: number | null; wageSource?: string | null };
+export type Session = { breakSeconds?:number;breakRevision?:number;breaks?:string|null; sessionId?: number; clockIn: Date; clockOut: Date | null; hourlyWage?: number | null; wageSource?: string | null; correctedBy?: string | null; correctedAt?: string | null; correctionReason?: string | null };
 
 // 시급과 근무 일정은 사장님이 정한다. 사장님이 시급을 정하기 전에는 최저시급(2026년)으로 계산한다.
 export const MIN_WAGE = 10320;
@@ -55,7 +56,7 @@ export const currentShift = (storeId: number) =>
   api<{ clockedAt: string | null; elsewhere: string | null }>('GET', `${base(storeId)}/current`).then((r) => ({ clockedAt: at(r.clockedAt), elsewhere: r.elsewhere }));
 
 // 매장 QR 값으로 출근. 다른 매장의 QR 이면 서버가 거절한다
-export const clockIn = (storeId: number, code: string) => api<{ clockedAt: string | null }>('POST', `${base(storeId)}/clock-in`, { code }).then((r) => at(r.clockedAt));
+export const clockIn = async (storeId:number,code:string)=>{const location=await clockInLocation(storeId);const r=await api<{clockedAt:string|null}>('POST',`${base(storeId)}/clock-in`,{code,...location});return at(r.clockedAt);};
 
 // 지금 근무 중인 사람들 (사장님 홈의 근무 현황)
 export const activeStaff = (storeId: number) =>
@@ -74,7 +75,7 @@ export function hoursByDay(list: Session[]) {
   for (const s of list) {
     const d = s.clockIn;
     const k = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-    out[k] = (out[k] ?? 0) + Math.max(0, ((s.clockOut ?? new Date()).getTime() - d.getTime()) / 3600000);
+    out[k] = (out[k] ?? 0) + Math.max(0, ((s.clockOut ?? new Date()).getTime() - d.getTime()) / 3600000 - (s.breakSeconds??0)/3600);
   }
   return out;
 }

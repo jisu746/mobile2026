@@ -1,12 +1,19 @@
+import BulkStocktake from './BulkStocktake';
+import CategoryManager,{getCategories} from './CategoryManager';
+import NotificationBell from './NotificationBell';
+import {api} from './api';
 // 재고/발주 탭 화면 (상품 목록, 수정, 폐기) - 사장님·직원 공통
 import { ComponentRef, useEffect, useRef, useState } from 'react';
-import { Linking, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { BackHandler, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from './font';
 import { Ionicons } from '@expo/vector-icons';
-import { Product, daysLeft, discardExpired, isLowStock, listProducts, productLowStockThreshold, updateProduct } from './inventory';
+import { Product, daysLeft, deleteProduct, discardExpired, isLowStock, listProducts, productLowStockThreshold, updateProduct } from './inventory';
 import { DEFAULT_STORE_SETUP_SETTINGS, getStoreSetupSettingsOrDefault } from './storeSetupRepository';
 import type { StoreSetupSettings } from './storeSetupRepository';
 import { C, Stepper } from './ui';
+import StockBatches from './StockBatches';
+import InventoryTools from './InventoryTools';
+import ProductPhotoCapture,{ProductPhotoButton} from './ProductPhotoCapture';
 
 const ORDER_URL = 'https://www.coupang.com'; // 발주 버튼이 여는 주문 페이지
 
@@ -17,7 +24,7 @@ const GREEN = { bg: '#EDFAF2', fg: '#10B981' };
 
 // 상품 상태: 재고 부족 / 유통기한 임박 / 폐기 사항(유통기한 지남)
 function status(p: Product, settings: StoreSetupSettings) {
-  const d = daysLeft(p.expiry);
+  const d = settings.expiryEnabled===false?null:daysLeft(p.expiry);
   const low = isLowStock(p.stock, productLowStockThreshold(p.min, settings.lowStockThresholdCount));
   const expired = d !== null && d < 0;
   const imminent = d !== null && d >= 0 && d <= settings.expirationAlertDays;
@@ -31,17 +38,45 @@ export default function InventoryTab({ store, onProfile, onBell, focusBarcode }:
   const [products, setProducts] = useState<Product[] | null>(null);
   const [alertSettings, setAlertSettings] = useState(DEFAULT_STORE_SETUP_SETTINGS);
   const [q, setQ] = useState('');
+  const [isOwner,setIsOwner]=useState(false);
+  const [canDelete,setCanDelete]=useState(false),[canAdjust,setCanAdjust]=useState(false),[canPlan,setCanPlan]=useState(false),[stocktake,setStocktake]=useState(false);
+  useEffect(()=>{api<{owner:boolean;deleteProducts:boolean;adjustStock:boolean;saveOrderPlans:boolean}>('GET',`/api/stores/${store}/inventory-capabilities`).then(v=>{setIsOwner(v.owner);setCanDelete(v.owner||v.deleteProducts);setCanAdjust(v.owner||v.adjustStock);setCanPlan(v.owner||v.saveOrderPlans);},()=>{});},[store]);
   const [focused, setFocused] = useState(focusBarcode);
   const [open, setOpen] = useState<{ barcode: string; mode: 'edit' | 'discard' } | null>(null);
   const [editName, setEditName] = useState('');
   const [editStock, setEditStock] = useState(0);
   const [editMin, setEditMin] = useState(0);
+  const [deleteTarget,setDeleteTarget]=useState<Product|null>(null);
+  const [photoTarget,setPhotoTarget]=useState<Product|null>(null);
+  const [tools,setTools]=useState<{barcode?:string;mode:'details'|'history'|'orders'}|null>(null);
+  const [filter,setFilter]=useState<'all'|'low'|'expiry'>('all');
+  const [category,setCategory]=useState<string|null>(null);
+  const [categoryManager,setCategoryManager]=useState(false);
+  const [categoryNames,setCategoryNames]=useState<string[]>([]);
+  useEffect(()=>{getCategories(store).then(v=>setCategoryNames(v.categories),()=>{});},[store]);
+  const [alertsOnly,setAlertsOnly]=useState(false);
+  useEffect(()=>{if(!alertsOnly)return;const back=BackHandler.addEventListener('hardwareBackPress',()=>{setAlertsOnly(false);setFilter('all');return true;});return()=>back.remove();},[alertsOnly]);
+  const [deleting,setDeleting]=useState(false);
+  const [deleteError,setDeleteError]=useState('');
+  const deleteBusy=useRef(false);
+  const remove=async()=>{
+    if(!deleteTarget||deleteBusy.current)return;
+    deleteBusy.current=true;setDeleting(true);setDeleteError('');
+    try{
+      await deleteProduct(store,deleteTarget.barcode,deleteTarget.stock);
+      setProducts(current=>current?.filter(p=>p.barcode!==deleteTarget.barcode)??null);
+      if(open?.barcode===deleteTarget.barcode)setOpen(null);
+      if(focused===deleteTarget.barcode)setFocused(undefined);
+      setDeleteTarget(null);void reload();
+    }catch(e){setDeleteError(e instanceof Error?e.message:'상품을 삭제하지 못했어요.');void reload();}
+    finally{deleteBusy.current=false;setDeleting(false);}
+  };
   const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
   const tops = useRef<Record<string, number>>({}); // 상품 카드별 세로 위치 (자동 스크롤용)
 
   const [error, setError] = useState('');
   const fail = (e: unknown) => setError(e instanceof Error ? e.message : '요청을 처리하지 못했어요');
-  const reload = () => listProducts(store).then((l) => { setProducts(l); setError(''); }, fail);
+  const reload = () => listProducts(store).then((l) => { setProducts(l); if(open){const current=l.find(p=>p.barcode===open.barcode);if(current)setEditStock(current.stock);} setError(''); }, fail);
   useEffect(() => {
     reload();
   }, [store]);
@@ -76,7 +111,8 @@ export default function InventoryTab({ store, onProfile, onBell, focusBarcode }:
   const imminent = all.filter((p) => status(p, alertSettings).imminent).length;
   const query = q.trim().toLowerCase();
   const list = all
-    .filter((p) => (!focused || p.barcode === focused) && (p.name.toLowerCase().includes(query) || p.barcode.toLowerCase().includes(query)))
+    .filter(p=>(category===null||(p.category||'미분류')===category)&&(!alertsOnly||status(p,alertSettings).low||status(p,alertSettings).imminent))
+    .filter((p) => (!focused || p.barcode === focused) && (p.name.toLowerCase().includes(query) || p.barcode.toLowerCase().includes(query)||p.category.toLowerCase().includes(query)||(p.specification??'').toLowerCase().includes(query))&&(filter==='all'||filter==='low'&&status(p,alertSettings).low||filter==='expiry'&&(status(p,alertSettings).imminent||status(p,alertSettings).expired)))
     .sort((a, b) => {
       const aStatus = status(a, alertSettings);
       const bStatus = status(b, alertSettings);
@@ -113,7 +149,9 @@ export default function InventoryTab({ store, onProfile, onBell, focusBarcode }:
     if (y !== undefined) scroll.current?.scrollTo({ y: Math.max(0, y - 12), animated: true });
   };
 
-  return (
+  return (<>
+    {stocktake&&<BulkStocktake storeId={store} products={all} onClose={()=>setStocktake(false)} onSaved={()=>void reload()}/>}
+    {categoryManager&&<CategoryManager storeId={store} onClose={()=>setCategoryManager(false)} onSaved={names=>{setCategoryNames(names);setCategory(null);void reload();}}/>}
     <ScrollView
       ref={scroll}
       showsVerticalScrollIndicator={Platform.OS !== 'web'}
@@ -121,29 +159,33 @@ export default function InventoryTab({ store, onProfile, onBell, focusBarcode }:
       keyboardShouldPersistTaps="handled"
     >
       <View style={s.header}>
-        <Text style={s.title}>재고 및 발주</Text>
+        {alertsOnly&&<Pressable accessibilityLabel="전체 재고로 돌아가기" onPress={()=>{setAlertsOnly(false);setFilter('all');}} hitSlop={10}><Ionicons name="arrow-back" size={24} color={C.text}/></Pressable>}
+        <Text style={[s.title,{flex:1}]}>{alertsOnly?'발주·유통기한 알림':'재고 및 발주'}</Text>
         <Pressable onPress={onBell} hitSlop={8}>
-          <Ionicons name="notifications-outline" size={26} color={C.primary} />
-        </Pressable>
-        <Pressable style={s.avatar} onPress={onProfile}>
-          <Ionicons name="person" size={18} color="#fff" />
+          <NotificationBell storeId={store}/>
         </Pressable>
       </View>
 
-      <Pressable style={s.hero} onPress={goFirstAlert}>
+      {!alertsOnly&&<Pressable style={s.hero} onPress={()=>{setAlertsOnly(true);setFilter('all');setCategory(null);setQ('');setFocused(undefined);scroll.current?.scrollTo({y:0,animated:true});}}>
         <View style={{ flex: 1 }}>
           <Text style={s.heroLabel}>발주 관리 현황</Text>
           <Text style={s.heroText}>발주 필요 {needOrder}건 · 유통기한 D-{alertSettings.expirationAlertDays} 이내 {imminent}건</Text>
           <Text style={s.heroHint}>상품별 기준 우선 · 미설정 상품은 {alertSettings.lowStockThresholdCount}개 이하</Text>
         </View>
         <Ionicons name="chevron-forward" size={20} color="#fff" />
-      </Pressable>
+      </Pressable>}
 
+      {alertsOnly && <View style={{paddingVertical:14,gap:10}}><Text>발주 필요 {needOrder}건 · 유통기한 임박 {imminent}건</Text><Text>확인이 필요한 상품만 모았어요.</Text></View>}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap:8,paddingVertical:12}}>{[null,...Array.from(new Set([...categoryNames,...all.map(p=>p.category||'미분류')])).sort((a,b)=>a.localeCompare(b,'ko'))].map(value=><Pressable key={value??'all'} accessibilityRole="button" accessibilityState={{selected:category===value}} onPress={()=>setCategory(value)} style={{paddingHorizontal:14,paddingVertical:10,borderRadius:20,backgroundColor:category===value?C.primary:'#F1F0F5'}}><Text style={{color:category===value?'white':C.primary}}>{value??'전체 카테고리'}</Text></Pressable>)}</ScrollView>
+
+      {isOwner&&<Pressable onPress={()=>setCategoryManager(true)} style={{paddingVertical:8,alignSelf:'flex-end'}}><Text style={{color:C.primary,fontSize:13,fontWeight:'700'}}>＋ 카테고리 추가·관리</Text></Pressable>}
       <View style={s.search}>
         <Ionicons name="search" size={18} color="#999" />
-        <TextInput style={s.searchInput} value={q} onChangeText={setQ} placeholder="목록 검색" placeholderTextColor="#999" />
+        <TextInput style={s.searchInput} value={q} onChangeText={setQ} placeholder="상품명·바코드·규격 검색" placeholderTextColor="#999" />
       </View>
 
+      <View style={{flexDirection:'row',flexWrap:'wrap',gap:14,paddingVertical:10}}>{([['all','전체'],['low','재고 부족'],['expiry','유통기한']] as const).map(([id,label])=><Pressable key={id} onPress={()=>setFilter(id)}><Text style={{color:C.primary,fontWeight:filter===id?'700':'400'}}>{label}</Text></Pressable>)}<Pressable onPress={()=>setTools({mode:'history'})}><Text style={{color:C.primary}}>입출고·이력·발주 관리 〉</Text></Pressable></View>
+      {canAdjust&&<Pressable onPress={()=>setStocktake(true)} style={{paddingVertical:12}}><Text style={{color:C.primary,fontWeight:'700'}}>여러 상품 한 번에 실사 〉</Text></Pressable>}
       {!!focused && <View style={{ paddingVertical: 12, gap: 8 }}>
         <Text style={{ color: C.primary, fontWeight: '700' }}>알림 대상 상품</Text>
         <Pressable onPress={() => { setFocused(undefined); setQ(''); }}><Text style={{ color: C.primary }}>전체 상품 보기</Text></Pressable>
@@ -151,7 +193,7 @@ export default function InventoryTab({ store, onProfile, onBell, focusBarcode }:
 
       {!!error && <Text style={[s.empty, { color: '#D93025', paddingVertical: 12 }]}>{error}</Text>}
       {products === null && !error && <Text style={s.empty}>불러오는 중이에요</Text>}
-      {products !== null && !list.length && <Text style={s.empty}>{focused ? '알림 대상 상품을 찾을 수 없어요. 전체 상품 보기를 눌러 확인해 주세요.' : q ? '검색 결과가 없어요' : '등록된 상품이 없어요'}</Text>}
+      {products !== null && !list.length && <Text style={s.empty}>{focused ? '알림 대상 상품을 찾을 수 없어요. 전체 상품 보기를 눌러 확인해 주세요.' : q ? '검색 결과가 없어요' : (filter!=='all'||category!==null||alertsOnly)?'선택한 조건에 해당하는 상품이 없어요':'등록된 상품이 없어요'}</Text>}
 
       {list.map((p) => {
         const st = status(p, alertSettings);
@@ -160,8 +202,8 @@ export default function InventoryTab({ store, onProfile, onBell, focusBarcode }:
           <View key={p.barcode} style={s.item} onLayout={(e) => (tops.current[p.barcode] = e.nativeEvent.layout.y)}>
             <View style={[s.card, isOpen && s.cardHot]}>
               <View style={s.top}>
-                <View style={s.img} />
-                <View style={{ flex: 1 }}>
+                <ProductPhotoButton storeId={store} product={p} onPress={()=>setPhotoTarget(p)}/>
+                <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={s.name} numberOfLines={1}>{p.name}</Text>
                   <View style={s.tags}>
                     {st.tags.map((t) => (
@@ -171,15 +213,19 @@ export default function InventoryTab({ store, onProfile, onBell, focusBarcode }:
                     ))}
                   </View>
                 </View>
+                {canDelete&&<Pressable accessibilityRole="button" accessibilityLabel={`${p.name} 삭제`} hitSlop={6} onPress={()=>{setDeleteError('');setDeleteTarget(p);}} style={{width:40,height:40,alignItems:'center',justifyContent:'center',alignSelf:'flex-start'}}>
+                  <Ionicons name="trash-outline" size={21} color="#8B839A" />
+                </Pressable>}
               </View>
               <View style={s.btns}>
                 <Pressable style={[s.btn, s.btnLine]} onPress={() => toggle(p, 'edit')}>
                   <Text style={s.btnLineText}>수정</Text>
                 </Pressable>
-                <Pressable style={[s.btn, s.btnFill]} onPress={() => Linking.openURL(ORDER_URL).catch(() => {})}>
-                  <Text style={s.btnFillText}>발주</Text>
+                <Pressable style={[s.btn, s.btnFill]} onPress={() => setTools({barcode:p.barcode,mode:canPlan?'orders':'details'})}>
+                  <Text style={s.btnFillText}>{canPlan?'발주':'상세'}</Text>
                 </Pressable>
               </View>
+              <Pressable onPress={()=>setTools({barcode:p.barcode,mode:'details'})}><Text style={{fontSize:13,color:C.primary,paddingTop:12}}>상품 상세 · 출고 · 변동 이력 〉</Text></Pressable>
               {st.expired && (
                 <Pressable style={s.discard} onPress={() => toggle(p, 'discard')}>
                   <Text style={s.discardText}>폐기 사항 확인</Text>
@@ -192,14 +238,14 @@ export default function InventoryTab({ store, onProfile, onBell, focusBarcode }:
                 <Text style={s.label}>상품명</Text>
                 <TextInput style={s.input} value={editName} onChangeText={setEditName} />
                 <Text style={[s.label, { marginTop: 16 }]}>재고 수량</Text>
-                <Stepper value={editStock} onChange={setEditStock} big min={0} />
+                <Text style={s.note}>{editStock}개 · 수량 변경은 상품 상세의 출고·실사 조정을 이용해주세요.</Text>
                 <Text style={[s.label, { marginTop: 16 }]}>적정 재고 알림 기준</Text>
                 <Stepper value={editMin} onChange={setEditMin} big min={0} />
-                <Text style={s.note}>재고가 {productLowStockThreshold(editMin, alertSettings.lowStockThresholdCount)}개 이하일 때 발주 필요로 표시돼요. 0은 매장 기본 기준을 따라요.</Text>
+                <StockBatches storeId={store} barcode={p.barcode} onChange={()=>{void reload();}}/><Text style={s.note}>재고가 {productLowStockThreshold(editMin, alertSettings.lowStockThresholdCount)}개 이하일 때 발주 필요로 표시돼요. 0은 매장 기본 기준을 따라요.</Text>
                 <Pressable
                   disabled={!editName.trim()}
                   style={[s.panelBtn, !editName.trim() && { opacity: 0.4 }]}
-                  onPress={() => save(updateProduct(store, p.barcode, { name: editName.trim(), stock: editStock, min: editMin }))}
+                  onPress={() => save(updateProduct(store, p.barcode, { name: editName.trim(), stock: editStock, min: editMin, expectedStock:p.stock }))}
                 >
                   <Text style={s.panelBtnText}>수정 완료</Text>
                 </Pressable>
@@ -213,8 +259,8 @@ export default function InventoryTab({ store, onProfile, onBell, focusBarcode }:
                   <Text style={s.readonly}>{p.name}</Text>
                 </View>
                 <Text style={[s.label, { marginTop: 16 }]}>폐기 수량</Text>
-                <Text style={s.discardQty}>{p.stock}<Text style={s.discardUnit}> 개</Text></Text>
-                <Text style={s.note}>유통기한이 지난 상품은 자동으로 재고 수량에서 제외합니다</Text>
+                <Text style={s.note}>유통기한이 지난 묶음의 남은 수량만 폐기해요. 날짜를 모르는 재고와 아직 유통기한이 남은 묶음은 유지돼요.</Text><StockBatches storeId={store} barcode={p.barcode} onChange={()=>{void reload();}}/>
+                <Text style={s.note}>아래 버튼으로 유통기한이 지난 묶음을 한 번에 폐기할 수 있어요.</Text>
                 <Pressable style={s.panelBtn} onPress={() => save(discardExpired(store, p.barcode))}>
                   <Text style={s.panelBtnText}>폐기 사항 확인 완료</Text>
                 </Pressable>
@@ -224,6 +270,24 @@ export default function InventoryTab({ store, onProfile, onBell, focusBarcode }:
         );
       })}
     </ScrollView>
+    {tools&&<InventoryTools storeId={store} products={all} barcode={tools.barcode} initialMode={tools.mode} onClose={()=>setTools(null)} onChange={()=>{void reload();}}/>}
+    {photoTarget&&<ProductPhotoCapture storeId={store} product={photoTarget} onClose={()=>{setPhotoTarget(null);void reload();}} onSaved={version=>{setProducts(current=>current?.map(p=>p.barcode===photoTarget.barcode?{...p,photoVersion:version}:p)??null);}}/>}
+    <Modal visible={deleteTarget!==null} transparent animationType="fade" onRequestClose={()=>{if(!deleting)setDeleteTarget(null);}}>
+      <View style={{flex:1,backgroundColor:'rgba(0,0,0,0.4)',justifyContent:'center',padding:24}}>
+        <View style={{backgroundColor:'#fff',borderRadius:20,padding:22,gap:14}}>
+          <Text style={{fontSize:19,fontWeight:'700',color:C.text}}>상품을 삭제할까요?</Text>
+          <Text style={{fontSize:15,lineHeight:23,color:C.text}}>{deleteTarget?.name}</Text>
+          <Text style={{fontSize:13,lineHeight:21,color:'#686373'}}>목록에서 삭제하고 남은 재고 {deleteTarget?.stock??0}개와 입고 묶음의 수량을 0개로 정리해요. 기존 입고·재고 변동 이력은 남아요. 같은 바코드를 다시 입고하면 새 수량으로 등록돼요.</Text>
+          {!!deleteError&&<Text style={{fontSize:13,lineHeight:20,color:'#B3261E'}}>{deleteError}</Text>}
+          <View style={{flexDirection:'row',gap:10}}>
+            <Pressable disabled={deleting} onPress={()=>setDeleteTarget(null)} style={{flex:1,paddingVertical:14,alignItems:'center',borderWidth:1,borderColor:'#D8D3E8',borderRadius:12}}><Text style={{color:C.primary,fontWeight:'700'}}>취소</Text></Pressable>
+            <Pressable disabled={deleting||!!deleteError} onPress={()=>void remove()} style={{flex:1,paddingVertical:14,alignItems:'center',backgroundColor:'#C83232',borderRadius:12,opacity:deleting||deleteError?.5:1}}><Text style={{color:'#fff',fontWeight:'700'}}>{deleting?'삭제 중…':'삭제'}</Text></Pressable>
+          </View>
+          {!!deleteError&&<Text style={{fontSize:12,color:'#686373'}}>취소 후 최신 목록을 확인하고 다시 시도해주세요.</Text>}
+        </View>
+      </View>
+    </Modal>
+    </>
   );
 }
 
