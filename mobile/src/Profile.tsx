@@ -5,7 +5,7 @@ import { Text, TextInput } from './font';
 import { Ionicons } from '@expo/vector-icons';
 import { Account } from './auth';
 import NotificationSettings from './NotificationSettings';
-import { C } from './ui';
+import { BellButton, C } from './ui';
 import type { Store } from './auth';
 import { contractRepository } from './contractRepository';
 import type { EmploymentContract } from './contractRepository';
@@ -18,6 +18,7 @@ type Props = {
   onAdd: () => void;
   onLogout: () => void;
   onBell: () => void;
+  unread?: boolean;
   onRecords: () => void;
   onEmployeeRequests: () => void;
   onEmployees: () => void;
@@ -28,7 +29,7 @@ type Props = {
 
 const dot = (d: Date) => `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
 
-export default function Profile({ id, acc, onSelect, onAdd, onLogout, onBell, onRecords, onEmployeeRequests, onEmployees, onPayroll, onContracts, onSaveProfile }: Props) {
+export default function Profile({ id, acc, onSelect, onAdd, onLogout, onBell, unread, onRecords, onEmployeeRequests, onEmployees, onPayroll, onContracts, onSaveProfile }: Props) {
   const owner = acc.role === 'owner';
   const [switching, setSwitching] = useState(false);
   const [showNotificationSettings, setShowNotificationSettings] = useState(false);
@@ -64,9 +65,7 @@ export default function Profile({ id, acc, onSelect, onAdd, onLogout, onBell, on
     <ScrollView contentContainerStyle={s.body}>
       <View style={s.header}>
         <Text style={s.title}>MY</Text>
-        <Pressable onPress={onBell} hitSlop={8}>
-          <Ionicons name="notifications-outline" size={26} color={C.primary} />
-        </Pressable>
+        <BellButton onPress={onBell} unread={unread} size={26} />
         <View style={s.avatar}>
           <Ionicons name="person" size={18} color="#fff" />
         </View>

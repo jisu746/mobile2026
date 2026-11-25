@@ -27,7 +27,7 @@ const TABS: { label: string; icon: Icon }[] = [
 ];
 
 // 사장님 홈: 메인, 바코드 입고, 재고, MY(프로필)까지 직원 화면과 같은 컴포넌트를 쓴다. 그 밖의 상세 화면은 아직 연결하지 않았다.
-export default function OwnerHome({ store, userId, userName, renderMy, onSwitchStore: onProfile }: { store: { id?: number; name: string; type: string; inviteCode?: string }; userId: string; userName: string; renderMy: (onBell: () => void, onRecords: () => void, onEmployeeRequests?: () => void, onEmployees?: () => void, onPayroll?: () => void, onContracts?: () => void) => ReactNode; onSwitchStore: () => void }) {
+export default function OwnerHome({ store, userId, userName, renderMy, onSwitchStore: onProfile }: { store: { id?: number; name: string; type: string; inviteCode?: string }; userId: string; userName: string; renderMy: (onBell: () => void, onRecords: () => void, unread?: boolean, onEmployeeRequests?: () => void, onEmployees?: () => void, onPayroll?: () => void, onContracts?: () => void) => ReactNode; onSwitchStore: () => void }) {
   const [tab, setTab] = useState(0);
   const [notifOpen, setNotifOpen] = useState(false);
   const [recordsOpen, setRecordsOpen] = useState(false);
@@ -48,7 +48,7 @@ export default function OwnerHome({ store, userId, userName, renderMy, onSwitchS
 
   return (
     <View style={s.root}>
-      {tab === 0 ? <Dashboard storeId={store.id ?? 0} store={store} onProfile={onProfile} onBell={onBell} /> : tab === 2 ? <InventoryTab store={store.id ?? 0} onProfile={onProfile} onBell={onBell} /> : tab === 3 ? renderMy(onBell, () => setRecordsOpen(true), () => setStaffPage('requests'), () => setStaffPage('employees'), () => setPayrollOpen(true), () => setContractsOpen(true)) : <View style={s.empty}><Text style={s.emptyText}>{TABS[tab].label} 화면은 준비 중이에요</Text></View>}
+      {tab === 0 ? <Dashboard storeId={store.id ?? 0} store={store} onProfile={onProfile} onBell={onBell} /> : tab === 2 ? <InventoryTab store={store.id ?? 0} onProfile={onProfile} onBell={onBell} /> : tab === 3 ? renderMy(onBell, () => setRecordsOpen(true), undefined, () => setStaffPage('requests'), () => setStaffPage('employees'), () => setPayrollOpen(true), () => setContractsOpen(true)) : <View style={s.empty}><Text style={s.emptyText}>{TABS[tab].label} 화면은 준비 중이에요</Text></View>}
 
       <TabBar tabs={TABS} active={tab} onChange={setTab} />
     </View>

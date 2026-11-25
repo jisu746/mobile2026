@@ -11,8 +11,9 @@ import Scanner from './Scanner';
 import TaskList from './TaskList';
 import WorkRecords from './WorkRecords';
 import { Handover, listHandovers, resolveHandover, writeHandover } from './handover';
+import { hasUnreadNotifs } from './notifs';
 import { useTasks } from './tasks';
-import { C, TabBar, TabItem } from './ui';
+import { BellButton, C, TabBar, TabItem } from './ui';
 import { Shift, clockIn, clockOut, currentShift, hhmm, hoursByDay, listSessions, listShifts, shiftState, useMe, won, ymd } from './work';
 
 const TABS: TabItem[] = [
@@ -32,7 +33,7 @@ const elapsed = (from: Date, now: number) => {
   return m >= 60 ? `${Math.floor(m / 60)}시간 ${m % 60}분째` : `${m}분째`;
 };
 
-export default function StaffHome({ storeId, storeName, userId, userName, renderMy, onSwitchStore: onProfile }: { storeId: number; storeName: string; userId: string; userName: string; renderMy: (onBell: () => void, onRecords: () => void) => ReactNode; onSwitchStore: () => void }) {
+export default function StaffHome({ storeId, storeName, userId, userName, renderMy, onSwitchStore: onProfile }: { storeId: number; storeName: string; userId: string; userName: string; renderMy: (onBell: () => void, onRecords: () => void, unread?: boolean) => ReactNode; onSwitchStore: () => void }) {
   const ME = userName;
   const [clockedAt, setClockedAt] = useState<Date | null>(null);
   const [ready, setReady] = useState(false); // 서버에서 출근 상태를 받아온 뒤에 화면을 그린다
@@ -50,6 +51,7 @@ export default function StaffHome({ storeId, storeName, userId, userName, render
   const [draft, setDraft] = useState('');
   const [tab, setTab] = useState(0);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [hasUnread, setHasUnread] = useState(false);
   const [recordsOpen, setRecordsOpen] = useState(false);
   const onBell = () => setNotifOpen(true);
   const [now, setNow] = useState(Date.now());
@@ -62,6 +64,9 @@ export default function StaffHome({ storeId, storeName, userId, userName, render
       fail,
     );
   };
+  const refreshUnread = () => {
+    hasUnreadNotifs(storeId).then(setHasUnread, () => {});
+  };
 
   useEffect(() => {
     const d = new Date();
@@ -69,6 +74,10 @@ export default function StaffHome({ storeId, storeName, userId, userName, render
     listShifts(storeId, d.getFullYear(), d.getMonth() + 1).then(setShifts, fail);
     refreshEarn();
   }, [storeId]);
+
+  useEffect(() => {
+    if (!notifOpen) refreshUnread();
+  }, [storeId, notifOpen, tab, clockedAt]);
 
   // 근무 중 메인 화면으로 돌아올 때마다 업무(재고 기준)와 인수인계를 새로 받는다
   useEffect(() => {
@@ -90,7 +99,10 @@ export default function StaffHome({ storeId, storeName, userId, userName, render
 
   useEffect(() => {
     if (!clockedAt) return;
-    const t = setInterval(() => setNow(Date.now()), 30000);
+    const t = setInterval(() => {
+      setNow(Date.now()); 
+      refreshUnread();
+     }, 30000);
     return () => clearInterval(t);
   }, [clockedAt]);
 
@@ -115,11 +127,7 @@ export default function StaffHome({ storeId, storeName, userId, userName, render
       </View>
       {avatar && (
         <>
-          {bell && (
-            <Pressable onPress={onBell} hitSlop={8}>
-              <Ionicons name="notifications-outline" size={24} color={C.primary} />
-            </Pressable>
-          )}
+          {bell && <BellButton onPress={onBell} unread={hasUnread} />}
           <Pressable accessibilityLabel={clockedAt ? '매장 변경' : '내 정보와 로그아웃'} style={s.avatar} onPress={clockedAt ? onProfile : () => setTab(3)}>
             <Ionicons name="person" size={18} color="#fff" />
           </Pressable>
@@ -128,7 +136,7 @@ export default function StaffHome({ storeId, storeName, userId, userName, render
     </View>
   );
 
-  if (notifOpen) return <Notifications storeId={storeId} userId={userId} onBack={() => setNotifOpen(false)} />;
+  if (notifOpen) return <Notifications storeId={storeId} userId={userId} onUnreadChange={setHasUnread} onBack={() => setNotifOpen(false)} />;
   if (recordsOpen) return <WorkRecords storeId={storeId} onBack={() => setRecordsOpen(false)} />;
   if (!ready) return <View style={s.root} />;
 
@@ -166,7 +174,7 @@ export default function StaffHome({ storeId, storeName, userId, userName, render
     if (tab === 3) {
       return (
         <View style={s.root}>
-          {renderMy(onBell, () => setRecordsOpen(true))}
+          {renderMy(onBell, () => setRecordsOpen(true), hasUnread)}
           <TabBar tabs={BEFORE_TABS} active={1} onChange={(i) => setTab(i === 1 ? 3 : 0)} />
         </View>
       );
@@ -293,8 +301,8 @@ export default function StaffHome({ storeId, storeName, userId, userName, render
               <Pressable key={t.title} onPress={() => setTasksOpen(true)} style={[s.task, i > 0 && s.line]}>
                 <Ionicons name={t.icon} size={22} color={C.primary} />
                 <Text style={[s.rowTitle, { flex: 1 }]}>{t.title}</Text>
-                <View style={[s.tag, { backgroundColor: t.warn ? '#FDEEE3' : '#F1F0F5' }]}>
-                  <Text style={[s.tagText, { color: t.warn ? '#E8590C' : '#5E5C6B' }]}>{t.tag}</Text>
+                <View style={[s.tag, { backgroundColor: t.warn ? '#F6E8F2' : '#F1F0F5' }]}>
+                  <Text style={[s.tagText, { color: t.warn ? '#671d57' : '#5E5C6B' }]}>{t.tag}</Text>
                 </View>
               </Pressable>
             ))}
@@ -357,9 +365,9 @@ export default function StaffHome({ storeId, storeName, userId, userName, render
           {!!error && <Text style={[s.error, { color: '#D93025' }]}>{error}</Text>}
         </ScrollView>
       ) : tab === 2 ? (
-        <InventoryTab store={storeId} onProfile={onProfile} onBell={onBell} />
+        <InventoryTab store={storeId} onProfile={onProfile} onBell={onBell} unread={hasUnread} />
       ) : tab === 3 ? (
-        renderMy(onBell, () => setRecordsOpen(true))
+        renderMy(onBell, () => setRecordsOpen(true), hasUnread)
       ) : (
         <View style={s.empty}>
           <Text style={s.emptyText}>{TABS[tab].label} 화면은 준비 중이에요</Text>
@@ -418,7 +426,7 @@ const s = StyleSheet.create({
   task: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, height: 56 },
   line: { borderTopWidth: 1, borderTopColor: '#EEEDF3' },
   tag: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12 },
-  tagText: { fontSize: 10.5, fontWeight: '700' },
+  tagText: { fontSize: 10.5, fontWeight: '600' },
   memoHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   mini: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#ECEAF7', alignItems: 'center', justifyContent: 'center' },
   miniText: { fontSize: 12, fontWeight: '700', color: C.primary },

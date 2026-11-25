@@ -40,7 +40,7 @@ export default function Login({ onSignup, onLoggedIn }: Props) {
 
       <View style={s.form}>
         <Field placeholder="아이디" value={id} onChangeText={(t) => { setId(t); setError(''); }} style={s.input} />
-        <Field placeholder="비밀번호" value={pw} onChangeText={(t) => { setPw(t); setError(''); }} secureTextEntry style={s.input} />
+        <Field placeholder="비밀번호" value={pw} onChangeText={(t) => { setPw(t); setError(''); }} secureTextEntry onSubmitEditing={() => { if (id && pw) submit(); }} style={s.input} />
         {!!error && <Text style={s.error}>{error}</Text>}
         <Button label="계속" onPress={submit} disabled={!id || !pw} />
       </View>
