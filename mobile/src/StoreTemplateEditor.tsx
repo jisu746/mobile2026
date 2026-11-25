@@ -1,3 +1,134 @@
-import {useEffect,useState} from 'react';import {Pressable,Switch,View} from 'react-native';import {Text,TextInput} from './font';import {api} from './api';import {C} from './ui';
-type Template={industry:string;expiryEnabled:boolean;categories:string[];examples:string[];revision:number};const input={borderWidth:1,borderColor:'#D8D3E8',borderRadius:10,padding:10,minHeight:70,fontSize:14,color:C.text,marginVertical:8};
-export default function StoreTemplateEditor({storeId}:{storeId:number}){const [open,setOpen]=useState(false),[data,setData]=useState<Template|null>(null),[presets,setPresets]=useState<Template[]>([]),[categories,setCategories]=useState(''),[examples,setExamples]=useState(''),[create,setCreate]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState('');const root=`/api/stores/${storeId}/template`;useEffect(()=>{if(!open)return;let alive=true;Promise.all([api<Template>('GET',root),api<Template[]>('GET',root+'/presets')]).then(([v,p])=>{if(alive){setData(v);setPresets(p);setCategories(v.categories.join('\n'));setExamples(v.examples.join('\n'));}},e=>{if(alive)setError(e.message);});return()=>{alive=false;};},[root,open]);return <View style={{marginTop:14}}><Pressable onPress={()=>setOpen(v=>!v)} style={{borderWidth:1,borderColor:'#E4E2EC',borderRadius:14,padding:16}}><Text style={{fontSize:15,fontWeight:'700',color:C.text}}>업종별 관리 템플릿 {open?'⌄':'〉'}</Text></Pressable>{open&&<View style={{padding:12}}>{!!error&&<Text style={{color:'#B3261E'}}>{error}</Text>}{data&&<><View style={{flexDirection:'row',flexWrap:'wrap',gap:10}}>{presets.map(p=><Pressable key={p.industry} onPress={()=>{setData({...p,revision:data.revision});setCategories(p.categories.join('\n'));setExamples(p.examples.join('\n'));}}><Text style={{padding:8,color:data.industry===p.industry?C.primary:'#777',fontWeight:'700'}}>{p.industry}</Text></Pressable>)}</View><Text>기본 유통기한 관리 사용</Text><Switch value={data.expiryEnabled} onValueChange={v=>setData({...data,expiryEnabled:v})}/><Text>상품 분류 (한 줄에 하나, 수정 가능)</Text><TextInput multiline style={input} value={categories} onChangeText={setCategories}/><Text>기본 업무 예시 (한 줄에 하나, 수정 가능)</Text><TextInput multiline style={input} value={examples} onChangeText={setExamples}/><Text>예시를 실제 공동 업무로 추가 (동일 템플릿은 중복 생성하지 않음)</Text><Switch value={create} onValueChange={setCreate}/><Pressable disabled={busy} onPress={async()=>{if(busy)return;setBusy(true);setError('');try{const result=await api<Template>('PUT',root,{...data,categories:categories.split('\n').map(s=>s.trim()).filter(Boolean),examples:examples.split('\n').map(s=>s.trim()).filter(Boolean),createExamples:create});setData(result);setError('템플릿을 저장했어요.');}catch(e){setError(e instanceof Error?e.message:'저장 실패');}finally{setBusy(false);}}}><Text style={{color:C.primary,paddingVertical:14,fontWeight:'700'}}>{busy?'저장 중…':'템플릿 적용·저장'}</Text></Pressable></>}</View>}</View>;}
+import { useEffect, useState } from 'react';
+import { Pressable, Switch, View } from 'react-native';
+import { Text, TextInput } from './font';
+import { api } from './api';
+import { C } from './ui';
+type Template = {
+  industry: string;
+  expiryEnabled: boolean;
+  categories: string[];
+  examples: string[];
+  revision: number;
+};
+const input = {
+  borderWidth: 1,
+  borderColor: '#D8D3E8',
+  borderRadius: 10,
+  padding: 10,
+  minHeight: 70,
+  fontSize: 14,
+  color: C.text,
+  marginVertical: 8,
+};
+export default function StoreTemplateEditor({ storeId }: { storeId: number }) {
+  const [open, setOpen] = useState(false),
+    [data, setData] = useState<Template | null>(null),
+    [presets, setPresets] = useState<Template[]>([]),
+    [categories, setCategories] = useState(''),
+    [examples, setExamples] = useState(''),
+    [create, setCreate] = useState(false),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState('');
+  const root = `/api/stores/${storeId}/template`;
+  useEffect(() => {
+    if (!open) return;
+    let alive = true;
+    Promise.all([api<Template>('GET', root), api<Template[]>('GET', root + '/presets')]).then(
+      ([v, p]) => {
+        if (alive) {
+          setData(v);
+          setPresets(p);
+          setCategories(v.categories.join('\n'));
+          setExamples(v.examples.join('\n'));
+        }
+      },
+      (e) => {
+        if (alive) setError(e.message);
+      },
+    );
+    return () => {
+      alive = false;
+    };
+  }, [root, open]);
+  return (
+    <View style={{ marginTop: 14 }}>
+      <Pressable
+        onPress={() => setOpen((v) => !v)}
+        style={{ borderWidth: 1, borderColor: '#E4E2EC', borderRadius: 14, padding: 16 }}
+      >
+        <Text style={{ fontSize: 15, fontWeight: '700', color: C.text }}>업종별 관리 템플릿 {open ? '⌄' : '〉'}</Text>
+      </Pressable>
+      {open && (
+        <View style={{ padding: 12 }}>
+          {!!error && <Text style={{ color: '#B3261E' }}>{error}</Text>}
+          {data && (
+            <>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+                {presets.map((p) => (
+                  <Pressable
+                    key={p.industry}
+                    onPress={() => {
+                      setData({ ...p, revision: data.revision });
+                      setCategories(p.categories.join('\n'));
+                      setExamples(p.examples.join('\n'));
+                    }}
+                  >
+                    <Text
+                      style={{
+                        padding: 8,
+                        color: data.industry === p.industry ? C.primary : '#777',
+                        fontWeight: '700',
+                      }}
+                    >
+                      {p.industry}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+              <Text>기본 유통기한 관리 사용</Text>
+              <Switch value={data.expiryEnabled} onValueChange={(v) => setData({ ...data, expiryEnabled: v })} />
+              <Text>상품 분류 (한 줄에 하나, 수정 가능)</Text>
+              <TextInput multiline style={input} value={categories} onChangeText={setCategories} />
+              <Text>기본 업무 예시 (한 줄에 하나, 수정 가능)</Text>
+              <TextInput multiline style={input} value={examples} onChangeText={setExamples} />
+              <Text>예시를 실제 공동 업무로 추가 (동일 템플릿은 중복 생성하지 않음)</Text>
+              <Switch value={create} onValueChange={setCreate} />
+              <Pressable
+                disabled={busy}
+                onPress={async () => {
+                  if (busy) return;
+                  setBusy(true);
+                  setError('');
+                  try {
+                    const result = await api<Template>('PUT', root, {
+                      ...data,
+                      categories: categories
+                        .split('\n')
+                        .map((s) => s.trim())
+                        .filter(Boolean),
+                      examples: examples
+                        .split('\n')
+                        .map((s) => s.trim())
+                        .filter(Boolean),
+                      createExamples: create,
+                    });
+                    setData(result);
+                    setError('템플릿을 저장했어요.');
+                  } catch (e) {
+                    setError(e instanceof Error ? e.message : '저장 실패');
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              >
+                <Text style={{ color: C.primary, paddingVertical: 14, fontWeight: '700' }}>
+                  {busy ? '저장 중…' : '템플릿 적용·저장'}
+                </Text>
+              </Pressable>
+            </>
+          )}
+        </View>
+      )}
+    </View>
+  );
+}

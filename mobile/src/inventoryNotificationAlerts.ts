@@ -1,7 +1,14 @@
-import {daysLeft,Product} from './inventory';
-import {Notif} from './notifs';
-type InventoryAlert=Notif & {localKey:string;order:number;targetBarcode:string};
-export function buildInventoryAlerts(products: Product[], expirationAlertDays: number, lowStockThresholdCount: number, expiryOn: boolean, stockOn: boolean, readKeys: Set<string>): InventoryAlert[] {
+import { daysLeft, Product } from './inventory';
+import { Notif } from './notifs';
+type InventoryAlert = Notif & { localKey: string; order: number; targetBarcode: string };
+export function buildInventoryAlerts(
+  products: Product[],
+  expirationAlertDays: number,
+  lowStockThresholdCount: number,
+  expiryOn: boolean,
+  stockOn: boolean,
+  readKeys: Set<string>,
+): InventoryAlert[] {
   const alerts: InventoryAlert[] = [];
   const now = new Date();
 
@@ -41,4 +48,3 @@ export function buildInventoryAlerts(products: Product[], expirationAlertDays: n
 
   return alerts.sort((a, b) => (a.kind === b.kind ? a.order - b.order : a.kind === 'expiry' ? -1 : 1));
 }
-

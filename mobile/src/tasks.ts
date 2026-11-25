@@ -20,22 +20,48 @@ export type Task = {
   custom?: CustomTask;
 };
 
-export function buildTasks(products: Product[], settings: Pick<StoreSetupSettings, 'expirationAlertDays' | 'lowStockThresholdCount'|'expiryEnabled'> = DEFAULT_STORE_SETUP_SETTINGS): Task[] {
+export function buildTasks(
+  products: Product[],
+  settings: Pick<
+    StoreSetupSettings,
+    'expirationAlertDays' | 'lowStockThresholdCount' | 'expiryEnabled'
+  > = DEFAULT_STORE_SETUP_SETTINGS,
+): Task[] {
   const out: Task[] = [];
   for (const p of products) {
-    const d = settings.expiryEnabled===false?null:daysLeft(p.expiry);
+    const d = settings.expiryEnabled === false ? null : daysLeft(p.expiry);
     if (d !== null && d < 0) {
-      out.push({ id: `expired:${p.barcode}`, kind: 'expired', title: `${p.name} 폐기 처리`, sub: '유통기한이 지났어요', icon: 'time-outline', tag: '폐기', tone: 'urgent' });
+      out.push({
+        id: `expired:${p.barcode}`,
+        kind: 'expired',
+        title: `${p.name} 폐기 처리`,
+        sub: '유통기한이 지났어요',
+        icon: 'time-outline',
+        tag: '폐기',
+        tone: 'urgent',
+      });
     } else if (d !== null && d <= settings.expirationAlertDays) {
       out.push({
-        id: `soon:${p.barcode}`, kind: 'soon', title: `${p.name} 유통기한 확인`,
+        id: `soon:${p.barcode}`,
+        kind: 'soon',
+        title: `${p.name} 유통기한 확인`,
         sub: d === 0 ? '유통기한 오늘' : d === 1 ? '유통기한 내일' : `유통기한 D-${d}`,
-        icon: 'time-outline', tag: d === 0 ? 'D-day' : `D-${d}`, tone: 'urgent',
+        icon: 'time-outline',
+        tag: d === 0 ? 'D-day' : `D-${d}`,
+        tone: 'urgent',
       });
     }
     const stockThreshold = productLowStockThreshold(p.min, settings.lowStockThresholdCount);
     if (isLowStock(p.stock, stockThreshold)) {
-      out.push({ id: `low:${p.barcode}`, kind: 'low', title: `${p.name} 발주 필요`, sub: `현재 ${p.stock}개 · 발주 기준 ${stockThreshold}개`, icon: 'cube-outline', tag: '발주', tone: 'action' });
+      out.push({
+        id: `low:${p.barcode}`,
+        kind: 'low',
+        title: `${p.name} 발주 필요`,
+        sub: `현재 ${p.stock}개 · 발주 기준 ${stockThreshold}개`,
+        icon: 'cube-outline',
+        tag: '발주',
+        tone: 'action',
+      });
     }
   }
   const order = { expired: 0, soon: 1, low: 2, custom: 3 };
@@ -43,7 +69,8 @@ export function buildTasks(products: Product[], settings: Pick<StoreSetupSetting
 }
 
 const doneKeys = (storeId: number) => api<string[]>('GET', `/api/stores/${storeId}/tasks/done`);
-const mark = (storeId: number, key: string, done: boolean) => api<string[]>('POST', `/api/stores/${storeId}/tasks/done`, { key, done });
+const mark = (storeId: number, key: string, done: boolean) =>
+  api<string[]>('POST', `/api/stores/${storeId}/tasks/done`, { key, done });
 
 // 업무 목록과 완료 표시. reload 로 다시 불러온다 (재고가 바뀐 뒤 화면에 돌아올 때)
 export function useTasks(storeId: number) {
@@ -56,31 +83,69 @@ export function useTasks(storeId: number) {
 
   useEffect(() => {
     let active = true;
-    getStoreSetupSettingsOrDefault(storeId).then((settings) => {
-      if (active) setAlertSettings(settings);
-    }).catch(fail);
-    return () => { active = false; };
+    getStoreSetupSettingsOrDefault(storeId)
+      .then((settings) => {
+        if (active) setAlertSettings(settings);
+      })
+      .catch(fail);
+    return () => {
+      active = false;
+    };
   }, [storeId]);
 
   const reload = useCallback(() => {
     const current = ++request.current;
-    Promise.all([listProducts(storeId), doneKeys(storeId), customTasks.list(storeId)]).then(([p, d, shared]) => {
-      if (current !== request.current) return;
-      setTasks([...buildTasks(p, alertSettings), ...shared.map((t): Task => ({id:`custom:${t.id}`,kind:'custom',title:t.title,sub:t.description,icon:'checkbox-outline',tag:taskStatus(t),tone:t.urgent?'urgent':'normal',custom:t}))]);
-      setDone([...d.filter(id=>!id.startsWith('custom:')), ...shared.filter(t=>t.status==='APPROVED').map(t=>`custom:${t.id}`)]);
-      setError('');
-    }, e => { if (current === request.current) fail(e); });
+    Promise.all([listProducts(storeId), doneKeys(storeId), customTasks.list(storeId)]).then(
+      ([p, d, shared]) => {
+        if (current !== request.current) return;
+        setTasks([
+          ...buildTasks(p, alertSettings),
+          ...shared.map(
+            (t): Task => ({
+              id: `custom:${t.id}`,
+              kind: 'custom',
+              title: t.title,
+              sub: t.description,
+              icon: 'checkbox-outline',
+              tag: taskStatus(t),
+              tone: t.urgent ? 'urgent' : 'normal',
+              custom: t,
+            }),
+          ),
+        ]);
+        setDone([
+          ...d.filter((id) => !id.startsWith('custom:')),
+          ...shared.filter((t) => t.status === 'APPROVED').map((t) => `custom:${t.id}`),
+        ]);
+        setError('');
+      },
+      (e) => {
+        if (current === request.current) fail(e);
+      },
+    );
   }, [storeId, alertSettings]);
-  useEffect(() => { reload(); return () => { request.current++; }; }, [reload]);
+  useEffect(() => {
+    reload();
+    return () => {
+      request.current++;
+    };
+  }, [reload]);
 
   const toggle = (id: string) => {
-    if(id.startsWith('custom:')) return;
+    if (id.startsWith('custom:')) return;
     const on = !done.includes(id);
     setDone((c) => (on ? [...c, id] : c.filter((x) => x !== id)));
-    mark(storeId, id, on).then(keys => setDone(current => [...keys.filter(key=>!key.startsWith('custom:')), ...current.filter(key=>key.startsWith('custom:'))]), (e) => {
-      fail(e);
-      reload();
-    });
+    mark(storeId, id, on).then(
+      (keys) =>
+        setDone((current) => [
+          ...keys.filter((key) => !key.startsWith('custom:')),
+          ...current.filter((key) => key.startsWith('custom:')),
+        ]),
+      (e) => {
+        fail(e);
+        reload();
+      },
+    );
   };
 
   return { tasks, done, toggle, reload, error };

@@ -27,8 +27,19 @@ type Props = {
 const GREEN = '#1E8E3E';
 
 export default function Scanner({
-  title, onClose, onScan, types = ['qr'], hint = 'QR 코드를 프레임 안에 맞춰주세요',
-  tag, name, sub, confirmLabel, confirmIcon, onConfirm, sheet, manualEntry,
+  title,
+  onClose,
+  onScan,
+  types = ['qr'],
+  hint = 'QR 코드를 프레임 안에 맞춰주세요',
+  tag,
+  name,
+  sub,
+  confirmLabel,
+  confirmIcon,
+  onConfirm,
+  sheet,
+  manualEntry,
 }: Props) {
   const [perm, ask] = useCameraPermissions();
   const [code, setCode] = useState<string | null>(null);
@@ -51,13 +62,29 @@ export default function Scanner({
       </View>
 
       <View style={s.camera}>
-        {code === null && <View pointerEvents="none" style={s.frame}>
-          <View style={[s.corner, { top: 0, left: 0, borderTopWidth: 4, borderLeftWidth: 4, borderTopLeftRadius: 14 }]} />
-          <View style={[s.corner, { top: 0, right: 0, borderTopWidth: 4, borderRightWidth: 4, borderTopRightRadius: 14 }]} />
-          <View style={[s.corner, { bottom: 0, left: 0, borderBottomWidth: 4, borderLeftWidth: 4, borderBottomLeftRadius: 14 }]} />
-          <View style={[s.corner, { bottom: 0, right: 0, borderBottomWidth: 4, borderRightWidth: 4, borderBottomRightRadius: 14 }]} />
-          <View style={s.line} />
-        </View>}
+        {code === null && (
+          <View pointerEvents="none" style={s.frame}>
+            <View
+              style={[s.corner, { top: 0, left: 0, borderTopWidth: 4, borderLeftWidth: 4, borderTopLeftRadius: 14 }]}
+            />
+            <View
+              style={[s.corner, { top: 0, right: 0, borderTopWidth: 4, borderRightWidth: 4, borderTopRightRadius: 14 }]}
+            />
+            <View
+              style={[
+                s.corner,
+                { bottom: 0, left: 0, borderBottomWidth: 4, borderLeftWidth: 4, borderBottomLeftRadius: 14 },
+              ]}
+            />
+            <View
+              style={[
+                s.corner,
+                { bottom: 0, right: 0, borderBottomWidth: 4, borderRightWidth: 4, borderBottomRightRadius: 14 },
+              ]}
+            />
+            <View style={s.line} />
+          </View>
+        )}
         {perm?.granted ? (
           <CameraView
             style={StyleSheet.absoluteFill}
@@ -78,7 +105,11 @@ export default function Scanner({
             <Text style={s.permText}>카메라 권한 허용하기</Text>
           </Pressable>
         )}
-        {code === null && <Text pointerEvents="none" style={s.hint}>{hint}</Text>}
+        {code === null && (
+          <Text pointerEvents="none" style={s.hint}>
+            {hint}
+          </Text>
+        )}
 
         {manualEntry && code === null && (
           <View style={s.manual}>
@@ -94,7 +125,11 @@ export default function Scanner({
               maxLength={manualEntry === 'text' ? 20 : 14}
               onSubmitEditing={() => typed.trim().length > 0 && submitTyped()}
             />
-            <Pressable style={[s.manualBtn, !typed.trim() && { opacity: 0.4 }]} disabled={!typed.trim()} onPress={submitTyped}>
+            <Pressable
+              style={[s.manualBtn, !typed.trim() && { opacity: 0.4 }]}
+              disabled={!typed.trim()}
+              onPress={submitTyped}
+            >
               <Text style={s.manualBtnText}>확인</Text>
             </Pressable>
           </View>
@@ -140,24 +175,81 @@ const s = StyleSheet.create({
   close: { position: 'absolute', left: 16 },
   headerText: { fontSize: 15, fontWeight: '700', color: C.text },
   camera: { flex: 1, backgroundColor: '#1E1B2B', alignItems: 'center', justifyContent: 'center' },
-  permBtn: { paddingHorizontal: 20, height: 44, borderRadius: 22, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
+  permBtn: {
+    paddingHorizontal: 20,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   permText: { fontSize: 14, fontWeight: '700', color: C.primary },
   frame: { position: 'absolute', width: 220, height: 220, zIndex: 1 },
   corner: { position: 'absolute', width: 46, height: 46, borderColor: '#fff' },
   line: { position: 'absolute', left: 20, right: 20, top: '50%', height: 2, backgroundColor: '#8F86D6' },
   manual: { position: 'absolute', left: 16, right: 16, bottom: 20, flexDirection: 'row', gap: 8 },
-  manualInput: { flex: 1, minWidth: 0, height: 48, borderRadius: 12, backgroundColor: '#fff', paddingHorizontal: 14, fontSize: 15, color: C.text, ...(Platform.OS === 'android' ? { fontFamily: 'sans-serif', paddingVertical: 0, includeFontPadding: false, textAlignVertical: 'center' as const } : {}) },
-  manualBtn: { width: 64, height: 48, borderRadius: 12, backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center' },
+  manualInput: {
+    flex: 1,
+    minWidth: 0,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: '#fff',
+    paddingHorizontal: 14,
+    fontSize: 15,
+    color: C.text,
+    ...(Platform.OS === 'android'
+      ? {
+          fontFamily: 'sans-serif',
+          paddingVertical: 0,
+          includeFontPadding: false,
+          textAlignVertical: 'center' as const,
+        }
+      : {}),
+  },
+  manualBtn: {
+    width: 64,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: C.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   manualBtnText: { fontSize: 14, fontWeight: '700', color: '#fff' },
   hint: { position: 'absolute', bottom: 150, color: '#fff', fontSize: 13, fontWeight: '600' },
-  sheet: { zIndex: 2, position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 28 },
+  sheet: {
+    zIndex: 2,
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+    paddingBottom: 28,
+  },
   handle: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: '#E1DFEA', marginBottom: 14 },
   found: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 },
-  foundIcon: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#F0EEF8', alignItems: 'center', justifyContent: 'center' },
+  foundIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#F0EEF8',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   foundTag: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   foundTagText: { fontSize: 10.5, fontWeight: '700', color: GREEN },
   foundName: { fontSize: 16, fontWeight: '700', color: C.text, marginTop: 2 },
   foundSub: { fontSize: 11, color: '#828282', marginTop: 2 },
-  confirm: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 50, borderRadius: 25, backgroundColor: C.primary },
+  confirm: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: C.primary,
+  },
   confirmText: { fontSize: 15, fontWeight: '700', color: '#fff' },
 });

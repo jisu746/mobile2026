@@ -1,2 +1,76 @@
-import {useEffect,useState} from 'react';import {Pressable,View} from 'react-native';import {Text,TextInput} from './font';import {api} from './api';import {C} from './ui';
-export default function EmployeeContact({storeId,memberId}:{storeId:number;memberId:number}){const [open,setOpen]=useState(false),[name,setName]=useState(''),[phone,setPhone]=useState(''),[message,setMessage]=useState(''),[busy,setBusy]=useState(false);const path=`/api/stores/${storeId}/staff/${memberId}/contact`;useEffect(()=>{if(open)api<{name:string;phone:string|null}>('GET',path).then(v=>{setName(v.name);setPhone(v.phone??'');},e=>setMessage(e.message));},[open,path]);const input={height:44,borderWidth:1,borderColor:'#D8D3E8',borderRadius:10,paddingHorizontal:10,marginVertical:6,color:C.text};return <View><Pressable onPress={()=>setOpen(v=>!v)}><Text style={{paddingVertical:10,color:C.primary}}>직원 표시 이름·연락처 {open?'⌄':'〉'}</Text></Pressable>{open&&<><TextInput style={input} value={name} onChangeText={setName} maxLength={30} placeholder="이 매장에서 사용할 직원 이름"/><TextInput style={input} value={phone} onChangeText={setPhone} keyboardType="phone-pad" maxLength={30} placeholder="연락처 (선택)"/><Pressable disabled={busy||!name.trim()} onPress={async()=>{if(busy)return;setBusy(true);try{await api('PUT',path,{name,phone});setMessage('직원 정보를 저장했어요.');}catch(e){setMessage(e instanceof Error?e.message:'저장 실패');}finally{setBusy(false);}}}><Text style={{paddingVertical:10,color:C.primary,fontWeight:'700'}}>직원 정보 저장</Text></Pressable><Text style={{fontSize:12,color:C.primary}}>{message}</Text></>}</View>;}
+import { useEffect, useState } from 'react';
+import { Pressable, View } from 'react-native';
+import { Text, TextInput } from './font';
+import { api } from './api';
+import { C } from './ui';
+export default function EmployeeContact({ storeId, memberId }: { storeId: number; memberId: number }) {
+  const [open, setOpen] = useState(false),
+    [name, setName] = useState(''),
+    [phone, setPhone] = useState(''),
+    [message, setMessage] = useState(''),
+    [busy, setBusy] = useState(false);
+  const path = `/api/stores/${storeId}/staff/${memberId}/contact`;
+  useEffect(() => {
+    if (open)
+      api<{ name: string; phone: string | null }>('GET', path).then(
+        (v) => {
+          setName(v.name);
+          setPhone(v.phone ?? '');
+        },
+        (e) => setMessage(e.message),
+      );
+  }, [open, path]);
+  const input = {
+    height: 44,
+    borderWidth: 1,
+    borderColor: '#D8D3E8',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    marginVertical: 6,
+    color: C.text,
+  };
+  return (
+    <View>
+      <Pressable onPress={() => setOpen((v) => !v)}>
+        <Text style={{ paddingVertical: 10, color: C.primary }}>직원 표시 이름·연락처 {open ? '⌄' : '〉'}</Text>
+      </Pressable>
+      {open && (
+        <>
+          <TextInput
+            style={input}
+            value={name}
+            onChangeText={setName}
+            maxLength={30}
+            placeholder="이 매장에서 사용할 직원 이름"
+          />
+          <TextInput
+            style={input}
+            value={phone}
+            onChangeText={setPhone}
+            keyboardType="phone-pad"
+            maxLength={30}
+            placeholder="연락처 (선택)"
+          />
+          <Pressable
+            disabled={busy || !name.trim()}
+            onPress={async () => {
+              if (busy) return;
+              setBusy(true);
+              try {
+                await api('PUT', path, { name, phone });
+                setMessage('직원 정보를 저장했어요.');
+              } catch (e) {
+                setMessage(e instanceof Error ? e.message : '저장 실패');
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            <Text style={{ paddingVertical: 10, color: C.primary, fontWeight: '700' }}>직원 정보 저장</Text>
+          </Pressable>
+          <Text style={{ fontSize: 12, color: C.primary }}>{message}</Text>
+        </>
+      )}
+    </View>
+  );
+}

@@ -11,9 +11,26 @@ import type { WorkPartSetting } from './storeSetupRepository';
 
 type Step = 1 | 2 | 3;
 // onBack은 매장을 추가로 등록할 때만 전달된다
-export type NewStore = { name: string; type: string; branch: string; address: string; addressDetail: string; openTime: string; closeTime: string; workParts: WorkPartSetting[]; expirationAlertDays: number; lowStockThresholdCount: number };
+export type NewStore = {
+  name: string;
+  type: string;
+  branch: string;
+  address: string;
+  addressDetail: string;
+  openTime: string;
+  closeTime: string;
+  workParts: WorkPartSetting[];
+  expirationAlertDays: number;
+  lowStockThresholdCount: number;
+};
 // onCreate는 서버에 매장을 등록하고 초대 코드를 돌려준다
-type Props = { step: Step; onStep: (n: Step) => void; onBack?: () => void; onCreate: (s: NewStore) => Promise<string>; onDone: () => void };
+type Props = {
+  step: Step;
+  onStep: (n: Step) => void;
+  onBack?: () => void;
+  onCreate: (s: NewStore) => Promise<string>;
+  onDone: () => void;
+};
 
 const TYPES: { label: string; icon: keyof typeof MaterialIcons.glyphMap; width: number }[] = [
   { label: '카페', icon: 'local-cafe', width: 70 },
@@ -46,10 +63,27 @@ export default function StoreSetup({ step, onStep, onBack, onCreate, onDone }: P
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  const ok = step === 1 ? !!name.trim() && !!type && /^\d{5}$/.test(addr) : step === 2 ? TIME_RE.test(open) && TIME_RE.test(close) && workParts.every((part) => !!part.name.trim() && TIME_RE.test(part.start) && TIME_RE.test(part.end)) : true;
+  const ok =
+    step === 1
+      ? !!name.trim() && !!type && /^\d{5}$/.test(addr)
+      : step === 2
+        ? TIME_RE.test(open) &&
+          TIME_RE.test(close) &&
+          workParts.every((part) => !!part.name.trim() && TIME_RE.test(part.start) && TIME_RE.test(part.end))
+        : true;
   const storeName = `${name}${branch ? ' ' + branch : ''}`;
-  const updateWorkPart = (id: string, values: Partial<WorkPartSetting>) => setWorkParts((current) => current.map((part) => part.id === id ? { ...part, ...values } : part));
-  const addWorkPart = () => setWorkParts((current) => [...current, { id: `custom-${Date.now()}-${current.length}`, name: `새 파트 ${current.length + 1}`, start: '10:00', end: '14:00' }]);
+  const updateWorkPart = (id: string, values: Partial<WorkPartSetting>) =>
+    setWorkParts((current) => current.map((part) => (part.id === id ? { ...part, ...values } : part)));
+  const addWorkPart = () =>
+    setWorkParts((current) => [
+      ...current,
+      {
+        id: `custom-${Date.now()}-${current.length}`,
+        name: `새 파트 ${current.length + 1}`,
+        start: '10:00',
+        end: '14:00',
+      },
+    ]);
   const removeWorkPart = (id: string) => setWorkParts((current) => current.filter((part) => part.id !== id));
 
   // 2단계에서 다음을 누르면 매장을 등록한다. 이미 등록했다면(뒤로 갔다가 다시 온 경우) 다시 만들지 않는다.
@@ -59,7 +93,20 @@ export default function StoreSetup({ step, onStep, onBack, onCreate, onDone }: P
       setBusy(true);
       setError('');
       try {
-        setCode(await onCreate({ name: name.trim(), type, branch: branch.trim(), address: addr.trim(), addressDetail: addr2.trim(), openTime: open, closeTime: close, workParts, expirationAlertDays, lowStockThresholdCount }));
+        setCode(
+          await onCreate({
+            name: name.trim(),
+            type,
+            branch: branch.trim(),
+            address: addr.trim(),
+            addressDetail: addr2.trim(),
+            openTime: open,
+            closeTime: close,
+            workParts,
+            expirationAlertDays,
+            lowStockThresholdCount,
+          }),
+        );
       } catch (e) {
         setError(e instanceof Error ? e.message : '매장을 등록하지 못했어요');
         setBusy(false);
@@ -78,25 +125,48 @@ export default function StoreSetup({ step, onStep, onBack, onCreate, onDone }: P
         </Pressable>
       )}
       <View style={[s.firstHeader, step === 3 && s.completeHeader]}>
-        <Image source={require('../assets/storemate-logo.png')} style={s.firstLogo} resizeMode="cover" accessibilityLabel="StoreMate" />
+        <Image
+          source={require('../assets/storemate-logo.png')}
+          style={s.firstLogo}
+          resizeMode="cover"
+          accessibilityLabel="StoreMate"
+        />
         <View style={[s.firstBars, step === 2 && s.operatingBars, step === 3 && s.completeBars]}>
-          {[1, 2, 3].map((n) => <View key={n} style={[s.bar, n <= step && { backgroundColor: C.primary }]} />)}
+          {[1, 2, 3].map((n) => (
+            <View key={n} style={[s.bar, n <= step && { backgroundColor: C.primary }]} />
+          ))}
         </View>
       </View>
 
-      <ScrollView key={step} contentContainerStyle={step === 1 ? s.firstBody : step === 2 ? s.operatingBody : s.completeBody} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+      <ScrollView
+        key={step}
+        contentContainerStyle={step === 1 ? s.firstBody : step === 2 ? s.operatingBody : s.completeBody}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
         {step === 1 && (
           <View style={s.firstForm}>
             <Text style={[s.title, s.firstTitle]}>매장 정보를 입력해 주세요</Text>
             <Text style={[s.label, s.firstLabel]}>매장 이름</Text>
-            <Field placeholder="예) 민수네 카페" value={name} onChangeText={setName} style={[s.firstField, name ? s.active : undefined]} />
+            <Field
+              placeholder="예) 민수네 카페"
+              value={name}
+              onChangeText={setName}
+              style={[s.firstField, name ? s.active : undefined]}
+            />
 
             <Text style={s.label}>업종</Text>
             <View style={s.chips}>
               {TYPES.map((t) => {
                 const on = type === t.label;
                 return (
-                  <Pressable key={t.label} onPress={() => setType(t.label)} accessibilityRole="button" accessibilityState={{ selected: on }} style={[s.chip, { width: t.width }, on && s.chipOn]}>
+                  <Pressable
+                    key={t.label}
+                    onPress={() => setType(t.label)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: on }}
+                    style={[s.chip, { width: t.width }, on && s.chipOn]}
+                  >
                     <MaterialIcons name={t.icon} size={18} color={on ? '#fff' : '#5E5C6B'} />
                     <Text style={[s.chipText, on && { color: '#fff' }]}>{t.label}</Text>
                   </Pressable>
@@ -109,7 +179,14 @@ export default function StoreSetup({ step, onStep, onBack, onCreate, onDone }: P
 
             <Text style={s.label}>매장 주소</Text>
             <View style={s.search}>
-              <Field placeholder="우편번호 5자리를 입력하세요" value={addr} onChangeText={(value) => setAddr(value.replace(/\D/g, '').slice(0, 5))} keyboardType="number-pad" maxLength={5} style={[s.searchInput, s.firstField]} />
+              <Field
+                placeholder="우편번호 5자리를 입력하세요"
+                value={addr}
+                onChangeText={(value) => setAddr(value.replace(/\D/g, '').slice(0, 5))}
+                keyboardType="number-pad"
+                maxLength={5}
+                style={[s.searchInput, s.firstField]}
+              />
             </View>
 
             <Text style={s.label}>상세 주소</Text>
@@ -131,22 +208,51 @@ export default function StoreSetup({ step, onStep, onBack, onCreate, onDone }: P
 
             <View style={s.rowHead}>
               <Text style={[s.label, s.partsLabel]}>근무 파트 (지금 꼭 입력할 필요는 없어요)</Text>
-              <Pressable onPress={addWorkPart} hitSlop={8}><Text style={s.add}>+ 추가</Text></Pressable>
+              <Pressable onPress={addWorkPart} hitSlop={8}>
+                <Text style={s.add}>+ 추가</Text>
+              </Pressable>
             </View>
             <View style={s.card}>
               {workParts.map((part, i) => (
                 <View key={part.id} style={[s.partItem, i > 0 && s.rowLine]}>
                   <View style={s.partNameRow}>
-                    <Field value={part.name} onChangeText={(value) => updateWorkPart(part.id, { name: value })} placeholder="파트 이름" style={s.partNameInput} maxLength={20} />
-                    <Pressable accessibilityRole="button" accessibilityLabel={`${part.name} 삭제`} onPress={() => removeWorkPart(part.id)} hitSlop={8}>
+                    <Field
+                      value={part.name}
+                      onChangeText={(value) => updateWorkPart(part.id, { name: value })}
+                      placeholder="파트 이름"
+                      style={s.partNameInput}
+                      maxLength={20}
+                    />
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`${part.name} 삭제`}
+                      onPress={() => removeWorkPart(part.id)}
+                      hitSlop={8}
+                    >
                       <Ionicons name="trash-outline" size={18} color="#828282" />
                     </Pressable>
                   </View>
                   <View style={s.partTimeRow}>
                     <Text style={s.partTimeLabel}>근무 시간</Text>
-                    <Field value={part.start} onChangeText={(value) => updateWorkPart(part.id, { start: value.replace(/[^0-9:]/g, '').slice(0, 5) })} keyboardType="numbers-and-punctuation" maxLength={5} style={s.partTimeInput} />
+                    <Field
+                      value={part.start}
+                      onChangeText={(value) =>
+                        updateWorkPart(part.id, { start: value.replace(/[^0-9:]/g, '').slice(0, 5) })
+                      }
+                      keyboardType="numbers-and-punctuation"
+                      maxLength={5}
+                      style={s.partTimeInput}
+                    />
                     <Text style={s.dash}>–</Text>
-                    <Field value={part.end} onChangeText={(value) => updateWorkPart(part.id, { end: value.replace(/[^0-9:]/g, '').slice(0, 5) })} keyboardType="numbers-and-punctuation" maxLength={5} style={s.partTimeInput} />
+                    <Field
+                      value={part.end}
+                      onChangeText={(value) =>
+                        updateWorkPart(part.id, { end: value.replace(/[^0-9:]/g, '').slice(0, 5) })
+                      }
+                      keyboardType="numbers-and-punctuation"
+                      maxLength={5}
+                      style={s.partTimeInput}
+                    />
                   </View>
                 </View>
               ))}
@@ -161,7 +267,15 @@ export default function StoreSetup({ step, onStep, onBack, onCreate, onDone }: P
                   <Text style={s.rowTitle}>유통기한 임박 알림</Text>
                 </View>
                 <View style={s.settingChoices}>
-                  {[1, 3, 5, 7].map((days) => <Pressable key={days} onPress={() => setExpirationAlertDays(days)} style={[s.choice, expirationAlertDays === days && s.choiceActive]}><Text style={[s.choiceText, expirationAlertDays === days && s.choiceTextActive]}>D-{days}</Text></Pressable>)}
+                  {[1, 3, 5, 7].map((days) => (
+                    <Pressable
+                      key={days}
+                      onPress={() => setExpirationAlertDays(days)}
+                      style={[s.choice, expirationAlertDays === days && s.choiceActive]}
+                    >
+                      <Text style={[s.choiceText, expirationAlertDays === days && s.choiceTextActive]}>D-{days}</Text>
+                    </Pressable>
+                  ))}
                 </View>
               </View>
               <View style={[s.settingBlock, s.rowLine]}>
@@ -170,7 +284,17 @@ export default function StoreSetup({ step, onStep, onBack, onCreate, onDone }: P
                   <Text style={s.rowTitle}>재고 부족 기준</Text>
                 </View>
                 <View style={s.settingChoices}>
-                  {[3, 5, 7, 10].map((count) => <Pressable key={count} onPress={() => setLowStockThresholdCount(count)} style={[s.choice, lowStockThresholdCount === count && s.choiceActive]}><Text style={[s.choiceText, lowStockThresholdCount === count && s.choiceTextActive]}>{count}개 이하</Text></Pressable>)}
+                  {[3, 5, 7, 10].map((count) => (
+                    <Pressable
+                      key={count}
+                      onPress={() => setLowStockThresholdCount(count)}
+                      style={[s.choice, lowStockThresholdCount === count && s.choiceActive]}
+                    >
+                      <Text style={[s.choiceText, lowStockThresholdCount === count && s.choiceTextActive]}>
+                        {count}개 이하
+                      </Text>
+                    </Pressable>
+                  ))}
                 </View>
               </View>
             </View>
@@ -184,7 +308,11 @@ export default function StoreSetup({ step, onStep, onBack, onCreate, onDone }: P
 
             <View style={s.invite}>
               <View style={s.storeRow}>
-                <Image source={require('../assets/storemate-store-icon.png')} style={s.storeIcon} resizeMode="contain" />
+                <Image
+                  source={require('../assets/storemate-store-icon.png')}
+                  style={s.storeIcon}
+                  resizeMode="contain"
+                />
                 <Text style={s.storeName}>{storeName}</Text>
               </View>
               <View style={s.qr}>
@@ -205,18 +333,23 @@ export default function StoreSetup({ step, onStep, onBack, onCreate, onDone }: P
                 <Ionicons name="share-social-outline" size={16} color={C.primary} />
                 <Text style={s.actionText}>공유하기</Text>
               </Pressable>
-              <QrSaveButton code={code}/>
+              <QrSaveButton code={code} />
             </View>
           </>
         )}
         <View style={step === 3 ? s.completeBottom : s.firstBottom}>
           {!!error && <Text style={s.error}>{error}</Text>}
-          <Pressable accessibilityRole="button" accessibilityLabel={step === 3 ? '시작하기' : '다음'} disabled={!ok || busy} onPress={next} style={[s.continueButton, (!ok || busy) && { opacity: 0.4 }]}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={step === 3 ? '시작하기' : '다음'}
+            disabled={!ok || busy}
+            onPress={next}
+            style={[s.continueButton, (!ok || busy) && { opacity: 0.4 }]}
+          >
             <Text style={s.continueText}>{step === 3 ? '시작하기' : busy ? '등록하는 중...' : '다음'}</Text>
           </Pressable>
         </View>
       </ScrollView>
-
     </View>
   );
 }
@@ -245,7 +378,13 @@ const s = StyleSheet.create({
   completeBars: { marginLeft: 27, marginRight: 26, marginTop: 103 },
   completeBody: { paddingHorizontal: 24, paddingTop: 25, paddingBottom: 39 },
   completeBottom: { marginHorizontal: -5, paddingTop: 22 },
-  continueButton: { height: 52, borderRadius: 24, backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center' },
+  continueButton: {
+    height: 52,
+    borderRadius: 24,
+    backgroundColor: C.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   continueText: { fontSize: 15.1, fontWeight: '600', color: '#fff' },
   storeIcon: { width: 26, height: 26 },
   bar: { flex: 1, height: 4, borderRadius: 2, backgroundColor: '#ECEAF7' },
@@ -267,10 +406,26 @@ const s = StyleSheet.create({
   },
   chipOn: { backgroundColor: C.primary, borderColor: C.primary },
   chipText: { fontSize: 13.2, fontWeight: '600', color: C.text },
-  search: { flexDirection: 'row', alignItems: 'center', height: 52, borderWidth: 1, borderColor: C.border, borderRadius: 12, paddingLeft: 0 },
+  search: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 52,
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 12,
+    paddingLeft: 0,
+  },
   searchInput: { flex: 1, minWidth: 0, borderWidth: 0, height: 50 },
   hours: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  time: { height: 54, flex: 1, minWidth: 0, paddingHorizontal: 4, textAlign: 'center', fontSize: 16, fontWeight: '600' },
+  time: {
+    height: 54,
+    flex: 1,
+    minWidth: 0,
+    paddingHorizontal: 4,
+    textAlign: 'center',
+    fontSize: 16,
+    fontWeight: '600',
+  },
   dash: { color: '#828282' },
   rowHead: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
   add: { fontSize: 12, fontWeight: '600', color: C.primary, marginBottom: 8 },
@@ -282,11 +437,27 @@ const s = StyleSheet.create({
   partTimeLabel: { width: 62, fontSize: 12, color: '#5E5C6B' },
   partTimeInput: { flex: 1, minWidth: 0, height: 38, fontSize: 13, textAlign: 'center', paddingHorizontal: 4 },
   noParts: { padding: 16, color: '#828282', fontSize: 13 },
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, height: 49 },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    height: 49,
+  },
   rowLine: { borderTopWidth: 1, borderTopColor: '#EEEDF3' },
   settingBlock: { padding: 14, gap: 10 },
   settingChoices: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  choice: { minWidth: 56, height: 34, paddingHorizontal: 12, borderRadius: 17, borderWidth: 1, borderColor: C.border, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
+  choice: {
+    minWidth: 56,
+    height: 34,
+    paddingHorizontal: 12,
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: C.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+  },
   choiceActive: { borderColor: C.primary, backgroundColor: C.primary },
   choiceText: { color: C.primary, fontSize: 12.5, fontWeight: '600' },
   choiceTextActive: { color: '#fff' },
@@ -294,15 +465,42 @@ const s = StyleSheet.create({
   rowTitle: { fontSize: 14.2, fontWeight: '600', color: C.text },
   rowSub: { fontSize: 14, color: '#5E5C6B' },
   rowValue: { fontSize: 13.7, fontWeight: '700', color: C.primary },
-  invite: { height: 360, borderWidth: 1, borderColor: '#E4E2EC', borderRadius: 20, alignItems: 'center', paddingTop: 24, marginTop: 16 },
+  invite: {
+    height: 360,
+    borderWidth: 1,
+    borderColor: '#E4E2EC',
+    borderRadius: 20,
+    alignItems: 'center',
+    paddingTop: 24,
+    marginTop: 16,
+  },
   storeRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   storeName: { fontSize: 15, fontWeight: '700', color: C.text },
-  qr: { marginTop: 18, width: 202, height: 202, borderWidth: 1, borderColor: '#E4E2EC', borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff', overflow: 'hidden' },
+  qr: {
+    marginTop: 18,
+    width: 202,
+    height: 202,
+    borderWidth: 1,
+    borderColor: '#E4E2EC',
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+    overflow: 'hidden',
+  },
   codeLabel: { fontSize: 11.9, lineHeight: 30, color: '#828282', marginTop: 14 },
   codeRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
   code: { fontSize: 26, fontWeight: '800', letterSpacing: 4, color: C.primary },
   actions: { flexDirection: 'row', gap: 6, marginTop: 12 },
-  action: { flex: 1, height: 48, borderRadius: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  action: {
+    flex: 1,
+    height: 48,
+    borderRadius: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
   actionLine: { borderWidth: 1, borderColor: '#E6E4EE', backgroundColor: '#fff' },
   actionText: { fontSize: 14.1, fontWeight: '600', color: C.primary },
 });

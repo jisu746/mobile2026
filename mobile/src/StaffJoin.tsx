@@ -166,9 +166,13 @@ export default function StaffJoin({ step, onStep, onBack, onDone, onJoin, onPoll
 
       {(step === 3 || step === 4) && (
         <View style={s.body}>
-          <Text style={s.title}>{step === 3 ? '사장님의 승인을\n기다리고 있어요' : '승인 됐어요!\n이제 함께 일해요'}</Text>
+          <Text style={s.title}>
+            {step === 3 ? '사장님의 승인을\n기다리고 있어요' : '승인 됐어요!\n이제 함께 일해요'}
+          </Text>
           <Text style={s.desc}>
-            {step === 3 ? '승인되면 알림으로 알려드려요. 이 화면을 닫아도 괜찮아요.' : '배정된 근무 파트와 오늘의 업무를 확인할 수 있어요.'}
+            {step === 3
+              ? '승인되면 알림으로 알려드려요. 이 화면을 닫아도 괜찮아요.'
+              : '배정된 근무 파트와 오늘의 업무를 확인할 수 있어요.'}
           </Text>
 
           <View style={s.circleWrap}>
@@ -218,22 +222,72 @@ const s = StyleSheet.create({
   title: { fontSize: 22.5, fontWeight: '700', color: C.text, lineHeight: 32, letterSpacing: -0.6 },
   desc: { fontSize: 12.5, color: '#5E5C6B', marginTop: 8 },
   scanCard: { backgroundColor: C.primary, borderRadius: 18, padding: 18, marginTop: 22 },
-  scanIcon: { width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' },
+  scanIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   scanTitle: { color: '#fff', fontSize: 15, fontWeight: '700', marginTop: 14 },
   scanSub: { color: 'rgba(255,255,255,0.8)', fontSize: 11.5, marginTop: 4 },
-  scanBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 46, borderRadius: 23, backgroundColor: '#fff', marginTop: 16 },
+  scanBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: '#fff',
+    marginTop: 16,
+  },
   scanBtnText: { fontSize: 14, fontWeight: '700', color: C.primary },
   divider: { flexDirection: 'row', alignItems: 'center', gap: 8, marginVertical: 22 },
   line: { flex: 1, height: 1, backgroundColor: '#E6E6E6' },
   or: { fontSize: 12, color: '#828282' },
   label: { fontSize: 12.3, fontWeight: '600', color: '#5E5C6B', marginBottom: 8 },
-  codeBox: { flexDirection: 'row', alignItems: 'center', height: 52, borderWidth: 1, borderColor: C.border, borderRadius: 12, paddingLeft: 14 },
+  codeBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 52,
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 12,
+    paddingLeft: 14,
+  },
   codeInput: { flex: 1, minWidth: 0, borderWidth: 0, height: 50 },
-  codeBtn: { height: 48, borderRadius: 24, backgroundColor: '#ECEAF7', alignItems: 'center', justifyContent: 'center', marginTop: 12 },
+  codeBtn: {
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#ECEAF7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+  },
   codeBtnText: { fontSize: 14, fontWeight: '700', color: C.primary },
   circleWrap: { alignSelf: 'center', marginVertical: 34 },
-  circle: { width: 170, height: 170, borderRadius: 85, backgroundColor: '#F0EEF8', borderWidth: 1, borderColor: '#E3E0F2', alignItems: 'center', justifyContent: 'center' },
-  check: { position: 'absolute', right: 6, bottom: 6, width: 34, height: 34, borderRadius: 10, backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center' },
+  circle: {
+    width: 170,
+    height: 170,
+    borderRadius: 85,
+    backgroundColor: '#F0EEF8',
+    borderWidth: 1,
+    borderColor: '#E3E0F2',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  check: {
+    position: 'absolute',
+    right: 6,
+    bottom: 6,
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: C.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   table: { borderWidth: 1, borderColor: '#E6E4EE', borderRadius: 12 },
   row: { flexDirection: 'row', alignItems: 'center', height: 46, paddingHorizontal: 14 },
   rowLine: { borderTopWidth: 1, borderTopColor: '#EEEDF3' },

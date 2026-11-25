@@ -1,30 +1,350 @@
-import {useEffect,useRef,useState} from 'react';import {Platform,Pressable,ScrollView,Switch,View} from 'react-native';
-import {Text,TextInput} from './font';import {api} from './api';import {C} from './ui';
+import { useEffect, useRef, useState } from 'react';
+import { Platform, Pressable, ScrollView, Switch, View } from 'react-native';
+import { Text, TextInput } from './font';
+import { api } from './api';
+import { C } from './ui';
 import AutomaticPayroll from './AutomaticPayroll';
-type Line={id:number;kind:string;reason:string;amount:number;calculation:string;actor:string;createdAt:string;cancelled:boolean;cancelReason:string|null;automatic?:boolean};
-type Summary={period:string;basePay:number;additions:number;deductions:number;netPay:number;unknownWages:number;activeSessions:number;finalized:boolean;finalizedBy:string|null;finalizedAt:string|null;entries:Line[]};
-const kinds=[['WEEKLY','주휴 수당'],['OVERTIME','연장 가산'],['NIGHT','야간 가산'],['HOLIDAY','휴일 가산'],['DEDUCTION','공제'],['WAGE_CORRECTION','시급 정정 차액'],['OTHER','기타 지급']];
-const won=(n:number)=>n.toLocaleString('ko-KR')+'원';
-export default function PayrollSettlement({storeId,memberId,period}:{storeId:number;memberId?:number;period:string}){
- const working=useRef(false),key=useRef(''),lastPayload=useRef('');
- const owner=memberId!==undefined;const path=owner?`/api/stores/${storeId}/staff/${memberId}/payroll`:`/api/stores/${storeId}/payroll/me`;
- const [data,setData]=useState<Summary|null>(null),[error,setError]=useState(''),[busy,setBusy]=useState(false),[open,setOpen]=useState(false),[version,setVersion]=useState(0);
- const [kind,setKind]=useState('WEEKLY'),[reason,setReason]=useState(''),[amount,setAmount]=useState(''),[hours,setHours]=useState(''),[rate,setRate]=useState(''),[factor,setFactor]=useState('1'),[formula,setFormula]=useState(false),[confirmed,setConfirmed]=useState(false),[cancelId,setCancelId]=useState<number|null>(null),[cancelReason,setCancelReason]=useState('');
- useEffect(()=>{let alive=true;setData(null);setError('');setConfirmed(false);api<Summary>('GET',`${path}?month=${period}`).then(v=>{if(alive)setData(v);},e=>{if(alive)setError(e.message);});return()=>{alive=false;};},[path,period,version]);
- const run=async(suffix:string,payload:unknown)=>{if(working.current)return;working.current=true;setBusy(true);setError('');try{if(suffix==='/entries'){const serialized=JSON.stringify(payload);if(lastPayload.current!==serialized){lastPayload.current=serialized;key.current='payroll-'+Date.now()+'-'+Math.random().toString(36).slice(2);}payload={...(payload as object),clientKey:key.current};}setData(await api<Summary>('POST',`${path}${suffix}?month=${period}`,payload));setReason('');setAmount('');setCancelId(null);setCancelReason('');lastPayload.current='';}catch(e){setError(e instanceof Error?e.message:'급여 저장 실패');}finally{working.current=false;setBusy(false);}};
- const input={height:44,borderWidth:1,borderColor:'#D8D3E8',borderRadius:10,paddingHorizontal:10,paddingVertical:0,marginTop:8,fontSize:14,color:C.text,...(Platform.OS==='android'?{fontFamily:'sans-serif',includeFontPadding:false}:{})};
- const link={fontSize:13,lineHeight:21,color:C.primary,paddingVertical:10};const note={fontSize:12,lineHeight:20,color:'#686373'};
- return <View style={{marginTop:14,borderWidth:1,borderColor:'#E4E2EC',borderRadius:16,padding:14}}><Pressable onPress={()=>setOpen(v=>!v)}><Text style={{fontSize:15,fontWeight:'700',color:C.primary}}>수당·공제·급여 명세 {open?'접기':'열기'}</Text></Pressable>{open&&<>
- {!!error&&<><Text style={{color:'#B3261E',fontSize:12,lineHeight:20}}>{error}</Text><Pressable onPress={()=>setVersion(v=>v+1)}><Text style={link}>다시 불러오기</Text></Pressable></>}
- {!data&&!error&&<Text style={note}>급여 항목을 불러오는 중…</Text>}{data&&<><Text style={note}>{period} · {data.finalized?'확정 명세':'미확정 계산'}</Text><Text style={note}>퇴근 완료 기본급 {won(data.basePay)}</Text><Text style={note}>추가 지급 {won(data.additions)} · 공제 {won(data.deductions)}</Text><Text style={{fontSize:20,lineHeight:30,color:C.primary,fontWeight:'700'}}>지급 예상 {won(data.netPay)}</Text>{!!(data.unknownWages||data.activeSessions)&&<Text style={{...note,color:'#B3261E'}}>시급 미확정 {data.unknownWages}건 · 근무 중 {data.activeSessions}건은 이 명세 기본급에서 제외했어요.</Text>}
- <Text style={note}>출근한 달을 기준으로 계산해요. 수당 대상·휴게시간·공제 근거는 근로계약과 실제 근무를 확인해야 해요. 원래 근무별 시급은 유지하고 정정 차액을 별도 항목으로 남겨요.</Text>
- {owner&&<AutomaticPayroll storeId={storeId} memberId={memberId!} period={period} onApplied={()=>setVersion(v=>v+1)}/>}
- {data.entries.map(e=><View key={e.id} style={{borderTopWidth:1,borderTopColor:'#E4E2EC',paddingTop:10,marginTop:10,opacity:e.cancelled?.5:1}}><Text>{kinds.find(k=>k[0]===e.kind)?.[1]} · {won(e.amount)} {e.cancelled?'(취소)':''}</Text><Text style={note}>{e.reason}{'\n'}{e.calculation}{'\n'}{e.actor} · {e.createdAt.replace('T',' ')}{e.cancelled?`\n취소 사유: ${e.cancelReason}`:''}</Text>{owner&&!data.finalized&&!e.cancelled&&!e.automatic&&<Pressable onPress={()=>setCancelId(e.id)}><Text style={link}>항목 취소</Text></Pressable>}{cancelId===e.id&&<><TextInput style={input} value={cancelReason} onChangeText={setCancelReason} maxLength={200} placeholder="취소 사유"/><Pressable disabled={busy||!cancelReason.trim()} onPress={()=>void run(`/entries/${e.id}/cancel`,{reason:cancelReason})}><Text style={link}>취소 기록 저장</Text></Pressable></>}</View>)}
- {data.finalized?<Text style={note}>확정: {data.finalizedBy} · {data.finalizedAt?.replace('T',' ')}</Text>:owner&&<><Text style={{fontSize:14,fontWeight:'700',marginTop:18}}>수당·공제 또는 시급 차액 추가</Text><ScrollView horizontal showsHorizontalScrollIndicator={false}>{kinds.map(k=><Pressable key={k[0]} onPress={()=>setKind(k[0])} style={{padding:10,marginRight:6,borderWidth:1,borderColor:C.primary,borderRadius:12,marginTop:10,backgroundColor:kind===k[0]?C.primary:'#fff'}}><Text style={{fontSize:12,color:kind===k[0]?'#fff':C.primary}}>{k[1]}</Text></Pressable>)}</ScrollView><TextInput style={input} value={reason} onChangeText={setReason} maxLength={200} placeholder="계산 사유·대상 기간·공제 근거"/><View style={{flexDirection:'row',alignItems:'center',justifyContent:'space-between'}}><Text style={note}>시간 × 시급 × 배율로 계산</Text><Switch value={formula} onValueChange={setFormula}/></View>
- {formula?<><TextInput style={input} value={hours} onChangeText={setHours} keyboardType="decimal-pad" placeholder="확인한 대상 시간 (예: 4)"/><TextInput style={input} value={rate} onChangeText={setRate} keyboardType="number-pad" placeholder="적용 시급 (원)"/><TextInput style={input} value={factor} onChangeText={setFactor} keyboardType="decimal-pad" placeholder="지급 배율 (추가 가산분만 입력)"/><Text style={note}>예: 기본급에 포함된 시간의 추가 50%분만 지급한다면 배율 0.5. 주휴 대상 시간 등은 확인한 값을 입력해주세요.</Text></>:<TextInput style={input} value={amount} onChangeText={setAmount} keyboardType="numbers-and-punctuation" placeholder="확인한 금액 (시급 정정 차감은 음수)"/>}
- <Pressable disabled={busy||!reason.trim()} onPress={()=>{const decimal=/^\d+(\.\d{1,4})?$/;if(formula&&(!decimal.test(hours)||!/^\d+$/.test(rate)||!decimal.test(factor))||!formula&&!/^-?\d+$/.test(amount)){setError('금액 또는 시간·시급·배율을 숫자로 입력해주세요.');return;}void run('/entries',formula?{kind,reason,hours:Number(hours),hourlyWage:Number(rate),factor:Number(factor)}:{kind,reason,amount:Number(amount)});}}><Text style={link}>{busy?'저장 중…':'계산 항목 저장'}</Text></Pressable>
- <View style={{flexDirection:'row',alignItems:'center',marginTop:12}}><Switch value={confirmed} onValueChange={setConfirmed}/><Text style={{...note,flex:1}}>실제 근무·휴게·시급·수당 대상·공제 근거를 모두 확인했어요.</Text></View><Text style={note}>월이 끝나고 미확정 기록이 없어야 확정할 수 있어요. 확정 후에는 이 명세의 금액을 바꿀 수 없어요.</Text><Pressable disabled={busy||!confirmed} onPress={()=>void run('/finalize',{attendanceConfirmed:true,allowancesConfirmed:true,deductionsConfirmed:true})}><Text style={{...link,opacity:confirmed?1:.4}}>확인한 급여 명세 확정</Text></Pressable>
- </>}
- </>}
- </>}</View>;
+type Line = {
+  id: number;
+  kind: string;
+  reason: string;
+  amount: number;
+  calculation: string;
+  actor: string;
+  createdAt: string;
+  cancelled: boolean;
+  cancelReason: string | null;
+  automatic?: boolean;
+};
+type Summary = {
+  period: string;
+  basePay: number;
+  additions: number;
+  deductions: number;
+  netPay: number;
+  unknownWages: number;
+  activeSessions: number;
+  finalized: boolean;
+  finalizedBy: string | null;
+  finalizedAt: string | null;
+  entries: Line[];
+};
+const kinds = [
+  ['WEEKLY', '주휴 수당'],
+  ['OVERTIME', '연장 가산'],
+  ['NIGHT', '야간 가산'],
+  ['HOLIDAY', '휴일 가산'],
+  ['DEDUCTION', '공제'],
+  ['WAGE_CORRECTION', '시급 정정 차액'],
+  ['OTHER', '기타 지급'],
+];
+const won = (n: number) => n.toLocaleString('ko-KR') + '원';
+export default function PayrollSettlement({
+  storeId,
+  memberId,
+  period,
+}: {
+  storeId: number;
+  memberId?: number;
+  period: string;
+}) {
+  const working = useRef(false),
+    key = useRef(''),
+    lastPayload = useRef('');
+  const owner = memberId !== undefined;
+  const path = owner ? `/api/stores/${storeId}/staff/${memberId}/payroll` : `/api/stores/${storeId}/payroll/me`;
+  const [data, setData] = useState<Summary | null>(null),
+    [error, setError] = useState(''),
+    [busy, setBusy] = useState(false),
+    [open, setOpen] = useState(false),
+    [version, setVersion] = useState(0);
+  const [kind, setKind] = useState('WEEKLY'),
+    [reason, setReason] = useState(''),
+    [amount, setAmount] = useState(''),
+    [hours, setHours] = useState(''),
+    [rate, setRate] = useState(''),
+    [factor, setFactor] = useState('1'),
+    [formula, setFormula] = useState(false),
+    [confirmed, setConfirmed] = useState(false),
+    [cancelId, setCancelId] = useState<number | null>(null),
+    [cancelReason, setCancelReason] = useState('');
+  useEffect(() => {
+    let alive = true;
+    setData(null);
+    setError('');
+    setConfirmed(false);
+    api<Summary>('GET', `${path}?month=${period}`).then(
+      (v) => {
+        if (alive) setData(v);
+      },
+      (e) => {
+        if (alive) setError(e.message);
+      },
+    );
+    return () => {
+      alive = false;
+    };
+  }, [path, period, version]);
+  const run = async (suffix: string, payload: unknown) => {
+    if (working.current) return;
+    working.current = true;
+    setBusy(true);
+    setError('');
+    try {
+      if (suffix === '/entries') {
+        const serialized = JSON.stringify(payload);
+        if (lastPayload.current !== serialized) {
+          lastPayload.current = serialized;
+          key.current = 'payroll-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+        }
+        payload = { ...(payload as object), clientKey: key.current };
+      }
+      setData(await api<Summary>('POST', `${path}${suffix}?month=${period}`, payload));
+      setReason('');
+      setAmount('');
+      setCancelId(null);
+      setCancelReason('');
+      lastPayload.current = '';
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '급여 저장 실패');
+    } finally {
+      working.current = false;
+      setBusy(false);
+    }
+  };
+  const input = {
+    height: 44,
+    borderWidth: 1,
+    borderColor: '#D8D3E8',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 0,
+    marginTop: 8,
+    fontSize: 14,
+    color: C.text,
+    ...(Platform.OS === 'android' ? { fontFamily: 'sans-serif', includeFontPadding: false } : {}),
+  };
+  const link = { fontSize: 13, lineHeight: 21, color: C.primary, paddingVertical: 10 };
+  const note = { fontSize: 12, lineHeight: 20, color: '#686373' };
+  return (
+    <View style={{ marginTop: 14, borderWidth: 1, borderColor: '#E4E2EC', borderRadius: 16, padding: 14 }}>
+      <Pressable onPress={() => setOpen((v) => !v)}>
+        <Text style={{ fontSize: 15, fontWeight: '700', color: C.primary }}>
+          수당·공제·급여 명세 {open ? '접기' : '열기'}
+        </Text>
+      </Pressable>
+      {open && (
+        <>
+          {!!error && (
+            <>
+              <Text style={{ color: '#B3261E', fontSize: 12, lineHeight: 20 }}>{error}</Text>
+              <Pressable onPress={() => setVersion((v) => v + 1)}>
+                <Text style={link}>다시 불러오기</Text>
+              </Pressable>
+            </>
+          )}
+          {!data && !error && <Text style={note}>급여 항목을 불러오는 중…</Text>}
+          {data && (
+            <>
+              <Text style={note}>
+                {period} · {data.finalized ? '확정 명세' : '미확정 계산'}
+              </Text>
+              <Text style={note}>퇴근 완료 기본급 {won(data.basePay)}</Text>
+              <Text style={note}>
+                추가 지급 {won(data.additions)} · 공제 {won(data.deductions)}
+              </Text>
+              <Text style={{ fontSize: 20, lineHeight: 30, color: C.primary, fontWeight: '700' }}>
+                지급 예상 {won(data.netPay)}
+              </Text>
+              {!!(data.unknownWages || data.activeSessions) && (
+                <Text style={{ ...note, color: '#B3261E' }}>
+                  시급 미확정 {data.unknownWages}건 · 근무 중 {data.activeSessions}건은 이 명세 기본급에서 제외했어요.
+                </Text>
+              )}
+              <Text style={note}>
+                출근한 달을 기준으로 계산해요. 수당 대상·휴게시간·공제 근거는 근로계약과 실제 근무를 확인해야 해요. 원래
+                근무별 시급은 유지하고 정정 차액을 별도 항목으로 남겨요.
+              </Text>
+              {owner && (
+                <AutomaticPayroll
+                  storeId={storeId}
+                  memberId={memberId!}
+                  period={period}
+                  onApplied={() => setVersion((v) => v + 1)}
+                />
+              )}
+              {data.entries.map((e) => (
+                <View
+                  key={e.id}
+                  style={{
+                    borderTopWidth: 1,
+                    borderTopColor: '#E4E2EC',
+                    paddingTop: 10,
+                    marginTop: 10,
+                    opacity: e.cancelled ? 0.5 : 1,
+                  }}
+                >
+                  <Text>
+                    {kinds.find((k) => k[0] === e.kind)?.[1]} · {won(e.amount)} {e.cancelled ? '(취소)' : ''}
+                  </Text>
+                  <Text style={note}>
+                    {e.reason}
+                    {'\n'}
+                    {e.calculation}
+                    {'\n'}
+                    {e.actor} · {e.createdAt.replace('T', ' ')}
+                    {e.cancelled ? `\n취소 사유: ${e.cancelReason}` : ''}
+                  </Text>
+                  {owner && !data.finalized && !e.cancelled && !e.automatic && (
+                    <Pressable onPress={() => setCancelId(e.id)}>
+                      <Text style={link}>항목 취소</Text>
+                    </Pressable>
+                  )}
+                  {cancelId === e.id && (
+                    <>
+                      <TextInput
+                        style={input}
+                        value={cancelReason}
+                        onChangeText={setCancelReason}
+                        maxLength={200}
+                        placeholder="취소 사유"
+                      />
+                      <Pressable
+                        disabled={busy || !cancelReason.trim()}
+                        onPress={() => void run(`/entries/${e.id}/cancel`, { reason: cancelReason })}
+                      >
+                        <Text style={link}>취소 기록 저장</Text>
+                      </Pressable>
+                    </>
+                  )}
+                </View>
+              ))}
+              {data.finalized ? (
+                <Text style={note}>
+                  확정: {data.finalizedBy} · {data.finalizedAt?.replace('T', ' ')}
+                </Text>
+              ) : (
+                owner && (
+                  <>
+                    <Text style={{ fontSize: 14, fontWeight: '700', marginTop: 18 }}>
+                      수당·공제 또는 시급 차액 추가
+                    </Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                      {kinds.map((k) => (
+                        <Pressable
+                          key={k[0]}
+                          onPress={() => setKind(k[0])}
+                          style={{
+                            padding: 10,
+                            marginRight: 6,
+                            borderWidth: 1,
+                            borderColor: C.primary,
+                            borderRadius: 12,
+                            marginTop: 10,
+                            backgroundColor: kind === k[0] ? C.primary : '#fff',
+                          }}
+                        >
+                          <Text style={{ fontSize: 12, color: kind === k[0] ? '#fff' : C.primary }}>{k[1]}</Text>
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                    <TextInput
+                      style={input}
+                      value={reason}
+                      onChangeText={setReason}
+                      maxLength={200}
+                      placeholder="계산 사유·대상 기간·공제 근거"
+                    />
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <Text style={note}>시간 × 시급 × 배율로 계산</Text>
+                      <Switch value={formula} onValueChange={setFormula} />
+                    </View>
+                    {formula ? (
+                      <>
+                        <TextInput
+                          style={input}
+                          value={hours}
+                          onChangeText={setHours}
+                          keyboardType="decimal-pad"
+                          placeholder="확인한 대상 시간 (예: 4)"
+                        />
+                        <TextInput
+                          style={input}
+                          value={rate}
+                          onChangeText={setRate}
+                          keyboardType="number-pad"
+                          placeholder="적용 시급 (원)"
+                        />
+                        <TextInput
+                          style={input}
+                          value={factor}
+                          onChangeText={setFactor}
+                          keyboardType="decimal-pad"
+                          placeholder="지급 배율 (추가 가산분만 입력)"
+                        />
+                        <Text style={note}>
+                          예: 기본급에 포함된 시간의 추가 50%분만 지급한다면 배율 0.5. 주휴 대상 시간 등은 확인한 값을
+                          입력해주세요.
+                        </Text>
+                      </>
+                    ) : (
+                      <TextInput
+                        style={input}
+                        value={amount}
+                        onChangeText={setAmount}
+                        keyboardType="numbers-and-punctuation"
+                        placeholder="확인한 금액 (시급 정정 차감은 음수)"
+                      />
+                    )}
+                    <Pressable
+                      disabled={busy || !reason.trim()}
+                      onPress={() => {
+                        const decimal = /^\d+(\.\d{1,4})?$/;
+                        if (
+                          (formula && (!decimal.test(hours) || !/^\d+$/.test(rate) || !decimal.test(factor))) ||
+                          (!formula && !/^-?\d+$/.test(amount))
+                        ) {
+                          setError('금액 또는 시간·시급·배율을 숫자로 입력해주세요.');
+                          return;
+                        }
+                        void run(
+                          '/entries',
+                          formula
+                            ? { kind, reason, hours: Number(hours), hourlyWage: Number(rate), factor: Number(factor) }
+                            : { kind, reason, amount: Number(amount) },
+                        );
+                      }}
+                    >
+                      <Text style={link}>{busy ? '저장 중…' : '계산 항목 저장'}</Text>
+                    </Pressable>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12 }}>
+                      <Switch value={confirmed} onValueChange={setConfirmed} />
+                      <Text style={{ ...note, flex: 1 }}>
+                        실제 근무·휴게·시급·수당 대상·공제 근거를 모두 확인했어요.
+                      </Text>
+                    </View>
+                    <Text style={note}>
+                      월이 끝나고 미확정 기록이 없어야 확정할 수 있어요. 확정 후에는 이 명세의 금액을 바꿀 수 없어요.
+                    </Text>
+                    <Pressable
+                      disabled={busy || !confirmed}
+                      onPress={() =>
+                        void run('/finalize', {
+                          attendanceConfirmed: true,
+                          allowancesConfirmed: true,
+                          deductionsConfirmed: true,
+                        })
+                      }
+                    >
+                      <Text style={{ ...link, opacity: confirmed ? 1 : 0.4 }}>확인한 급여 명세 확정</Text>
+                    </Pressable>
+                  </>
+                )
+              )}
+            </>
+          )}
+        </>
+      )}
+    </View>
+  );
 }

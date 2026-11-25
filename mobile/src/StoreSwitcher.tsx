@@ -18,12 +18,25 @@ export default function StoreSwitcher({ acc, onSelect, onAdd, onClose }: Props) 
         <Text style={s.title}>매장 변경</Text>
         {acc.stores.map((st, i) => (
           <Pressable key={i} style={s.row} onPress={() => onSelect(i)}>
-            {owner ? <Image source={require('../assets/storemate-store-icon.png')} style={{ width: 20, height: 20 }} resizeMode="contain" accessibilityLabel="StoreMate" /> : <Ionicons name="storefront-outline" size={20} color={C.primary} />}
+            {owner ? (
+              <Image
+                source={require('../assets/storemate-store-icon.png')}
+                style={{ width: 20, height: 20 }}
+                resizeMode="contain"
+                accessibilityLabel="StoreMate"
+              />
+            ) : (
+              <Ionicons name="storefront-outline" size={20} color={C.primary} />
+            )}
             <View style={{ flex: 1 }}>
               <Text style={s.name}>{st.name}</Text>
               {!!st.type && <Text style={s.type}>{st.type}</Text>}
             </View>
-            {i === acc.current ? <Ionicons name="checkmark-circle" size={22} color={C.primary} /> : <View style={s.radio} />}
+            {i === acc.current ? (
+              <Ionicons name="checkmark-circle" size={22} color={C.primary} />
+            ) : (
+              <View style={s.radio} />
+            )}
           </Pressable>
         ))}
         <Pressable style={[s.row, s.add]} onPress={onAdd}>
@@ -37,7 +50,18 @@ export default function StoreSwitcher({ acc, onSelect, onAdd, onClose }: Props) 
 
 const s = StyleSheet.create({
   backdrop: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(28,27,34,0.4)' },
-  sheet: { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 24 },
+  sheet: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 24,
+  },
   handle: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: '#E1DFEA', marginBottom: 14 },
   title: { fontSize: 17, fontWeight: '800', color: C.text, marginBottom: 6 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56 },

@@ -60,7 +60,8 @@ export default function Signup({ step, onStep, onBack, onDone }: Props) {
   };
 
   const mismatch = pw2 !== '' && pw !== pw2;
-  const ok = step === 1 ? ID_RE.test(id) : step === 2 ? PW_RE.test(pw) && pw === pw2 : !!name.trim() && birth.length === 8;
+  const ok =
+    step === 1 ? ID_RE.test(id) : step === 2 ? PW_RE.test(pw) && pw === pw2 : !!name.trim() && birth.length === 8;
 
   if (!fontsLoaded) return null;
 
@@ -82,9 +83,22 @@ export default function Signup({ step, onStep, onBack, onDone }: Props) {
       {step === 1 && (
         <>
           <Text style={s.title}>아이디를 입력하세요</Text>
-          <Field placeholder="아이디" value={id} onChangeText={(t) => { setId(t); setIdError(''); }} style={s.input} />
-          <Text style={s.hint}>•  아이디는 알파벳 소문자와 숫자만 사용할 수 있어요</Text>
-          {!!idError && <Text style={s.error}>•  {idError}</Text>}
+          <Field
+            placeholder="아이디"
+            value={id}
+            onChangeText={(t) => {
+              setId(t);
+              setIdError('');
+            }}
+            style={s.input}
+          />
+          <Text style={s.hint}>{'•  '}아이디는 알파벳 소문자와 숫자만 사용할 수 있어요</Text>
+          {!!idError && (
+            <Text style={s.error}>
+              {'•  '}
+              {idError}
+            </Text>
+          )}
         </>
       )}
       {step === 2 && (
@@ -94,20 +108,37 @@ export default function Signup({ step, onStep, onBack, onDone }: Props) {
             <Field placeholder="비밀번호" value={pw} onChangeText={setPw} secureTextEntry style={s.input} />
             <Field placeholder="비밀번호 확인" value={pw2} onChangeText={setPw2} secureTextEntry style={s.input} />
           </View>
-          <Text style={s.hint}>•  특수문자와 숫자, 알파벳 조합으로 만들어주세요</Text>
-          {mismatch && <Text style={s.error}>•  비밀번호가 일치하지 않아요</Text>}
+          <Text style={s.hint}>{'•  '}특수문자와 숫자, 알파벳 조합으로 만들어주세요</Text>
+          {mismatch && <Text style={s.error}>{'•  '}비밀번호가 일치하지 않아요</Text>}
         </>
       )}
       {step === 3 && (
         <>
           <Text style={s.title}>사용자님의 정보를 입력해주세요</Text>
           <View style={s.roles}>
-            <Pill label="사장님으로 시작할게요" active={role === 'owner'} onPress={() => setRole('owner')} fontFamily="NotoSansKR" />
-            <Pill label="직원으로 시작할게요" active={role === 'staff'} onPress={() => setRole('staff')} fontFamily="NotoSansKR" />
+            <Pill
+              label="사장님으로 시작할게요"
+              active={role === 'owner'}
+              onPress={() => setRole('owner')}
+              fontFamily="NotoSansKR"
+            />
+            <Pill
+              label="직원으로 시작할게요"
+              active={role === 'staff'}
+              onPress={() => setRole('staff')}
+              fontFamily="NotoSansKR"
+            />
           </View>
           <View style={s.fields}>
             <Field placeholder="이름" value={name} onChangeText={setName} style={s.input} />
-            <Field placeholder="YYYY.MM.DD" value={formatBirthInput(birth)} onChangeText={(value) => setBirth(value.replace(/\D/g, '').slice(0, 8))} keyboardType="number-pad" maxLength={10} style={s.input} />
+            <Field
+              placeholder="YYYY.MM.DD"
+              value={formatBirthInput(birth)}
+              onChangeText={(value) => setBirth(value.replace(/\D/g, '').slice(0, 8))}
+              keyboardType="number-pad"
+              maxLength={10}
+              style={s.input}
+            />
           </View>
         </>
       )}
@@ -132,7 +163,14 @@ const s = StyleSheet.create({
   back: { marginTop: 14, width: 32 },
   error: { fontSize: 13.8, color: '#D93025', marginTop: 8, fontFamily: 'NotoSansKR' },
   steps: { flexDirection: 'row', gap: 12, marginTop: 40, marginBottom: 28, paddingLeft: 4 },
-  step: { width: 34, height: 32, borderRadius: 20, backgroundColor: C.pill, alignItems: 'center', justifyContent: 'center' },
+  step: {
+    width: 34,
+    height: 32,
+    borderRadius: 20,
+    backgroundColor: C.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   stepOn: { backgroundColor: C.primary },
   stepText: { fontSize: 14, fontWeight: '500', color: '#000', fontFamily: 'NotoSansKR' },
   title: { fontSize: 16, fontWeight: '600', color: C.primary, marginBottom: 12, fontFamily: 'NotoSansKR' },

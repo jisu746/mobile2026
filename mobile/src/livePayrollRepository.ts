@@ -10,7 +10,7 @@ export function payrollSummary(records: PayrollRecord[], now = new Date()) {
     ...summarizePay(records, now),
     hours: records.reduce((sum, record) => sum + sessionHours(record, now), 0),
     days: new Set(records.map(({ clockIn: d }) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`)).size,
-    active: records.filter(record => !record.clockOut).length,
+    active: records.filter((record) => !record.clockOut).length,
   };
 }
 export const livePayrollRepository = {
@@ -20,10 +20,13 @@ export const livePayrollRepository = {
   },
   async records(storeId: number, memberId: number, month: string): Promise<PayrollRecord[]> {
     const records = await wageRepository.records(storeId, String(memberId), month);
-    return records.map(record => {
+    return records.map((record) => {
       const clockIn = new Date(record.clockIn);
       const clockOut = record.clockOut ? new Date(record.clockOut) : null;
-      if (!Number.isFinite(clockIn.getTime()) || (clockOut && (!Number.isFinite(clockOut.getTime()) || clockOut < clockIn)))
+      if (
+        !Number.isFinite(clockIn.getTime()) ||
+        (clockOut && (!Number.isFinite(clockOut.getTime()) || clockOut < clockIn))
+      )
         throw new Error('근무 기록의 날짜를 확인할 수 없어요.');
       return { ...record, clockIn, clockOut };
     });

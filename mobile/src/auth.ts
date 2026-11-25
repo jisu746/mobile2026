@@ -1,15 +1,29 @@
 // 계정·매장 서버 연동 (가입, 로그인, 매장 등록·참여, 현재 매장 선택)
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {unregisterPushDevice} from './pushRegistration';
+import { unregisterPushDevice } from './pushRegistration';
 import { api, ApiError, clearToken, getToken, setToken } from './api';
 
 // 계정·매장은 서버(Spring)에 저장한다. 앱에는 로그인 토큰과 "현재 매장" 선택만 남긴다.
 export type Role = 'owner' | 'staff';
-export type Store = { id?: number; name: string; type: string; inviteCode?: string; baseName?: string; branch?: string };
+export type Store = {
+  id?: number;
+  name: string;
+  type: string;
+  inviteCode?: string;
+  baseName?: string;
+  branch?: string;
+};
 export type Account = { role: Role; name: string; birth: string; stores: Store[]; current: number; pending?: Store };
 
 type StoreView = { id: number; name: string; type: string | null; branch: string | null; inviteCode: string | null };
-type AccountView = { username: string; role: Role; name: string; birth: string | null; stores: StoreView[]; pending: StoreView | null };
+type AccountView = {
+  username: string;
+  role: Role;
+  name: string;
+  birth: string | null;
+  stores: StoreView[];
+  pending: StoreView | null;
+};
 
 // 서버의 매장 이름(상호)과 지점명을 화면에서 쓰는 한 이름으로 합친다 (예: "민수네 카페 강남점")
 const toStore = (v: StoreView): Store => ({
@@ -38,16 +52,27 @@ async function toAccount(v: AccountView): Promise<Account> {
 
 export { ApiError };
 
-export const exists = async (id: string) => (await api<{ exists: boolean }>('GET', `/api/auth/exists?username=${encodeURIComponent(id)}`)).exists;
+export const exists = async (id: string) =>
+  (await api<{ exists: boolean }>('GET', `/api/auth/exists?username=${encodeURIComponent(id)}`)).exists;
 
 export async function signup(id: string, acc: { pw: string; role: Role; name: string; birth: string }) {
-  await api('POST', '/api/auth/signup', { username: id, password: acc.pw, role: acc.role, name: acc.name, birth: acc.birth });
+  await api('POST', '/api/auth/signup', {
+    username: id,
+    password: acc.pw,
+    role: acc.role,
+    name: acc.name,
+    birth: acc.birth,
+  });
 }
 
 // 아이디·비밀번호·유형이 맞지 않으면 null, 서버에 연결하지 못하면 ApiError
 export async function login(id: string, pw: string, role: Role) {
   try {
-    const r = await api<{ token: string; account: AccountView }>('POST', '/api/auth/login', { username: id, password: pw, role });
+    const r = await api<{ token: string; account: AccountView }>('POST', '/api/auth/login', {
+      username: id,
+      password: pw,
+      role,
+    });
     await setToken(r.token);
     return await toAccount(r.account);
   } catch (e) {
@@ -61,7 +86,16 @@ export async function refresh() {
   return { id: v.username, acc: await toAccount(v) };
 }
 
-export async function updateProfile(input:{username:string;name:string;birth:string;expectedName:string;expectedBirth:string;storeId?:number;storeName?:string;expectedStoreName?:string}) {
+export async function updateProfile(input: {
+  username: string;
+  name: string;
+  birth: string;
+  expectedName: string;
+  expectedBirth: string;
+  storeId?: number;
+  storeName?: string;
+  expectedStoreName?: string;
+}) {
   const updated = await api<AccountView>('PUT', '/api/me', input);
   return toAccount(updated);
 }
@@ -84,12 +118,21 @@ export const setCurrent = (id: string, i: number) => AsyncStorage.setItem(curren
 
 // 매장 등록(사장님): 초대 코드가 들어 있는 매장을 돌려준다
 export const createStore = (data: {
-  name: string; type: string; branch: string; address: string; addressDetail: string; openTime: string; closeTime: string;
+  name: string;
+  type: string;
+  branch: string;
+  address: string;
+  addressDetail: string;
+  openTime: string;
+  closeTime: string;
 }) => api<StoreView>('POST', '/api/stores', data).then(toStore);
 
 // 초대 코드로 매장 조회 / 참여 요청(직원)
 export const lookupStore = (code: string) =>
-  api<{ name: string; type: string | null; branch: string | null; ownerName: string }>('GET', `/api/stores/lookup?code=${encodeURIComponent(code)}`).then((s) => ({
+  api<{ name: string; type: string | null; branch: string | null; ownerName: string }>(
+    'GET',
+    `/api/stores/lookup?code=${encodeURIComponent(code)}`,
+  ).then((s) => ({
     name: [s.name, s.branch].filter(Boolean).join(' '),
     type: s.type ?? '',
     ownerName: s.ownerName,
@@ -98,7 +141,9 @@ export const lookupStore = (code: string) =>
 export const joinStore = (code: string) => api<{ status: string }>('POST', '/api/stores/join', { code });
 
 export async function logout() {
-  try{await unregisterPushDevice();}catch{}
+  try {
+    await unregisterPushDevice();
+  } catch {}
   try {
     await api('POST', '/api/auth/logout');
   } catch {

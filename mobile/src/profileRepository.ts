@@ -7,7 +7,7 @@ const keyFor = (userId: string) => `localProfileDraft:${userId}`;
 
 export async function getLocalProfile(userId: string): Promise<ProfileDraft | null> {
   const value = await AsyncStorage.getItem(keyFor(userId));
-  return value ? JSON.parse(value) as ProfileDraft : null;
+  return value ? (JSON.parse(value) as ProfileDraft) : null;
 }
 
 export async function saveLocalProfile(userId: string, profile: ProfileDraft): Promise<void> {

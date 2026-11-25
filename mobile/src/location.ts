@@ -1,3 +1,17 @@
-import {api} from './api';
-export async function currentLocation(){const Location=await import('expo-location');const permission=await Location.requestForegroundPermissionsAsync();if(!permission.granted)throw Error('매장 반경 확인을 위해 위치 권한을 허용해주세요.');const position=await Location.getCurrentPositionAsync({accuracy:Location.Accuracy.High});return {latitude:position.coords.latitude,longitude:position.coords.longitude,accuracy:position.coords.accuracy??9999,locationAt:position.timestamp};}
-export async function clockInLocation(storeId:number){const store=await api<{radius:number}>('GET',`/api/stores/${storeId}/details`);return store.radius>0?await currentLocation():{};}
+import { api } from './api';
+export async function currentLocation() {
+  const Location = await import('expo-location');
+  const permission = await Location.requestForegroundPermissionsAsync();
+  if (!permission.granted) throw Error('매장 반경 확인을 위해 위치 권한을 허용해주세요.');
+  const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+  return {
+    latitude: position.coords.latitude,
+    longitude: position.coords.longitude,
+    accuracy: position.coords.accuracy ?? 9999,
+    locationAt: position.timestamp,
+  };
+}
+export async function clockInLocation(storeId: number) {
+  const store = await api<{ radius: number }>('GET', `/api/stores/${storeId}/details`);
+  return store.radius > 0 ? await currentLocation() : {};
+}

@@ -13,7 +13,7 @@ const key = (storeId: number, employeeId: string) => `employmentContract:${store
 export const contractRepository = {
   async get(storeId: number, employeeId: string): Promise<EmploymentContract | null> {
     const raw = await AsyncStorage.getItem(key(storeId, employeeId));
-    return raw ? JSON.parse(raw) as EmploymentContract : null;
+    return raw ? (JSON.parse(raw) as EmploymentContract) : null;
   },
   async getForEmployee(storeId: number, employeeId: string, employeeName: string): Promise<EmploymentContract | null> {
     const direct = await this.get(storeId, employeeId);
@@ -27,7 +27,9 @@ export const contractRepository = {
       try {
         const value = JSON.parse(raw) as EmploymentContract;
         if (value.employeeName === employeeName) return value;
-      } catch { /* Ignore invalid local demo records. */ }
+      } catch {
+        /* Ignore invalid local demo records. */
+      }
     }
     return null;
   },
