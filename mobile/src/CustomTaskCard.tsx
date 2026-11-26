@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from './font';
 import { C } from './ui';
 import { CustomTask, customTasks, TaskPerson, taskStatus } from './customTasks';
+import { errorText } from './api';
 
 export default function CustomTaskCard({
   storeId,
@@ -35,7 +36,7 @@ export default function CustomTaskCard({
       setNote('');
       onChange();
     } catch (e) {
-      setError(e instanceof Error ? e.message : '업무를 처리하지 못했어요.');
+      setError(errorText(e, '업무를 처리하지 못했어요.'));
     } finally {
       working.current = false;
       setBusy(false);

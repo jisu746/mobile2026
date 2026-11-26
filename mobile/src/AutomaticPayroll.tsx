@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Platform, Pressable, Switch, View } from 'react-native';
 import { Text, TextInput } from './font';
-import { api } from './api';
+import { api, errorText } from './api';
 import { C } from './ui';
+import { ymd } from './work';
 
 type Pause = { from: string; to: string };
 type Work = {
@@ -106,8 +107,6 @@ function Field({
     </>
   );
 }
-const date = (d: Date) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 function withDefaults(d: Data): Settings {
   const s = d.settings;
   const work = d.records.map((r) => {
@@ -134,11 +133,11 @@ function withDefaults(d: Data): Settings {
         const existing = new Date(w.holiday + 'T12:00:00');
         const dif = (existing.getDay() - (s.weekStart % 7) + 7) % 7;
         existing.setDate(existing.getDate() - dif);
-        return date(existing) === date(start);
+        return ymd(existing) === ymd(start);
       })
     ) {
       weeks.push({
-        holiday: date(end),
+        holiday: ymd(end),
         prescribedHours: 0,
         averagingWeeks: 4,
         normalWorkerDays: 20,
@@ -266,7 +265,7 @@ export default function AutomaticPayroll({
         throw Error('시급·근무일수·산정 주 수·약정 분은 정수로 입력해주세요.');
       accept(await api<Data>('PUT', path, { revision: data.revision, settings: payload }));
     } catch (e) {
-      setError(e instanceof Error ? e.message : '설정을 저장하지 못했어요.');
+      setError(errorText(e, '설정을 저장하지 못했어요.'));
     } finally {
       setBusy(false);
     }
@@ -283,7 +282,7 @@ export default function AutomaticPayroll({
       );
       onApplied();
     } catch (e) {
-      setError(e instanceof Error ? e.message : '반영하지 못했어요.');
+      setError(errorText(e, '반영하지 못했어요.'));
     } finally {
       setBusy(false);
     }

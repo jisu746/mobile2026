@@ -8,6 +8,7 @@ import * as Clipboard from 'expo-clipboard';
 import QRCode from 'react-native-qrcode-svg';
 import { C, Field } from './ui';
 import type { WorkPartSetting } from './storeSetupRepository';
+import { errorText } from './api';
 
 type Step = 1 | 2 | 3;
 // onBack은 매장을 추가로 등록할 때만 전달된다
@@ -108,7 +109,7 @@ export default function StoreSetup({ step, onStep, onBack, onCreate, onDone }: P
           }),
         );
       } catch (e) {
-        setError(e instanceof Error ? e.message : '매장을 등록하지 못했어요');
+        setError(errorText(e, '매장을 등록하지 못했어요'));
         setBusy(false);
         return;
       }

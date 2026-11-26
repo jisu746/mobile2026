@@ -7,7 +7,7 @@ import { ReactNode, useEffect, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from './font';
 import { Ionicons } from '@expo/vector-icons';
-import { ApiError } from './api';
+import { ApiError, errorText } from './api';
 import { summarizePay } from './payCalculation';
 import BarcodeFlow from './BarcodeFlow';
 import InventoryTab from './InventoryTab';
@@ -77,7 +77,7 @@ export default function StaffHome({
   const onBell = () => setNotifOpen(true);
   const [now, setNow] = useState(Date.now());
 
-  const fail = (e: unknown) => setError(e instanceof Error ? e.message : '요청을 처리하지 못했어요');
+  const fail = (e: unknown) => setError(errorText(e, '요청을 처리하지 못했어요'));
   const refreshEarn = () => {
     setPay(null);
     const d = new Date();

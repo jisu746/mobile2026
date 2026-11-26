@@ -1,21 +1,12 @@
 import { CategoryChoices } from './CategoryManager';
 // 바코드 입고 화면 (스캔 → 입고 목록 확인 → 완료 결과)
 import { useEffect, useRef, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, TextProps, View } from 'react-native';
-import { Text as AppText, TextInput } from './font';
+import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from './font';
 import { Ionicons } from '@expo/vector-icons';
 import { BarcodeType } from 'expo-camera';
-
-function Text(props: TextProps) {
-  return (
-    <AppText
-      {...props}
-      style={[Platform.OS === 'android' && { fontFamily: 'sans-serif', includeFontPadding: false }, props.style]}
-    />
-  );
-}
 import Scanner from './Scanner';
-import { api } from './api';
+import { api, errorText } from './api';
 import ExpiryCapture from './ExpiryCapture';
 import { Product, getProduct, isLowStock, productLowStockThreshold, receive } from './inventory';
 import { DEFAULT_STORE_SETUP_SETTINGS, getStoreSetupSettingsOrDefault } from './storeSetupRepository';
@@ -76,7 +67,7 @@ export default function BarcodeFlow({ store, userName, onExit }: Props) {
       .then((settings) => {
         if (active) setAlertSettings(settings);
       })
-      .catch((e) => setError(e instanceof Error ? e.message : '매장 설정을 불러오지 못했어요.'));
+      .catch((e) => setError(errorText(e, '매장 설정을 불러오지 못했어요.')));
     return () => {
       active = false;
     };
@@ -108,7 +99,7 @@ export default function BarcodeFlow({ store, userName, onExit }: Props) {
       setItems([]);
       setStep('done');
     } catch (e) {
-      setError(e instanceof Error ? e.message : '입고하지 못했어요');
+      setError(errorText(e, '입고하지 못했어요'));
     } finally {
       working.current = false;
       setSaving(false);
@@ -242,9 +233,7 @@ function ProductSheet({
   const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
-    getProduct(store, code).then(setProduct, (e) =>
-      setLoadError(e instanceof Error ? e.message : '상품을 불러오지 못했어요'),
-    );
+    getProduct(store, code).then(setProduct, (e) => setLoadError(errorText(e, '상품을 불러오지 못했어요')));
   }, [code]);
 
   if (loadError)

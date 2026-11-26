@@ -5,6 +5,7 @@ import { Text } from './font';
 import { Account, login, Role } from './auth';
 import { Button, C, Field, Pill } from './ui';
 import SocialLogin from './SocialLogin';
+import { errorText } from './api';
 
 type Props = { onSignup: () => void; onLoggedIn: (id: string, acc: Account) => void };
 
@@ -26,7 +27,7 @@ export default function Login({ onSignup, onLoggedIn }: Props) {
       if (acc) onLoggedIn(id.trim(), acc);
       else setError('아이디 또는 비밀번호가 일치하지 않아요');
     } catch (e) {
-      setError(e instanceof Error ? e.message : '로그인하지 못했어요');
+      setError(errorText(e, '로그인하지 못했어요'));
     } finally {
       working.current = false;
       setLoading(false);

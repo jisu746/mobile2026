@@ -1,4 +1,5 @@
 import { api } from './api';
+import { ymd } from './work';
 
 type WageRate = { effectiveFrom: string; hourlyWage: number; defaultRate: boolean };
 export type StaffWage = { memberId: number; name: string; hourlyWage: number | null; history: WageRate[] };
@@ -17,7 +18,7 @@ export type LegacyRecord = {
 };
 function validateEffectiveDate(value: string) {
   const now = new Date();
-  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const today = ymd(now);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Error('적용 시작일을 YYYY-MM-DD 형식으로 입력해 주세요.');
   const [y, m, d] = value.split('-').map(Number);
   const date = new Date(y, m - 1, d);

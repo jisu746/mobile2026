@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Pressable } from 'react-native';
 import { Text } from './font';
-import { api } from './api';
+import { api, errorText } from './api';
 import { currentLocation } from './location';
 export default function ShiftLocationStatus({ storeId }: { storeId: number }) {
   const [store, setStore] = useState<{ latitude: number; longitude: number; radius: number } | null>(null),
@@ -28,7 +28,7 @@ export default function ShiftLocationStatus({ storeId }: { storeId: number }) {
             `매장까지 약 ${Math.round(distance)}m · ${distance <= store.radius ? '출근 반경 안이에요' : '출근 반경 밖이에요'}`,
           );
         } catch (e) {
-          setMessage(e instanceof Error ? e.message : '위치 확인 실패');
+          setMessage(errorText(e, '위치 확인 실패'));
         } finally {
           setBusy(false);
         }

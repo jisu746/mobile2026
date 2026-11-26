@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from './font';
-import { api } from './api';
+import { api, errorText } from './api';
 import { C } from './ui';
 
 type Batch = {
@@ -66,7 +66,7 @@ export default function StockBatches({
       setEditing(null);
       onChange();
     } catch (e) {
-      setError(e instanceof Error ? e.message : '묶음 재고를 저장하지 못했어요.');
+      setError(errorText(e, '묶음 재고를 저장하지 못했어요.'));
     } finally {
       setBusy(false);
     }

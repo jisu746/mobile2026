@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, View } from 'react-native';
 import { Text, TextInput } from './font';
-import { api } from './api';
+import { api, errorText } from './api';
 import { C } from './ui';
 
 type Catalog = { categories: string[]; revision: number };
@@ -104,7 +104,7 @@ export default function CategoryManager({
       setRemove(null);
       onSaved(result.categories);
     } catch (e) {
-      setError(e instanceof Error ? e.message : '분류를 저장하지 못했어요.');
+      setError(errorText(e, '분류를 저장하지 못했어요.'));
     } finally {
       lock.current = false;
       setBusy(false);

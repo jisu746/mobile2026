@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, View } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Text } from './font';
-import { api } from './api';
+import { api, errorText } from './api';
 import { C } from './ui';
 export default function ExpiryCapture({
   storeId,
@@ -57,7 +57,7 @@ export default function ExpiryCapture({
           : result.candidates,
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : '사진 인식 실패');
+      setError(errorText(e, '사진 인식 실패'));
     } finally {
       setBusy(false);
     }

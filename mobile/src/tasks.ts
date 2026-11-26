@@ -1,7 +1,7 @@
 // 재고로 오늘의 업무를 만들고 완료 표시를 서버와 맞추는 모듈 (useTasks)
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
-import { api } from './api';
+import { api, errorText } from './api';
 import { daysLeft, isLowStock, listProducts, Product, productLowStockThreshold } from './inventory';
 import { DEFAULT_STORE_SETUP_SETTINGS, getStoreSetupSettingsOrDefault } from './storeSetupRepository';
 import type { StoreSetupSettings } from './storeSetupRepository';
@@ -79,7 +79,7 @@ export function useTasks(storeId: number) {
   const [done, setDone] = useState<string[]>([]);
   const [error, setError] = useState('');
   const [alertSettings, setAlertSettings] = useState(DEFAULT_STORE_SETUP_SETTINGS);
-  const fail = (e: unknown) => setError(e instanceof Error ? e.message : '요청을 처리하지 못했어요');
+  const fail = (e: unknown) => setError(errorText(e, '요청을 처리하지 못했어요'));
 
   useEffect(() => {
     let active = true;

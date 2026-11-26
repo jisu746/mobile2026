@@ -1,7 +1,7 @@
 import BulkStocktake from './BulkStocktake';
 import CategoryManager, { getCategories } from './CategoryManager';
 import NotificationBell from './NotificationBell';
-import { api } from './api';
+import { api, errorText } from './api';
 // 재고/발주 탭 화면 (상품 목록, 수정, 폐기) - 사장님·직원 공통
 import { ComponentRef, useEffect, useRef, useState } from 'react';
 import { BackHandler, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -118,7 +118,7 @@ export default function InventoryTab({
       setDeleteTarget(null);
       void reload();
     } catch (e) {
-      setDeleteError(e instanceof Error ? e.message : '상품을 삭제하지 못했어요.');
+      setDeleteError(errorText(e, '상품을 삭제하지 못했어요.'));
       void reload();
     } finally {
       deleteBusy.current = false;
@@ -129,7 +129,7 @@ export default function InventoryTab({
   const tops = useRef<Record<string, number>>({}); // 상품 카드별 세로 위치 (자동 스크롤용)
 
   const [error, setError] = useState('');
-  const fail = (e: unknown) => setError(e instanceof Error ? e.message : '요청을 처리하지 못했어요');
+  const fail = (e: unknown) => setError(errorText(e, '요청을 처리하지 못했어요'));
   const reload = () =>
     listProducts(store).then((l) => {
       setProducts(l);

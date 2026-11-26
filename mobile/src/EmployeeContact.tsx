@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { Text, TextInput } from './font';
-import { api } from './api';
+import { api, errorText } from './api';
 import { C } from './ui';
 export default function EmployeeContact({ storeId, memberId }: { storeId: number; memberId: number }) {
   const [open, setOpen] = useState(false),
@@ -60,7 +60,7 @@ export default function EmployeeContact({ storeId, memberId }: { storeId: number
                 await api('PUT', path, { name, phone });
                 setMessage('직원 정보를 저장했어요.');
               } catch (e) {
-                setMessage(e instanceof Error ? e.message : '저장 실패');
+                setMessage(errorText(e, '저장 실패'));
               } finally {
                 setBusy(false);
               }

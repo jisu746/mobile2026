@@ -12,6 +12,9 @@ const BASE =
 
 const TOKEN = 'token';
 
+// 화면에 보여줄 오류 문구. Error 가 아니면 fallback 을 쓴다
+export const errorText = (e: unknown, fallback: string) => (e instanceof Error ? e.message : fallback);
+
 export class ApiError extends Error {
   constructor(
     public status: number,

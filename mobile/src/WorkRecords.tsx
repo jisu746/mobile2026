@@ -2,27 +2,18 @@ import WorkBreakEditor from './WorkBreakEditor';
 import { sessionHours } from './payCalculation';
 // 근무 기록 화면 (달력, 예상 급여) - MY 에서 열린다
 import { useEffect, useState } from 'react';
-import { BackHandler, Platform, Pressable, ScrollView, StyleSheet, TextProps, View } from 'react-native';
-import { Text as AppText } from './font';
+import { BackHandler, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from './font';
 import { Ionicons } from '@expo/vector-icons';
 import { C } from './ui';
-import { hoursByDay, hr, listSessions, won } from './work';
+import { hoursByDay, hr, listSessions, won, dayKey } from './work';
 import type { Session } from './work';
 import { summarizePay } from './payCalculation';
 import PayrollSettlement from './PayrollSettlement';
-
-function Text(props: TextProps) {
-  return (
-    <AppText
-      {...props}
-      style={[Platform.OS === 'android' && { fontFamily: 'sans-serif', includeFontPadding: false }, props.style]}
-    />
-  );
-}
+import { errorText } from './api';
 
 const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
-const key = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 
 const duration = (hours: number) => {
@@ -43,7 +34,7 @@ export default function WorkRecords({ storeId, onBack }: { storeId: number; onBa
   const [error, setError] = useState('');
   const [version, setVersion] = useState(0);
   const [sessions, setSessions] = useState<Session[]>([]);
-  const hoursOf = (d: Date) => days?.[key(d)] ?? 0;
+  const hoursOf = (d: Date) => days?.[dayKey(d)] ?? 0;
 
   useEffect(() => {
     let alive = true;
@@ -57,7 +48,7 @@ export default function WorkRecords({ storeId, onBack }: { storeId: number; onBa
           setDays(hoursByDay(l));
         }
       },
-      (e) => alive && (setDays({}), setError(e instanceof Error ? e.message : '근무 기록을 불러오지 못했어요')),
+      (e) => alive && (setDays({}), setError(errorText(e, '근무 기록을 불러오지 못했어요'))),
     );
     return () => {
       alive = false;
@@ -91,9 +82,9 @@ export default function WorkRecords({ storeId, onBack }: { storeId: number; onBa
   const isThisMonth = y === today.getFullYear() && m === today.getMonth();
 
   const selHours = hoursOf(selected);
-  const selIsToday = key(selected) === key(today);
+  const selIsToday = dayKey(selected) === dayKey(today);
   const selectedInMonth = selected.getFullYear() === y && selected.getMonth() === m;
-  const selectedSessions = sessions.filter((session) => key(session.clockIn) === key(selected));
+  const selectedSessions = sessions.filter((session) => dayKey(session.clockIn) === dayKey(selected));
   const pay = summarizePay(sessions);
   const selectedPay = summarizePay(selectedSessions);
 
@@ -173,8 +164,8 @@ export default function WorkRecords({ storeId, onBack }: { storeId: number; onBa
               {cells.slice(w * 7, w * 7 + 7).map((d, i) => {
                 const inMonth = d.getMonth() === m;
                 const h = inMonth ? hoursOf(d) : 0;
-                const isToday = key(d) === key(today);
-                const isSel = key(d) === key(selected);
+                const isToday = dayKey(d) === dayKey(today);
+                const isSel = dayKey(d) === dayKey(selected);
                 return (
                   <Pressable
                     key={i}
@@ -269,7 +260,7 @@ export default function WorkRecords({ storeId, onBack }: { storeId: number; onBa
                     <Text style={s.sessionLabel}>퇴근</Text>
                     <Text style={s.sessionTime}>
                       {session.clockOut
-                        ? `${key(session.clockOut) !== key(session.clockIn) ? `${session.clockOut.getMonth() + 1}/${session.clockOut.getDate()} ` : ''}${clockText(session.clockOut)}`
+                        ? `${dayKey(session.clockOut) !== dayKey(session.clockIn) ? `${session.clockOut.getMonth() + 1}/${session.clockOut.getDate()} ` : ''}${clockText(session.clockOut)}`
                         : '근무 중'}
                     </Text>
                   </View>

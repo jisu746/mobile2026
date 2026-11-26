@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Pressable, Switch, View } from 'react-native';
 import { Text, TextInput } from './font';
-import { api } from './api';
+import { api, errorText } from './api';
 import { C } from './ui';
 type Template = {
   industry: string;
@@ -115,7 +115,7 @@ export default function StoreTemplateEditor({ storeId }: { storeId: number }) {
                     setData(result);
                     setError('템플릿을 저장했어요.');
                   } catch (e) {
-                    setError(e instanceof Error ? e.message : '저장 실패');
+                    setError(errorText(e, '저장 실패'));
                   } finally {
                     setBusy(false);
                   }

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Linking, Pressable, View } from 'react-native';
 import { Text } from './font';
-import { api, setToken } from './api';
+import { api, setToken, errorText } from './api';
 import { refresh, Account, Role } from './auth';
 import { C } from './ui';
 export default function SocialLogin({
@@ -59,7 +59,7 @@ export default function SocialLogin({
       }
       if (active.current === generation) setMessage('로그인 요청이 만료됐어요. 다시 시도해주세요.');
     } catch (e) {
-      if (active.current === generation) setMessage(e instanceof Error ? e.message : '간편 로그인 실패');
+      if (active.current === generation) setMessage(errorText(e, '간편 로그인 실패'));
     } finally {
       running.current = false;
       if (active.current === generation) setBusy(false);

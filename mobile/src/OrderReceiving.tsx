@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, View } from 'react-native';
 import { Text, TextInput } from './font';
-import { api } from './api';
+import { api, errorText } from './api';
 import { C } from './ui';
 type Plan = {
   id: number;
@@ -70,7 +70,7 @@ export default function OrderReceiving({
       setVersion((v) => v + 1);
       onChange();
     } catch (e) {
-      setError(e instanceof Error ? e.message : '저장 실패');
+      setError(errorText(e, '저장 실패'));
     } finally {
       lock.current = false;
       setBusy(false);
@@ -232,7 +232,7 @@ export default function OrderReceiving({
                           setVersion((v) => v + 1);
                           onChange();
                         } catch (e) {
-                          setError(e instanceof Error ? e.message : '입고 실패');
+                          setError(errorText(e, '입고 실패'));
                         } finally {
                           lock.current = false;
                           setBusy(false);

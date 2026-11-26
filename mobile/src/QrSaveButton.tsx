@@ -4,6 +4,7 @@ import QRCode from 'react-native-qrcode-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { Text } from './font';
 import { C } from './ui';
+import { errorText } from './api';
 export default function QrSaveButton({ code }: { code: string }) {
   const qr = useRef<{ toDataURL: (fn: (data: string) => void) => void } | null>(null),
     [busy, setBusy] = useState(false),
@@ -40,7 +41,7 @@ export default function QrSaveButton({ code }: { code: string }) {
       }
       setMessage('QR 이미지를 저장했어요.');
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : 'QR 저장 실패');
+      setMessage(errorText(e, 'QR 저장 실패'));
     } finally {
       setBusy(false);
     }

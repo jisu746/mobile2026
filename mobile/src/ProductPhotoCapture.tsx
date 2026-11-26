@@ -3,7 +3,7 @@ import { Image, Modal, Pressable, View } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
 import { Text } from './font';
-import { api } from './api';
+import { api, errorText } from './api';
 import { C } from './ui';
 import type { Product } from './inventory';
 type Photo = { version: string; contentType: string; imageBase64: string };
@@ -103,7 +103,7 @@ export default function ProductPhotoCapture({
       requestKey.current = 'photo-' + Date.now() + '-' + Math.random().toString(36).slice(2);
       setPhoto({ uri: picture.uri, base64: picture.base64 });
     } catch (e) {
-      setError(e instanceof Error ? e.message : '촬영하지 못했어요.');
+      setError(errorText(e, '촬영하지 못했어요.'));
     } finally {
       working.current = false;
       setBusy(false);
@@ -123,7 +123,7 @@ export default function ProductPhotoCapture({
       onSaved(saved.version);
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : '사진을 저장하지 못했어요.');
+      setError(errorText(e, '사진을 저장하지 못했어요.'));
     } finally {
       working.current = false;
       setBusy(false);

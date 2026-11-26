@@ -11,3 +11,11 @@ export function validateProfile(name: string, birth: string, now = new Date()) {
     throw new Error('생년월일은 1900년 이후부터 오늘까지의 유효한 날짜로 입력해 주세요.');
   return { name: cleanName, birth };
 }
+
+// 생년월일 8자리를 입력 중에도 YYYY.MM.DD 모양으로 보여준다
+export function formatBirthInput(value: string) {
+  const digits = value.replace(/\D/g, '').slice(0, 8);
+  if (digits.length <= 4) return digits;
+  if (digits.length <= 6) return `${digits.slice(0, 4)}.${digits.slice(4)}`;
+  return `${digits.slice(0, 4)}.${digits.slice(4, 6)}.${digits.slice(6)}`;
+}

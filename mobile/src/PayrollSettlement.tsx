@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, Switch, View } from 'react-native';
 import { Text, TextInput } from './font';
-import { api } from './api';
+import { api, errorText } from './api';
 import { C } from './ui';
 import AutomaticPayroll from './AutomaticPayroll';
 type Line = {
@@ -106,7 +106,7 @@ export default function PayrollSettlement({
       setCancelReason('');
       lastPayload.current = '';
     } catch (e) {
-      setError(e instanceof Error ? e.message : '급여 저장 실패');
+      setError(errorText(e, '급여 저장 실패'));
     } finally {
       working.current = false;
       setBusy(false);

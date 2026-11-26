@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { Text, TextInput } from './font';
-import { api } from './api';
+import { api, errorText } from './api';
 import { C } from './ui';
 import { currentLocation } from './location';
 type Info = {
@@ -117,7 +117,7 @@ export default function StoreDetailsEditor({ storeId }: { storeId: number }) {
                 setLng(String(p.longitude));
                 setError('현재 위치를 불러왔어요. 매장 위치가 맞는지 확인 후 저장해주세요.');
               } catch (e) {
-                setError(e instanceof Error ? e.message : '위치 확인 실패');
+                setError(errorText(e, '위치 확인 실패'));
               } finally {
                 setBusy(false);
               }
@@ -146,7 +146,7 @@ export default function StoreDetailsEditor({ storeId }: { storeId: number }) {
                 setData(result);
                 setError('매장 정보를 저장했어요. 매장 이름은 다시 로그인하면 상단에도 반영돼요.');
               } catch (e) {
-                setError(e instanceof Error ? e.message : '저장 실패');
+                setError(errorText(e, '저장 실패'));
               } finally {
                 setBusy(false);
               }

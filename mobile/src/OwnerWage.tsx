@@ -5,6 +5,7 @@ import { Text, TextInput } from './font';
 import { C } from './ui';
 import { MIN_WAGE, won, ymd } from './work';
 import { LegacyRecord, StaffWage, wageRepository, parseHourlyWage } from './wageRepository';
+import { errorText } from './api';
 
 export default function OwnerWage({
   storeId,
@@ -46,7 +47,7 @@ export default function OwnerWage({
           }
         },
         (e: unknown) => {
-          if (active) setError(e instanceof Error ? e.message : '시급 조회 실패');
+          if (active) setError(errorText(e, '시급 조회 실패'));
         },
       )
       .finally(() => {
@@ -65,7 +66,7 @@ export default function OwnerWage({
         if (active) setRecords(items);
       },
       (e: unknown) => {
-        if (active) setRecordError(e instanceof Error ? e.message : '근무 조회 실패');
+        if (active) setRecordError(errorText(e, '근무 조회 실패'));
       },
     );
     return () => {
@@ -90,7 +91,7 @@ export default function OwnerWage({
       setSaved(result);
       setNotice(`${effective}부터 적용하도록 저장했어요. 이미 시작한 근무의 시급은 유지돼요.`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : '시급 저장 실패');
+      setError(errorText(e, '시급 저장 실패'));
     } finally {
       working.current = false;
       setBusy(false);
@@ -111,7 +112,7 @@ export default function OwnerWage({
       setRecords((items) => items?.map((r) => (r.sessionId === item.sessionId ? item : r)) ?? null);
       setConfirmation(null);
     } catch (e) {
-      setRecordError(e instanceof Error ? e.message : '확정 실패');
+      setRecordError(errorText(e, '확정 실패'));
       setConfirmation(null);
     } finally {
       working.current = false;
@@ -256,7 +257,7 @@ export default function OwnerWage({
                   try {
                     setConfirmation({ record, amount: parseHourlyWage(legacyRates[record.sessionId] ?? '') });
                   } catch (e) {
-                    setRecordError(e instanceof Error ? e.message : '입력 확인');
+                    setRecordError(errorText(e, '입력 확인'));
                   }
                 }}
               >

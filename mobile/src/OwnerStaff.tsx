@@ -3,17 +3,8 @@ import QrSaveButton from './QrSaveButton';
 import EmployeeContact from './EmployeeContact';
 // 사장님 직원 참여 요청 및 직원 관리 화면 (서버 연동)
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Image, Modal, Platform, Pressable, ScrollView, Share, StyleSheet, TextProps, View } from 'react-native';
-import { Text as AppText, TextInput } from './font';
-
-function Text(props: TextProps) {
-  return (
-    <AppText
-      {...props}
-      style={[Platform.OS === 'android' && { fontFamily: 'sans-serif', includeFontPadding: false }, props.style]}
-    />
-  );
-}
+import { Alert, Image, Modal, Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from './font';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import QRCode from 'react-native-qrcode-svg';
@@ -23,6 +14,7 @@ import type { StaffPerson } from './ownerStaffRepository';
 import { getStoreSetupSettings } from './storeSetupRepository';
 import OwnerSchedule from './OwnerSchedule';
 import OwnerWage from './OwnerWage';
+import { errorText } from './api';
 const PARTS = ['오전', '오후', '마감'];
 
 function useStoreWorkParts(storeId: number) {
@@ -76,7 +68,7 @@ export function OwnerStaffRequests({ storeId, inviteCode, storeName, onBack }: R
       setPending(lists.pending);
       setApproved(lists.approved);
     } catch (e) {
-      setError(e instanceof Error ? e.message : '직원 등록 요청을 불러오지 못했어요.');
+      setError(errorText(e, '직원 등록 요청을 불러오지 못했어요.'));
     } finally {
       setLoading(false);
     }
@@ -94,7 +86,7 @@ export function OwnerStaffRequests({ storeId, inviteCode, storeName, onBack }: R
       await serverOwnerStaffRepository.decideRequest(storeId, person.id, approve ? 'approve' : 'reject', part);
       await refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : '요청을 처리하지 못했어요.');
+      setError(errorText(e, '요청을 처리하지 못했어요.'));
     } finally {
       deciding.current = false;
       setBusy(false);
@@ -178,7 +170,7 @@ export function OwnerStaffManagement({ storeId, onBack }: { storeId: number; onB
       setStaff(await serverOwnerStaffRepository.getEmployees(storeId));
     } catch (e) {
       setStaff([]);
-      setError(e instanceof Error ? e.message : '직원 목록을 불러오지 못했어요.');
+      setError(errorText(e, '직원 목록을 불러오지 못했어요.'));
     } finally {
       setLoading(false);
     }
@@ -340,7 +332,7 @@ export function OwnerStaffManagement({ storeId, onBack }: { storeId: number; onB
                       if (savedTimer.current) clearTimeout(savedTimer.current);
                       savedTimer.current = setTimeout(() => setSavedId(null), 1500);
                     } catch (e) {
-                      setError(e instanceof Error ? e.message : '근무 파트를 저장하지 못했어요.');
+                      setError(errorText(e, '근무 파트를 저장하지 못했어요.'));
                     } finally {
                       mutating.current = false;
                       setBusy(false);
@@ -391,7 +383,7 @@ export function OwnerStaffManagement({ storeId, onBack }: { storeId: number; onB
                     setRemoveTarget(null);
                   } catch (e) {
                     setRemoveTarget(null);
-                    setError(e instanceof Error ? e.message : '직원을 제거하지 못했어요.');
+                    setError(errorText(e, '직원을 제거하지 못했어요.'));
                   } finally {
                     mutating.current = false;
                     setBusy(false);

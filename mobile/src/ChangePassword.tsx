@@ -1,27 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import {
-  BackHandler,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  TextInputProps,
-  TextProps,
-  View,
-} from 'react-native';
+import { BackHandler, Platform, Pressable, ScrollView, StyleSheet, TextInputProps, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Text as AppText, TextInput } from './font';
+import { Text, TextInput } from './font';
 import { C } from './ui';
 import { changePassword } from './passwordRepository';
-
-function Text(props: TextProps) {
-  return (
-    <AppText
-      {...props}
-      style={[Platform.OS === 'android' && { fontFamily: 'sans-serif', includeFontPadding: false }, props.style]}
-    />
-  );
-}
+import { errorText } from './api';
 function PasswordInput(props: TextInputProps) {
   return (
     <View style={s.inputFrame}>
@@ -69,7 +52,7 @@ export default function ChangePassword({
       setConfirmation('');
       setSaved(true);
     } catch (e) {
-      setError(e instanceof Error ? e.message : '비밀번호를 변경하지 못했어요.');
+      setError(errorText(e, '비밀번호를 변경하지 못했어요.'));
     } finally {
       working.current = false;
       setBusy(false);

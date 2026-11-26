@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Text, TextInput } from './font';
 import { C } from './ui';
 import { getStoreSetupSettings, saveStoreSetupSettings, StoreSetupSettings } from './storeSetupRepository';
+import { errorText } from './api';
 export default function StoreOperationEditor({ storeId }: { storeId: number }) {
   const [open, setOpen] = useState(false),
     [data, setData] = useState<StoreSetupSettings | null>(null),
@@ -166,7 +167,7 @@ export default function StoreOperationEditor({ storeId }: { storeId: number }) {
                     setData(saved);
                     setMessage('매장 계정에 저장했어요.');
                   } catch (e) {
-                    setMessage(e instanceof Error ? e.message : '저장 실패');
+                    setMessage(errorText(e, '저장 실패'));
                   } finally {
                     setBusy(false);
                   }
@@ -195,7 +196,7 @@ export default function StoreOperationEditor({ storeId }: { storeId: number }) {
                     setCount(String(old.lowStockThresholdCount));
                     setMessage('이전 설정을 불러왔어요. 내용을 확인한 뒤 저장해주세요.');
                   } catch (e) {
-                    setMessage(e instanceof Error ? e.message : '불러오기 실패');
+                    setMessage(errorText(e, '불러오기 실패'));
                   }
                 }}
               >

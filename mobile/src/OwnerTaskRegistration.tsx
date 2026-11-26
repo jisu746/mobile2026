@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { C, Field } from './ui';
 import { CustomTask, customTasks, TaskPerson } from './customTasks';
 import CustomTaskCard from './CustomTaskCard';
+import { errorText } from './api';
 type Legacy = { id: string; title: string; description: string; urgent: boolean };
 type Props = { storeId: number; onBack: () => void; onEntriesChange: () => void };
 const draftKey = () => `task-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -37,7 +38,7 @@ export default function OwnerTaskRegistration({ storeId, onBack, onEntriesChange
         }
       },
       (e) => {
-        if (active) setError(e instanceof Error ? e.message : '업무 조회 실패');
+        if (active) setError(errorText(e, '업무 조회 실패'));
       },
     );
     return () => {
@@ -88,7 +89,7 @@ export default function OwnerTaskRegistration({ storeId, onBack, onEntriesChange
       await action();
       refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : '저장하지 못했어요.');
+      setError(errorText(e, '저장하지 못했어요.'));
     } finally {
       working.current = false;
       setSaving(false);

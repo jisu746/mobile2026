@@ -103,12 +103,15 @@ export const listSessions = (storeId: number, year: number, month: number): Prom
     l.map((r) => ({ ...r, clockIn: new Date(r.clockIn), clockOut: at(r.clockOut) })),
   );
 
+// 날짜별 묶음에 쓰는 키 (연-월-일, 월은 0부터)
+export const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+
 // 날짜(연-월-일)별 근무 시간. 아직 퇴근 전이면 지금까지로 센다
 export function hoursByDay(list: Session[]) {
   const out: Record<string, number> = {};
   for (const s of list) {
     const d = s.clockIn;
-    const k = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    const k = dayKey(d);
     out[k] =
       (out[k] ?? 0) +
       Math.max(0, ((s.clockOut ?? new Date()).getTime() - d.getTime()) / 3600000 - (s.breakSeconds ?? 0) / 3600);

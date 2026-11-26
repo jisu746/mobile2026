@@ -1,5 +1,5 @@
 import { Modal } from 'react-native';
-import { api } from './api';
+import { api, errorText } from './api';
 import LinkedTasks from './LinkedTasks';
 import { customTasks, CustomTask } from './customTasks';
 import { useEffect, useRef, useState } from 'react';
@@ -64,7 +64,7 @@ export default function HandoverBoard({ storeId, onBack }: { storeId: number; on
           }
         },
         (e) => {
-          if (active) setError(e instanceof Error ? e.message : '조회 실패');
+          if (active) setError(errorText(e, '조회 실패'));
         },
       )
       .finally(() => {
@@ -94,7 +94,7 @@ export default function HandoverBoard({ storeId, onBack }: { storeId: number; on
       setRelated(null);
       refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : '등록 실패');
+      setError(errorText(e, '등록 실패'));
     } finally {
       working.current = false;
       setBusy(false);
@@ -213,7 +213,7 @@ function MemoCard({
       setEditing(false);
       onChange();
     } catch (e) {
-      setError(e instanceof Error ? e.message : '처리 실패');
+      setError(errorText(e, '처리 실패'));
     } finally {
       working.current = false;
       setBusy(false);

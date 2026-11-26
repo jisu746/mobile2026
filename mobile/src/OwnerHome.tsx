@@ -3,17 +3,8 @@ import NotificationBell from './NotificationBell';
 import { api } from './api';
 // 사장님 홈 화면 (업무 진행률, 근무 현황)과 하단 탭 연결
 import { ReactNode, useCallback, useEffect, useState } from 'react';
-import { Image, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, TextProps, View } from 'react-native';
-import { Text as AppText } from './font';
-
-function Text(props: TextProps) {
-  return (
-    <AppText
-      {...props}
-      style={[Platform.OS === 'android' && { fontFamily: 'sans-serif', includeFontPadding: false }, props.style]}
-    />
-  );
-}
+import { Image, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from './font';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
 import BarcodeFlow from './BarcodeFlow';

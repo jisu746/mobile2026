@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { Text } from './font';
-import { api } from './api';
+import { api, errorText } from './api';
 import { C } from './ui';
 import LinkedTasks from './LinkedTasks';
 import InventoryTab from './InventoryTab';
@@ -122,7 +122,7 @@ export default function ShiftSummary({
                       await resolveHandover(storeId, m.id, true, m.revision);
                       setVersion((v) => v + 1);
                     } catch (e) {
-                      setError(e instanceof Error ? e.message : '확인 실패');
+                      setError(errorText(e, '확인 실패'));
                     } finally {
                       setBusy(null);
                     }

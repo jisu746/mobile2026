@@ -4,6 +4,7 @@ import { Text } from './font';
 import { C } from './ui';
 import { listSessions, Session } from './work';
 import { sessionHours } from './payCalculation';
+import { errorText } from './api';
 export default function ClockOutConfirm({
   storeId,
   clockedAt,
@@ -56,7 +57,7 @@ export default function ClockOutConfirm({
               try {
                 await onConfirm();
               } catch (e) {
-                setError(e instanceof Error ? e.message : '퇴근 처리 실패');
+                setError(errorText(e, '퇴근 처리 실패'));
                 setBusy(false);
               }
             }}

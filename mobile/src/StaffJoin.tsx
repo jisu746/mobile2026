@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { lookupStore, Store } from './auth';
 import Scanner from './Scanner';
 import { Button, C, Field } from './ui';
+import { errorText } from './api';
 
 type Step = 1 | 2 | 3 | 4;
 type Result = 'approved' | 'pending' | 'rejected';
@@ -50,7 +51,7 @@ export default function StaffJoin({ step, onStep, onBack, onDone, onJoin, onPoll
       setRequestedAt(stamp());
       onStep(3);
     } catch (e) {
-      setError(e instanceof Error ? e.message : '참여 요청을 보내지 못했어요');
+      setError(errorText(e, '참여 요청을 보내지 못했어요'));
       onStep(1);
     }
   };

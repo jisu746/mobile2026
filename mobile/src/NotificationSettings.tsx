@@ -13,6 +13,7 @@ import {
   validateNotificationPreferences,
 } from './notificationPreferencesRepository';
 import { DEFAULT_STORE_SETUP_SETTINGS, getStoreSetupSettingsOrDefault } from './storeSetupRepository';
+import { errorText } from './api';
 
 type NotificationToggleKey = 'task' | 'expiry' | 'stock' | 'memo' | 'pay';
 const KINDS: { id: NotificationToggleKey; title: string; sub?: string }[] = [
@@ -59,7 +60,7 @@ export default function NotificationSettings({
         }
       },
       (e) => {
-        if (active) setError(e instanceof Error ? e.message : '설정을 불러오지 못했어요.');
+        if (active) setError(errorText(e, '설정을 불러오지 못했어요.'));
       },
     );
     return () => {
@@ -93,7 +94,7 @@ export default function NotificationSettings({
     try {
       validateNotificationPreferences(next);
     } catch (e) {
-      setError(e instanceof Error ? e.message : '시간을 확인해 주세요.');
+      setError(errorText(e, '시간을 확인해 주세요.'));
       return false;
     }
     working.current = true;
@@ -108,7 +109,7 @@ export default function NotificationSettings({
       return true;
     } catch (e) {
       if (accountRef.current === userId) {
-        setError(e instanceof Error ? e.message : '저장하지 못했어요.');
+        setError(errorText(e, '저장하지 못했어요.'));
         setReady(false);
       }
       return false;
@@ -174,7 +175,7 @@ export default function NotificationSettings({
               try {
                 setNotice(await registerPushDevice());
               } catch (e) {
-                setError(e instanceof Error ? e.message : '푸시 연결 실패');
+                setError(errorText(e, '푸시 연결 실패'));
               } finally {
                 setSaving(false);
               }

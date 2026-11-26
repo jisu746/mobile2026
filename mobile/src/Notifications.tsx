@@ -13,7 +13,8 @@ import { listNotifs, markRead, Notif } from './notifs';
 import { listProducts } from './inventory';
 import { getStoreSetupSettingsOrDefault } from './storeSetupRepository';
 import { C } from './ui';
-import { hhmm } from './work';
+import { hhmm, dayKey } from './work';
+import { errorText } from './api';
 
 type Icon = keyof typeof Ionicons.glyphMap;
 type Look = { icon: Icon; bg: string; fg: string; outline?: boolean };
@@ -38,7 +39,6 @@ const LOOK: Record<string, Look> = {
 };
 const DEFAULT_LOOK: Look = { icon: 'notifications-outline', ...GRAY };
 
-const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 const inventoryReadKey = (userId: string, storeId: number) => `inventoryNotificationReads:${userId}:${storeId}`;
 
 export default function Notifications({
@@ -71,7 +71,7 @@ export default function Notifications({
     | null
   >(null);
 
-  const fail = (e: unknown) => setError(e instanceof Error ? e.message : '요청을 처리하지 못했어요');
+  const fail = (e: unknown) => setError(errorText(e, '요청을 처리하지 못했어요'));
   useEffect(() => {
     listNotifs(storeId).then(setList, (e) => {
       setList([]);
@@ -115,7 +115,7 @@ export default function Notifications({
       .catch((e) => {
         if (!active) return;
         setInventoryAlerts([]);
-        setInventoryError(e instanceof Error ? e.message : '재고 알림을 불러오지 못했어요');
+        setInventoryError(errorText(e, '재고 알림을 불러오지 못했어요'));
       });
     return () => {
       active = false;

@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, View } from 'react-native';
 import { Text, TextInput } from './font';
-import { api } from './api';
+import { api, errorText } from './api';
 import { C } from './ui';
 import type { Product } from './inventory';
 const field = {
@@ -182,7 +182,7 @@ export default function BulkStocktake({
                     onSaved();
                     onClose();
                   } catch (e) {
-                    setError(e instanceof Error ? e.message : '저장 실패');
+                    setError(errorText(e, '저장 실패'));
                   } finally {
                     lock.current = false;
                     setBusy(false);

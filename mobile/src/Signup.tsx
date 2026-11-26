@@ -6,6 +6,8 @@ import { Text } from './font';
 import { Ionicons } from '@expo/vector-icons';
 import { exists, signup } from './auth';
 import { Button, C, Field, Pill, SignupHeader } from './ui';
+import { errorText } from './api';
+import { formatBirthInput } from './profileValidation';
 
 const ID_RE = /^[a-z0-9]+$/;
 const PW_RE = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9]).+$/;
@@ -50,7 +52,7 @@ export default function Signup({ step, onStep, onBack, onDone }: Props) {
       setFormError('');
       onStep((step + 1) as 2 | 3 | 4);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : '요청을 처리하지 못했어요';
+      const msg = errorText(e, '요청을 처리하지 못했어요');
       if (step === 1) setIdError(msg);
       else setFormError(msg);
     }
@@ -146,13 +148,6 @@ export default function Signup({ step, onStep, onBack, onDone }: Props) {
       </View>
     </View>
   );
-}
-
-function formatBirthInput(value: string) {
-  const digits = value.replace(/\D/g, '').slice(0, 8);
-  if (digits.length <= 4) return digits;
-  if (digits.length <= 6) return `${digits.slice(0, 4)}.${digits.slice(4)}`;
-  return `${digits.slice(0, 4)}.${digits.slice(4, 6)}.${digits.slice(6)}`;
 }
 
 const s = StyleSheet.create({

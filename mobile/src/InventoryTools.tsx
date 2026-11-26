@@ -3,7 +3,7 @@ import { CategoryChoices } from './CategoryManager';
 import { useEffect, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, View } from 'react-native';
 import { Text, TextInput } from './font';
-import { api } from './api';
+import { api, errorText } from './api';
 import { C } from './ui';
 import type { Product } from './inventory';
 type Mode = 'outbound' | 'adjustment' | 'history' | 'details' | 'orders';
@@ -179,7 +179,7 @@ export default function InventoryTools({
       if (mode === 'outbound' || mode === 'adjustment') onClose();
       else setVersion((v) => v + 1);
     } catch (e) {
-      setError(e instanceof Error ? e.message : '저장 실패');
+      setError(errorText(e, '저장 실패'));
     } finally {
       working.current = false;
       setBusy(false);

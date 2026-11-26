@@ -4,7 +4,7 @@ import { Text, TextInput } from './font';
 import { C } from './ui';
 import type { PayrollRecord } from './livePayrollRepository';
 import { closeMissingClockOut, validateClockOut } from './workCorrection';
-import { api } from './api';
+import { api, errorText } from './api';
 
 export default function MissingClockOut({
   storeId,
@@ -34,7 +34,7 @@ export default function MissingClockOut({
       setError('');
       setConfirm(true);
     } catch (e) {
-      setError(e instanceof Error ? e.message : '입력값을 확인해 주세요.');
+      setError(errorText(e, '입력값을 확인해 주세요.'));
     }
   };
   const save = async () => {
@@ -56,7 +56,7 @@ export default function MissingClockOut({
       onSaved();
     } catch (e) {
       setConfirm(false);
-      setError(e instanceof Error ? e.message : '퇴근 처리를 저장하지 못했어요.');
+      setError(errorText(e, '퇴근 처리를 저장하지 못했어요.'));
     } finally {
       saving.current = false;
       setBusy(false);

@@ -9,6 +9,7 @@ import { demoOwnerStaffRepository } from './ownerStaffRepository';
 import type { StaffPerson } from './ownerStaffRepository';
 import { contractRepository } from './contractRepository';
 import type { EmploymentContract } from './contractRepository';
+import { errorText } from './api';
 
 type Props = { storeId: number; onBack: () => void };
 type Page = 'list' | 'detail' | 'camera';
@@ -36,10 +37,7 @@ export default function OwnerContracts({ storeId, onBack }: Props) {
     demoOwnerStaffRepository
       .getEmployees(storeId)
       .then(setEmployees, (error) =>
-        Alert.alert(
-          '직원 목록을 불러오지 못했어요',
-          error instanceof Error ? error.message : '잠시 후 다시 시도해 주세요.',
-        ),
+        Alert.alert('직원 목록을 불러오지 못했어요', errorText(error, '잠시 후 다시 시도해 주세요.')),
       )
       .finally(() => setLoading(false));
   }, [storeId]);
@@ -49,10 +47,7 @@ export default function OwnerContracts({ storeId, onBack }: Props) {
     try {
       setContract(await contractRepository.get(storeId, person.id));
     } catch (error) {
-      Alert.alert(
-        '근로계약서를 불러오지 못했어요',
-        error instanceof Error ? error.message : '저장된 계약서를 읽지 못했어요.',
-      );
+      Alert.alert('근로계약서를 불러오지 못했어요', errorText(error, '저장된 계약서를 읽지 못했어요.'));
       setContract(null);
     }
     setPage('detail');
@@ -216,7 +211,7 @@ function ContractCamera({
       setPhotoUri(uri);
       setError('');
     } catch (e) {
-      setError(e instanceof Error ? e.message : '사진을 촬영하지 못했어요.');
+      setError(errorText(e, '사진을 촬영하지 못했어요.'));
     }
   };
 
@@ -226,7 +221,7 @@ function ContractCamera({
     try {
       await onSave(photoUri);
     } catch (e) {
-      setError(e instanceof Error ? e.message : '사진을 저장하지 못했어요.');
+      setError(errorText(e, '사진을 저장하지 못했어요.'));
     } finally {
       setSaving(false);
     }

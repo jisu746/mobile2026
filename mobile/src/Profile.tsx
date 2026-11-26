@@ -2,30 +2,22 @@ import NotificationBell from './NotificationBell';
 import StoreDetailsEditor from './StoreDetailsEditor';
 // MY 탭 화면 (프로필, 소속 매장, 로그아웃) - 사장님·직원 공통
 import { ReactNode, useEffect, useRef, useState } from 'react';
-import { Image, Platform, Pressable, ScrollView, StyleSheet, TextInputProps, TextProps, View } from 'react-native';
-import { Text as AppText, TextInput } from './font';
+import { Image, Platform, Pressable, ScrollView, StyleSheet, TextInputProps, View } from 'react-native';
+import { Text, TextInput } from './font';
 import { Ionicons } from '@expo/vector-icons';
 import { Account } from './auth';
-import { validateProfile } from './profileValidation';
+import { validateProfile, formatBirthInput } from './profileValidation';
 import NotificationSettings from './NotificationSettings';
 import ChangePassword from './ChangePassword';
 import StoreOperationEditor from './StoreOperationEditor';
 import StoreTemplateEditor from './StoreTemplateEditor';
-
-function Text(props: TextProps) {
-  return (
-    <AppText
-      {...props}
-      style={[Platform.OS === 'android' && { fontFamily: 'sans-serif', includeFontPadding: false }, props.style]}
-    />
-  );
-}
 import { C } from './ui';
 import type { Store } from './auth';
 import { contractRepository } from './contractRepository';
 import type { EmploymentContract } from './contractRepository';
 import { hoursByDay, hr, listSessions, useMe, won } from './work';
 import { summarizePay } from './payCalculation';
+import { errorText } from './api';
 
 type Props = {
   id: string;
@@ -392,7 +384,7 @@ function ProfileEditScreen({
     try {
       cleanName = validateProfile(name, birth).name;
     } catch (e) {
-      setFormError(e instanceof Error ? e.message : '이름과 생년월일을 확인해 주세요.');
+      setFormError(errorText(e, '이름과 생년월일을 확인해 주세요.'));
       return;
     }
     if (store && !storeName.trim()) {
@@ -485,12 +477,6 @@ function ProfileInput(props: TextInputProps) {
       <TextInput {...props} underlineColorAndroid="transparent" style={s.editInput} />
     </View>
   );
-}
-function formatBirthInput(value: string) {
-  const digits = value.replace(/\D/g, '').slice(0, 8);
-  if (digits.length <= 4) return digits;
-  if (digits.length <= 6) return `${digits.slice(0, 4)}.${digits.slice(4)}`;
-  return `${digits.slice(0, 4)}.${digits.slice(4, 6)}.${digits.slice(6)}`;
 }
 
 function initialBirthInput(value: string) {

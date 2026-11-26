@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Text, TextInput } from './font';
 import { C } from './ui';
 import { scheduleRepository, StaffShift } from './scheduleRepository';
+import { errorText } from './api';
 
 const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -57,7 +58,7 @@ export default function OwnerSchedule({
           }
         },
         (e: unknown) => {
-          if (active) setError(e instanceof Error ? e.message : '일정을 불러오지 못했어요.');
+          if (active) setError(errorText(e, '일정을 불러오지 못했어요.'));
         },
       )
       .finally(() => {
@@ -106,7 +107,7 @@ export default function OwnerSchedule({
         remove ? '선택한 날짜의 일정을 삭제했어요.' : '일정을 저장했어요. 직원이 다시 로그인하면 확인할 수 있어요.',
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : '일정을 저장하지 못했어요.');
+      setError(errorText(e, '일정을 저장하지 못했어요.'));
     } finally {
       setConfirmDelete(false);
       working.current = false;
