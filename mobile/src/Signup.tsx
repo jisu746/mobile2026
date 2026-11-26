@@ -6,7 +6,8 @@ import { Text } from './font';
 import { Ionicons } from '@expo/vector-icons';
 import { exists, signup } from './auth';
 import { Button, C, Field, Pill, SignupHeader } from './ui';
-import { saveLocalProfile } from './profileRepository';
+import { errorText } from './api';
+import { formatBirthInput } from './profileValidation';
 
 const ID_RE = /^[a-z0-9]+$/;
 const PW_RE = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9]).+$/;
@@ -47,20 +48,19 @@ export default function Signup({ step, onStep, onBack, onDone }: Props) {
       if (step === 1 && (await exists(id))) return setIdError('이미 사용 중인 아이디예요');
       if (step === 3) {
         await signup(id, { pw, role, name, birth });
-        // Keep signup profile data available to the frontend before profile APIs are wired.
-        await saveLocalProfile(id, { name, birth });
       }
       setFormError('');
       onStep((step + 1) as 2 | 3 | 4);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : '요청을 처리하지 못했어요';
+      const msg = errorText(e, '요청을 처리하지 못했어요');
       if (step === 1) setIdError(msg);
       else setFormError(msg);
     }
   };
 
   const mismatch = pw2 !== '' && pw !== pw2;
-  const ok = step === 1 ? ID_RE.test(id) : step === 2 ? PW_RE.test(pw) && pw === pw2 : !!name.trim() && birth.length === 8;
+  const ok =
+    step === 1 ? ID_RE.test(id) : step === 2 ? PW_RE.test(pw) && pw === pw2 : !!name.trim() && birth.length === 8;
 
   if (!fontsLoaded) return null;
 
@@ -82,9 +82,22 @@ export default function Signup({ step, onStep, onBack, onDone }: Props) {
       {step === 1 && (
         <>
           <Text style={s.title}>아이디를 입력하세요</Text>
-          <Field placeholder="아이디" value={id} onChangeText={(t) => { setId(t); setIdError(''); }} style={s.input} />
-          <Text style={s.hint}>•  아이디는 알파벳 소문자와 숫자만 사용할 수 있어요</Text>
-          {!!idError && <Text style={s.error}>•  {idError}</Text>}
+          <Field
+            placeholder="아이디"
+            value={id}
+            onChangeText={(t) => {
+              setId(t);
+              setIdError('');
+            }}
+            style={s.input}
+          />
+          <Text style={s.hint}>{'•  '}아이디는 알파벳 소문자와 숫자만 사용할 수 있어요</Text>
+          {!!idError && (
+            <Text style={s.error}>
+              {'•  '}
+              {idError}
+            </Text>
+          )}
         </>
       )}
       {step === 2 && (
@@ -94,20 +107,37 @@ export default function Signup({ step, onStep, onBack, onDone }: Props) {
             <Field placeholder="비밀번호" value={pw} onChangeText={setPw} secureTextEntry style={s.input} />
             <Field placeholder="비밀번호 확인" value={pw2} onChangeText={setPw2} secureTextEntry style={s.input} />
           </View>
-          <Text style={s.hint}>•  특수문자와 숫자, 알파벳 조합으로 만들어주세요</Text>
-          {mismatch && <Text style={s.error}>•  비밀번호가 일치하지 않아요</Text>}
+          <Text style={s.hint}>{'•  '}특수문자와 숫자, 알파벳 조합으로 만들어주세요</Text>
+          {mismatch && <Text style={s.error}>{'•  '}비밀번호가 일치하지 않아요</Text>}
         </>
       )}
       {step === 3 && (
         <>
           <Text style={s.title}>사용자님의 정보를 입력해주세요</Text>
           <View style={s.roles}>
-            <Pill label="사장님으로 시작할게요" active={role === 'owner'} onPress={() => setRole('owner')} fontFamily="NotoSansKR" />
-            <Pill label="직원으로 시작할게요" active={role === 'staff'} onPress={() => setRole('staff')} fontFamily="NotoSansKR" />
+            <Pill
+              label="사장님으로 시작할게요"
+              active={role === 'owner'}
+              onPress={() => setRole('owner')}
+              fontFamily="NotoSansKR"
+            />
+            <Pill
+              label="직원으로 시작할게요"
+              active={role === 'staff'}
+              onPress={() => setRole('staff')}
+              fontFamily="NotoSansKR"
+            />
           </View>
           <View style={s.fields}>
             <Field placeholder="이름" value={name} onChangeText={setName} style={s.input} />
-            <Field placeholder="YYYY.MM.DD" value={formatBirthInput(birth)} onChangeText={(value) => setBirth(value.replace(/\D/g, '').slice(0, 8))} keyboardType="number-pad" maxLength={10} style={s.input} />
+            <Field
+              placeholder="YYYY.MM.DD"
+              value={formatBirthInput(birth)}
+              onChangeText={(value) => setBirth(value.replace(/\D/g, '').slice(0, 8))}
+              keyboardType="number-pad"
+              maxLength={10}
+              style={s.input}
+            />
           </View>
         </>
       )}
@@ -120,19 +150,19 @@ export default function Signup({ step, onStep, onBack, onDone }: Props) {
   );
 }
 
-function formatBirthInput(value: string) {
-  const digits = value.replace(/\D/g, '').slice(0, 8);
-  if (digits.length <= 4) return digits;
-  if (digits.length <= 6) return `${digits.slice(0, 4)}.${digits.slice(4)}`;
-  return `${digits.slice(0, 4)}.${digits.slice(4, 6)}.${digits.slice(6)}`;
-}
-
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#fff', paddingHorizontal: 24 },
   back: { marginTop: 14, width: 32 },
   error: { fontSize: 13.8, color: '#D93025', marginTop: 8, fontFamily: 'NotoSansKR' },
   steps: { flexDirection: 'row', gap: 12, marginTop: 40, marginBottom: 28, paddingLeft: 4 },
-  step: { width: 34, height: 32, borderRadius: 20, backgroundColor: C.pill, alignItems: 'center', justifyContent: 'center' },
+  step: {
+    width: 34,
+    height: 32,
+    borderRadius: 20,
+    backgroundColor: C.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   stepOn: { backgroundColor: C.primary },
   stepText: { fontSize: 14, fontWeight: '500', color: '#000', fontFamily: 'NotoSansKR' },
   title: { fontSize: 16, fontWeight: '600', color: C.primary, marginBottom: 12, fontFamily: 'NotoSansKR' },

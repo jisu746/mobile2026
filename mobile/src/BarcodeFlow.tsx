@@ -1,31 +1,41 @@
-import {CategoryChoices} from './CategoryManager';
+import { CategoryChoices } from './CategoryManager';
 // 바코드 입고 화면 (스캔 → 입고 목록 확인 → 완료 결과)
 import { useEffect, useRef, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, TextProps, View } from 'react-native';
-import { Text as AppText, TextInput } from './font';
+import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from './font';
 import { Ionicons } from '@expo/vector-icons';
 import { BarcodeType } from 'expo-camera';
-
-function Text(props: TextProps) { return <AppText {...props} style={[Platform.OS === 'android' && { fontFamily: 'sans-serif', includeFontPadding: false }, props.style]} />; }
 import Scanner from './Scanner';
-import {api} from './api';
+import { api, errorText } from './api';
 import ExpiryCapture from './ExpiryCapture';
 import { Product, getProduct, isLowStock, productLowStockThreshold, receive } from './inventory';
 import { DEFAULT_STORE_SETUP_SETTINGS, getStoreSetupSettingsOrDefault } from './storeSetupRepository';
 import { C, Field, Stepper } from './ui';
 
-type Item = { barcode: string; name: string; category: string; before: number; min: number; qty: number; expiry: string };
+type Item = {
+  barcode: string;
+  name: string;
+  category: string;
+  before: number;
+  min: number;
+  qty: number;
+  expiry: string;
+};
 type Result = { name: string; before: number; after: number; min: number };
 type Props = { store: number; userName: string; onExit: () => void };
 
 const BARCODES: BarcodeType[] = ['ean13', 'ean8', 'upc_a', 'upc_e', 'code128', 'code39'];
-const itemKey = (i: Pick<Item,'barcode'|'expiry'>) => `${i.barcode}|${i.expiry}`;
+const itemKey = (i: Pick<Item, 'barcode' | 'expiry'>) => `${i.barcode}|${i.expiry}`;
 const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
 // 숫자만 입력해도 2026.10.11 형식으로 맞춘다
 const fmtDate = (t: string) => {
   const d = t.replace(/\D/g, '').slice(0, 8);
-  return d.length > 6 ? `${d.slice(0, 4)}.${d.slice(4, 6)}.${d.slice(6)}` : d.length > 4 ? `${d.slice(0, 4)}.${d.slice(4)}` : d;
+  return d.length > 6
+    ? `${d.slice(0, 4)}.${d.slice(4, 6)}.${d.slice(6)}`
+    : d.length > 4
+      ? `${d.slice(0, 4)}.${d.slice(4)}`
+      : d;
 };
 const parseDate = (s: string) => {
   const m = /^(\d{4})\.(\d{2})\.(\d{2})$/.exec(s);
@@ -45,40 +55,54 @@ export default function BarcodeFlow({ store, userName, onExit }: Props) {
   const [results, setResults] = useState<Result[]>([]);
   const [scanKey, setScanKey] = useState(0);
   const [error, setError] = useState('');
-  const [saving,setSaving]=useState(false);const working=useRef(false);
-  const receiptKey=useRef('');const receiptPayload=useRef('');
+  const [saving, setSaving] = useState(false);
+  const working = useRef(false);
+  const receiptKey = useRef('');
+  const receiptPayload = useRef('');
   const [alertSettings, setAlertSettings] = useState(DEFAULT_STORE_SETUP_SETTINGS);
 
   useEffect(() => {
     let active = true;
-    getStoreSetupSettingsOrDefault(store).then((settings) => {
-      if (active) setAlertSettings(settings);
-    }).catch((e) => setError(e instanceof Error ? e.message : '매장 설정을 불러오지 못했어요.'));
-    return () => { active = false; };
+    getStoreSetupSettingsOrDefault(store)
+      .then((settings) => {
+        if (active) setAlertSettings(settings);
+      })
+      .catch((e) => setError(errorText(e, '매장 설정을 불러오지 못했어요.')));
+    return () => {
+      active = false;
+    };
   }, [store]);
 
   const add = (item: Item) => {
     setItems((cur) =>
       cur.some((x) => itemKey(x) === itemKey(item))
         ? cur.map((x) => (itemKey(x) === itemKey(item) ? { ...x, qty: x.qty + item.qty } : x))
-        : [...cur, item]
+        : [...cur, item],
     );
     setStep('review');
   };
 
   // 서버에 입고를 반영하고, 서버가 계산한 입고 전후 재고를 결과 화면에 보여준다
   const complete = async () => {
-    if(working.current)return;working.current=true;setSaving(true);setError('');
+    if (working.current) return;
+    working.current = true;
+    setSaving(true);
+    setError('');
     try {
-      const payload=JSON.stringify(items);
-      if(receiptPayload.current!==payload){receiptKey.current='receipt-'+Date.now()+'-'+Math.random().toString(36).slice(2);receiptPayload.current=payload;}
-      const res = await receive(store, items,receiptKey.current);
+      const payload = JSON.stringify(items);
+      if (receiptPayload.current !== payload) {
+        receiptKey.current = 'receipt-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+        receiptPayload.current = payload;
+      }
+      const res = await receive(store, items, receiptKey.current);
       setResults(res.map((r) => ({ name: r.name, before: r.before, after: r.after, min: r.min })));
       setItems([]);
       setStep('done');
     } catch (e) {
-      setError(e instanceof Error ? e.message : '입고하지 못했어요');
-    } finally {working.current=false;setSaving(false);
+      setError(errorText(e, '입고하지 못했어요'));
+    } finally {
+      working.current = false;
+      setSaving(false);
     }
   };
 
@@ -91,12 +115,34 @@ export default function BarcodeFlow({ store, userName, onExit }: Props) {
         types={BARCODES}
         hint="상품 바코드를 프레임 안에 맞춰주세요"
         manualEntry="text"
-        sheet={(code, rescan) => <ProductSheet store={store} code={code} expirationAlertDays={alertSettings.expirationAlertDays} onRescan={rescan} onAdd={add} />}
+        sheet={(code, rescan) => (
+          <ProductSheet
+            store={store}
+            code={code}
+            expirationAlertDays={alertSettings.expirationAlertDays}
+            onRescan={rescan}
+            onAdd={add}
+          />
+        )}
       />
     );
   }
 
-  if (step === 'review') return <Review items={items} setItems={setItems} userName={userName} error={error} saving={saving} onBack={() => { setScanKey((k) => k + 1); setStep('scan'); }} onComplete={complete} />;
+  if (step === 'review')
+    return (
+      <Review
+        items={items}
+        setItems={setItems}
+        userName={userName}
+        error={error}
+        saving={saving}
+        onBack={() => {
+          setScanKey((k) => k + 1);
+          setStep('scan');
+        }}
+        onComplete={complete}
+      />
+    );
 
   return (
     <View style={s.root}>
@@ -107,7 +153,9 @@ export default function BarcodeFlow({ store, userName, onExit }: Props) {
           </View>
         </View>
         <Text style={s.doneTitle}>입고를 완료했어요</Text>
-        <Text style={s.doneSub}>{results.length}개 품목 · {results.reduce((a, r) => a + (r.after - r.before), 0)}개가 재고에 반영됐어요</Text>
+        <Text style={s.doneSub}>
+          {results.length}개 품목 · {results.reduce((a, r) => a + (r.after - r.before), 0)}개가 재고에 반영됐어요
+        </Text>
 
         <Text style={s.sectionTitle}>재고 변화</Text>
         <View style={s.card}>
@@ -125,7 +173,9 @@ export default function BarcodeFlow({ store, userName, onExit }: Props) {
                     </View>
                   )}
                 </View>
-                <Text style={s.change}>{r.before} → <Text style={s.changeNew}>{r.after}</Text></Text>
+                <Text style={s.change}>
+                  {r.before} → <Text style={s.changeNew}>{r.after}</Text>
+                </Text>
               </View>
             );
           })}
@@ -133,7 +183,13 @@ export default function BarcodeFlow({ store, userName, onExit }: Props) {
       </ScrollView>
 
       <View style={s.doneBtns}>
-        <Pressable style={[s.btn, s.btnLine, { flex: 1 }]} onPress={() => { setScanKey((k) => k + 1); setStep('scan'); }}>
+        <Pressable
+          style={[s.btn, s.btnLine, { flex: 1 }]}
+          onPress={() => {
+            setScanKey((k) => k + 1);
+            setStep('scan');
+          }}
+        >
           <Ionicons name="barcode-outline" size={18} color={C.primary} />
           <Text style={s.btnLineText}>계속 스캔</Text>
         </Pressable>
@@ -145,19 +201,39 @@ export default function BarcodeFlow({ store, userName, onExit }: Props) {
   );
 }
 
-function ProductSheet({ store, code, expirationAlertDays, onRescan, onAdd }: { store: number; code: string; expirationAlertDays: number; onRescan: () => void; onAdd: (i: Item) => void }) {
+function ProductSheet({
+  store,
+  code,
+  expirationAlertDays,
+  onRescan,
+  onAdd,
+}: {
+  store: number;
+  code: string;
+  expirationAlertDays: number;
+  onRescan: () => void;
+  onAdd: (i: Item) => void;
+}) {
   const [product, setProduct] = useState<Product | null | undefined>(undefined); // undefined = 조회 중
   const [name, setName] = useState('');
   const [qty, setQty] = useState(1);
   const [expiry, setExpiry] = useState('');
-  const [capturing,setCapturing]=useState(false);
-  const [nameCapture,setNameCapture]=useState(false),[category,setCategory]=useState(''),[categories,setCategories]=useState<string[]>(['기타']);
-  useEffect(()=>{api<{categories:string[]}>('GET',`/api/stores/${store}/template`).then(v=>{setCategories(v.categories);setCategory(v.categories[0]??'');},()=>{});},[store]);
+  const [capturing, setCapturing] = useState(false);
+  const [nameCapture, setNameCapture] = useState(false),
+    [category, setCategory] = useState('');
+  useEffect(() => {
+    api<{ categories: string[] }>('GET', `/api/stores/${store}/template`).then(
+      (v) => {
+        setCategory(v.categories[0] ?? '');
+      },
+      () => {},
+    );
+  }, [store]);
 
   const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
-    getProduct(store, code).then(setProduct, (e) => setLoadError(e instanceof Error ? e.message : '상품을 불러오지 못했어요'));
+    getProduct(store, code).then(setProduct, (e) => setLoadError(errorText(e, '상품을 불러오지 못했어요')));
   }, [code]);
 
   if (loadError)
@@ -179,7 +255,9 @@ function ProductSheet({ store, code, expirationAlertDays, onRescan, onAdd }: { s
   return (
     <View>
       <View style={s.head}>
-        <View style={s.img}><Text style={s.imgText}>IMG</Text></View>
+        <View style={s.img}>
+          <Text style={s.imgText}>IMG</Text>
+        </View>
         <View style={{ flex: 1 }}>
           {known ? (
             <>
@@ -188,7 +266,9 @@ function ProductSheet({ store, code, expirationAlertDays, onRescan, onAdd }: { s
                 <Text style={s.tagText}>등록된 상품이에요</Text>
               </View>
               <Text style={s.pName}>{product.name}</Text>
-              <Text style={s.pSub}>{product.barcode} · {product.category}</Text>
+              <Text style={s.pSub}>
+                {product.barcode} · {product.category}
+              </Text>
             </>
           ) : (
             <>
@@ -205,12 +285,16 @@ function ProductSheet({ store, code, expirationAlertDays, onRescan, onAdd }: { s
             <Ionicons name="alert-circle-outline" size={18} color="#B4561F" />
             <Text style={s.infoText}>정보를 입력하면 관리자에게 등록 알림이 가요.</Text>
           </View>
-          <Pressable onPress={()=>setNameCapture(true)}><Text style={{fontSize:13,color:C.primary,paddingVertical:8}}>카메라로 상품명 입력 보조</Text></Pressable><Text style={s.label}>상품명</Text>
+          <Pressable onPress={() => setNameCapture(true)}>
+            <Text style={{ fontSize: 13, color: C.primary, paddingVertical: 8 }}>카메라로 상품명 입력 보조</Text>
+          </Pressable>
+          <Text style={s.label}>상품명</Text>
           <Field placeholder="예) 빙그레 바나나맛우유 240ml" value={name} onChangeText={setName} style={s.nameInput} />
         </>
       )}
 
-      {!known&&<CategoryChoices storeId={store} value={category} onChange={setCategory}/>}<Text style={s.label}>입고 수량</Text>
+      {!known && <CategoryChoices storeId={store} value={category} onChange={setCategory} />}
+      <Text style={s.label}>입고 수량</Text>
       <Stepper value={qty} onChange={setQty} big />
 
       <Text style={s.label}>유통기한</Text>
@@ -227,9 +311,11 @@ function ProductSheet({ store, code, expirationAlertDays, onRescan, onAdd }: { s
         />
         {!!date && <Text style={s.weekday}>({DAYS[date.getDay()]})</Text>}
         <View style={{ flex: 1 }} />
-        {nameCapture&&<ExpiryCapture storeId={store} productText onClose={()=>setNameCapture(false)} onSelect={setName}/>}
-      {capturing&&<ExpiryCapture storeId={store} onClose={()=>setCapturing(false)} onSelect={setExpiry}/>}
-        <Pressable style={s.ocr} onPress={()=>setCapturing(true)}>
+        {nameCapture && (
+          <ExpiryCapture storeId={store} productText onClose={() => setNameCapture(false)} onSelect={setName} />
+        )}
+        {capturing && <ExpiryCapture storeId={store} onClose={() => setCapturing(false)} onSelect={setExpiry} />}
+        <Pressable style={s.ocr} onPress={() => setCapturing(true)}>
           <Ionicons name="camera-outline" size={16} color={C.primary} />
           <Text style={s.ocrText}>촬영 인식</Text>
         </Pressable>
@@ -281,7 +367,23 @@ function ProductSheet({ store, code, expirationAlertDays, onRescan, onAdd }: { s
   );
 }
 
-function Review({ items, setItems, userName, error, saving, onBack, onComplete }: { items: Item[]; setItems: (f: (c: Item[]) => Item[]) => void; userName: string; error: string; saving:boolean; onBack: () => void; onComplete: () => void }) {
+function Review({
+  items,
+  setItems,
+  userName,
+  error,
+  saving,
+  onBack,
+  onComplete,
+}: {
+  items: Item[];
+  setItems: (f: (c: Item[]) => Item[]) => void;
+  userName: string;
+  error: string;
+  saving: boolean;
+  onBack: () => void;
+  onComplete: () => void;
+}) {
   const total = items.reduce((a, i) => a + i.qty, 0);
   const now = new Date();
   const p2 = (n: number) => String(n).padStart(2, '0');
@@ -306,17 +408,26 @@ function Review({ items, setItems, userName, error, saving, onBack, onComplete }
           {items.map((i, idx) => (
             <View key={itemKey(i)} style={[s.reviewItem, idx > 0 && s.line]}>
               <View style={s.itemTop}>
-                <View style={[s.img, { width: 48, height: 48 }]}><Text style={s.imgText}>IMG</Text></View>
+                <View style={[s.img, { width: 48, height: 48 }]}>
+                  <Text style={s.imgText}>IMG</Text>
+                </View>
                 <View style={{ flex: 1 }}>
                   <Text style={s.itemName}>{i.name}</Text>
-                  <Text style={s.pSub}>입고 {i.qty}개 · 유통기한 {i.expiry||'미확인'}</Text>
+                  <Text style={s.pSub}>
+                    입고 {i.qty}개 · 유통기한 {i.expiry || '미확인'}
+                  </Text>
                 </View>
                 <Pressable hitSlop={10} onPress={() => setItems((cur) => cur.filter((x) => itemKey(x) !== itemKey(i)))}>
                   <Ionicons name="ellipsis-vertical" size={18} color="#5E5C6B" />
                 </Pressable>
               </View>
               <View style={{ alignSelf: 'flex-end' }}>
-                <Stepper value={i.qty} onChange={(q) => setItems((cur) => cur.map((x) => (itemKey(x) === itemKey(i) ? { ...x, qty: q } : x)))} />
+                <Stepper
+                  value={i.qty}
+                  onChange={(q) =>
+                    setItems((cur) => cur.map((x) => (itemKey(x) === itemKey(i) ? { ...x, qty: q } : x)))
+                  }
+                />
               </View>
             </View>
           ))}
@@ -326,9 +437,13 @@ function Review({ items, setItems, userName, error, saving, onBack, onComplete }
 
       <View style={s.reviewBottom}>
         {!!error && <Text style={s.errorText}>{error}</Text>}
-        <Pressable disabled={!items.length||saving} style={[s.btn, s.btnFill, !items.length && { opacity: 0.4 }]} onPress={onComplete}>
+        <Pressable
+          disabled={!items.length || saving}
+          style={[s.btn, s.btnFill, !items.length && { opacity: 0.4 }]}
+          onPress={onComplete}
+        >
           <Ionicons name="clipboard-outline" size={18} color="#fff" />
-          <Text style={s.btnFillText}>{saving?'저장 중…':`입고 완료 · ${total}개`}</Text>
+          <Text style={s.btnFillText}>{saving ? '저장 중…' : `입고 완료 · ${total}개`}</Text>
         </Pressable>
       </View>
     </View>
@@ -339,7 +454,16 @@ const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#fff' },
   loading: { textAlign: 'center', color: '#828282', paddingVertical: 40 },
   head: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 6 },
-  img: { width: 64, height: 64, borderRadius: 12, backgroundColor: '#F1F0F5', borderWidth: 1, borderColor: '#E4E2EC', alignItems: 'center', justifyContent: 'center' },
+  img: {
+    width: 64,
+    height: 64,
+    borderRadius: 12,
+    backgroundColor: '#F1F0F5',
+    borderWidth: 1,
+    borderColor: '#E4E2EC',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   imgText: { fontSize: 9, color: '#A3A1B0' },
   tag: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   tagText: { lineHeight: 18, fontSize: 12.5, fontWeight: '700', color: '#2F7A4E' },
@@ -348,21 +472,81 @@ const s = StyleSheet.create({
   info: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 14 },
   infoText: { flex: 1, fontSize: 12, color: '#B4561F' },
   label: { lineHeight: 20, fontSize: 13, fontWeight: '700', color: '#5E5C6B', marginTop: 16, marginBottom: 8 },
-  dateBox: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 52, borderWidth: 1.6, borderColor: C.primary, borderRadius: 12, paddingLeft: 12, paddingRight: 10 },
-  dateInput: { outlineWidth: 0, width: 104, fontSize: 15.5, color: C.text, height: 46, paddingVertical: 0, ...(Platform.OS === 'android' ? { fontFamily: 'sans-serif', includeFontPadding: false, textAlignVertical: 'center' as const } : {}) },
+  dateBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    height: 52,
+    borderWidth: 1.6,
+    borderColor: C.primary,
+    borderRadius: 12,
+    paddingLeft: 12,
+    paddingRight: 10,
+  },
+  dateInput: {
+    outlineWidth: 0,
+    width: 104,
+    fontSize: 15.5,
+    color: C.text,
+    height: 46,
+    paddingVertical: 0,
+    ...(Platform.OS === 'android'
+      ? { fontFamily: 'sans-serif', includeFontPadding: false, textAlignVertical: 'center' as const }
+      : {}),
+  },
   weekday: { fontSize: 15.5, color: C.text, marginLeft: -4 },
-  nameInput: { ...(Platform.OS === 'android' ? { fontFamily: 'sans-serif', paddingVertical: 0, includeFontPadding: false, textAlignVertical: 'center' as const } : {}), height: 50, borderColor: C.primary, borderWidth: 1.6, borderRadius: 12, fontSize: 15.5 },
+  nameInput: {
+    ...(Platform.OS === 'android'
+      ? {
+          fontFamily: 'sans-serif',
+          paddingVertical: 0,
+          includeFontPadding: false,
+          textAlignVertical: 'center' as const,
+        }
+      : {}),
+    height: 50,
+    borderColor: C.primary,
+    borderWidth: 1.6,
+    borderRadius: 12,
+    fontSize: 15.5,
+  },
   sheetBtns: { flexDirection: 'row', gap: 14, marginTop: 20 },
-  sheetBtn: { height: 46, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
+  sheetBtn: {
+    height: 46,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
   sheetBtnLine: { borderWidth: 0.72, borderColor: '#CFCCDB', backgroundColor: '#fff' },
   sheetBtnLineText: { fontSize: 13.5, fontWeight: '700', color: C.primary },
   sheetBtnFill: { backgroundColor: C.primary },
   sheetBtnFillText: { fontSize: 13.5, fontWeight: '700', color: '#fff' },
-  ocr: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, width: 86, height: 32, borderRadius: 8, borderWidth: 1, borderColor: C.primary, backgroundColor: '#fff' },
+  ocr: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    width: 86,
+    height: 32,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: C.primary,
+    backgroundColor: '#fff',
+  },
   ocrText: { fontSize: 12.5, fontWeight: '700', color: C.primary },
   alert: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 },
   alertText: { fontSize: 12.5, color: '#B3261E' },
-  stock: { flexDirection: 'row', justifyContent: 'space-between', backgroundColor: C.primary, borderRadius: 12, paddingHorizontal: 18, paddingVertical: 14, marginTop: 16 },
+  stock: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    backgroundColor: C.primary,
+    borderRadius: 12,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    marginTop: 16,
+  },
   stockLabel: { lineHeight: 18, fontSize: 12, color: '#fff' },
   stockNum: { lineHeight: 28, fontSize: 20, fontWeight: '700', color: '#fff', marginTop: 2 },
   btn: { height: 50, borderRadius: 25, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
@@ -386,8 +570,23 @@ const s = StyleSheet.create({
   reviewBottom: { padding: 16, paddingBottom: 24 },
 
   doneBody: { paddingHorizontal: 16, paddingTop: 48, paddingBottom: 20 },
-  doneRing: { alignSelf: 'center', width: 92, height: 92, borderRadius: 46, backgroundColor: '#ECEAF7', alignItems: 'center', justifyContent: 'center' },
-  doneCircle: { width: 62, height: 62, borderRadius: 31, backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center' },
+  doneRing: {
+    alignSelf: 'center',
+    width: 92,
+    height: 92,
+    borderRadius: 46,
+    backgroundColor: '#ECEAF7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  doneCircle: {
+    width: 62,
+    height: 62,
+    borderRadius: 31,
+    backgroundColor: C.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   doneTitle: { fontSize: 24, fontWeight: '700', color: C.text, textAlign: 'center', marginTop: 18 },
   doneSub: { fontSize: 14.5, color: '#5E5C6B', textAlign: 'center', marginTop: 8 },
   sectionTitle: { fontSize: 17, fontWeight: '700', color: C.text, marginTop: 34, marginBottom: 12 },

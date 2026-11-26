@@ -4,7 +4,7 @@ export type StaffShift = { date: string; start: string; end: string };
 const DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 
-export function validShiftDate(value: string): boolean {
+function validShiftDate(value: string): boolean {
   const match = DAY.exec(value);
   if (!match) return false;
   const [, y, m, d] = match.map(Number);
@@ -18,7 +18,7 @@ function base(storeId: number, memberId: string) {
   return `/api/stores/${storeId}/staff/${memberId}/shifts`;
 }
 
-export function validateShift(shift: StaffShift) {
+function validateShift(shift: StaffShift) {
   if (!validShiftDate(shift.date)) throw new Error('올바른 근무 날짜를 선택해 주세요.');
   if (!TIME.test(shift.start) || !TIME.test(shift.end)) throw new Error('시간은 09:00처럼 시:분으로 입력해 주세요.');
   if (shift.start === shift.end) throw new Error('시작과 종료 시간을 다르게 입력해 주세요.');

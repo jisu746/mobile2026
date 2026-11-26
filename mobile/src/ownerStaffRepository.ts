@@ -4,9 +4,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api } from './api';
 
 export type StaffPerson = { id: string; name: string; email: string; part: string; time: string };
-export type OwnerStaffLists = { pending: StaffPerson[]; approved: StaffPerson[] };
+type OwnerStaffLists = { pending: StaffPerson[]; approved: StaffPerson[] };
 
-export interface OwnerStaffRepository {
+interface OwnerStaffRepository {
   getRequests(storeId: number): Promise<OwnerStaffLists>;
   decideRequest(storeId: number, requestId: string, decision: 'approve' | 'reject', part?: string): Promise<void>;
   getEmployees(storeId: number): Promise<StaffPerson[]>;
@@ -18,8 +18,11 @@ type RequestView = { memberId: number; username: string; name: string; requested
 type StaffView = RequestView & { hourlyWage: number | null };
 
 const person = (item: RequestView): StaffPerson => ({
-  id: String(item.memberId), name: item.name, email: item.username,
-  part: item.workPart ?? '', time: item.requestedAt?.slice(0, 10) ?? '',
+  id: String(item.memberId),
+  name: item.name,
+  email: item.username,
+  part: item.workPart ?? '',
+  time: item.requestedAt?.slice(0, 10) ?? '',
 });
 
 function path(storeId: number) {
@@ -43,8 +46,11 @@ export const serverOwnerStaffRepository: OwnerStaffRepository = {
   },
   async decideRequest(storeId, requestId, decision, part) {
     path(storeId);
-    await api('POST', `/api/members/${memberId(requestId)}/${decision}`,
-      decision === 'approve' ? { workPart: part } : undefined);
+    await api(
+      'POST',
+      `/api/members/${memberId(requestId)}/${decision}`,
+      decision === 'approve' ? { workPart: part } : undefined,
+    );
   },
   async getEmployees(storeId) {
     return (await api<StaffView[]>('GET', `${path(storeId)}/staff`)).map(person);
@@ -85,12 +91,17 @@ async function getStore(storeId: number): Promise<StoreData> {
       const raw = await AsyncStorage.getItem(storageKey(storeId));
       if (raw) {
         const saved = JSON.parse(raw) as StoreData;
-        if (Array.isArray(saved.pending) && Array.isArray(saved.approved) && Array.isArray(saved.employees)) data = saved;
+        if (Array.isArray(saved.pending) && Array.isArray(saved.approved) && Array.isArray(saved.employees))
+          data = saved;
       }
     } catch {
       // 저장 값을 읽지 못하면 초기 시안 데이터로 다시 시작한다.
     }
-    data ??= { pending: copyPeople(initialPending), approved: copyPeople(initialApproved), employees: copyPeople(initialEmployees) };
+    data ??= {
+      pending: copyPeople(initialPending),
+      approved: copyPeople(initialApproved),
+      employees: copyPeople(initialEmployees),
+    };
     byStore.set(storeId, data);
   }
   return data;
@@ -128,7 +139,9 @@ export const demoOwnerStaffRepository: OwnerStaffRepository = {
     const person = data.employees.find((item) => item.id === employeeId);
     if (!person) throw new Error('직원을 찾을 수 없어요. 목록을 새로고침해 주세요.');
     person.part = part;
-    data.approved = data.approved.map((approved) => approved.email === person.email ? { ...approved, part } : approved);
+    data.approved = data.approved.map((approved) =>
+      approved.email === person.email ? { ...approved, part } : approved,
+    );
     await persistStore(storeId, data);
   },
   async removeEmployee(storeId, employeeId) {

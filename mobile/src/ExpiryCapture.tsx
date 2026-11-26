@@ -1,12 +1,128 @@
-import {useRef,useState} from 'react';
-import {Modal,Pressable,ScrollView,View} from 'react-native';
-import {CameraView,useCameraPermissions} from 'expo-camera';
-import {Text} from './font';import {api} from './api';import {C} from './ui';
-export default function ExpiryCapture({storeId,onClose,onSelect,productText=false}:{storeId:number;onClose:()=>void;onSelect:(date:string)=>void;productText?:boolean}){
- const [permission,requestPermission]=useCameraPermissions();const camera=useRef<CameraView>(null);const [ready,setReady]=useState(false),[busy,setBusy]=useState(false),[dates,setDates]=useState<string[]|null>(null),[error,setError]=useState('');
- const button={padding:14,borderRadius:14,backgroundColor:C.primary,marginTop:10,alignItems:'center' as const};
- const capture=async()=>{if(busy||!ready||!camera.current)return;setBusy(true);setError('');try{const status=await api<{configured:boolean}>('GET',`/api/stores/${storeId}/expiry-ocr`);if(!status.configured)throw new Error(productText?'촬영 인식 서버 연결이 필요해요. 상품명을 직접 입력해주세요.':'촬영 인식 서버 연결이 필요해요. 유통기한을 직접 입력해주세요.');const picture=await camera.current.takePictureAsync({base64:true,quality:.6,exif:false});if(!picture?.base64)throw new Error('사진을 촬영하지 못했어요.');const result=await api<{candidates:string[];recognizedText?:string}>('POST',`/api/stores/${storeId}/expiry-ocr`,{imageBase64:picture.base64});setDates(productText?(result.recognizedText??'').split('\n').map(v=>v.trim()).filter(v=>v.length>1&&v.length<=100).slice(0,15):result.candidates);}catch(e){setError(e instanceof Error?e.message:'사진 인식 실패');}finally{setBusy(false);}};
- return <Modal visible onRequestClose={onClose} animationType="slide"><View style={{flex:1,padding:20,backgroundColor:'#fff',paddingTop:48}}><Text style={{fontSize:18,fontWeight:'700'}}>{productText?'상품명 촬영 인식':'유통기한 촬영 인식'}</Text><Text style={{fontSize:13,lineHeight:21,marginVertical:12}}>{productText?'상품명 표기를 가까이 비춰주세요. 인식한 문구는 직접 확인·수정할 수 있어요.':'상품의 유통기한을 가까이 비춰주세요. 제조일과 구분하여 날짜를 선택해주세요.'} 촬영한 사진을 인식 서버로 전송해요.</Text>
- {!permission?.granted?<Pressable style={button} onPress={()=>void requestPermission()}><Text style={{color:'#fff'}}>카메라 권한 허용</Text></Pressable>:dates===null?<><CameraView ref={camera} style={{flex:1,borderRadius:16}} facing="back" onCameraReady={()=>setReady(true)}/><Pressable disabled={busy||!ready} style={button} onPress={()=>void capture()}><Text style={{color:'#fff'}}>{busy?'인식 중…':productText?'촬영하여 상품명 찾기':'촬영하여 날짜 찾기'}</Text></Pressable></>:<ScrollView style={{flex:1}}><Text>{dates.length?(productText?'상품명으로 사용할 문구를 고르고 등록 화면에서 확인·수정해주세요.':'유통기한을 확인하고 선택해주세요.'):'날짜를 찾지 못했어요. 다시 촬영하거나 직접 입력해주세요.'}</Text>{dates.map(date=><Pressable key={date} style={button} onPress={()=>{onSelect(productText?date:date.replace(/-/g,'.'));onClose();}}><Text style={{color:'#fff'}}>{date} 선택</Text></Pressable>)}<Pressable style={button} onPress={()=>setDates(null)}><Text style={{color:'#fff'}}>다시 촬영</Text></Pressable></ScrollView>}
- {!!error&&<Text style={{color:'#B3261E',fontSize:13,lineHeight:20,marginTop:10}}>{error}</Text>}<Pressable disabled={busy} onPress={onClose} style={{padding:16,alignItems:'center'}}><Text style={{color:C.primary}}>닫기 / 직접 입력</Text></Pressable></View></Modal>;
+import { useRef, useState } from 'react';
+import { Modal, Pressable, ScrollView, View } from 'react-native';
+import { CameraView, useCameraPermissions } from 'expo-camera';
+import { Text } from './font';
+import { api, errorText } from './api';
+import { C } from './ui';
+export default function ExpiryCapture({
+  storeId,
+  onClose,
+  onSelect,
+  productText = false,
+}: {
+  storeId: number;
+  onClose: () => void;
+  onSelect: (date: string) => void;
+  productText?: boolean;
+}) {
+  const [permission, requestPermission] = useCameraPermissions();
+  const camera = useRef<CameraView>(null);
+  const [ready, setReady] = useState(false),
+    [busy, setBusy] = useState(false),
+    [dates, setDates] = useState<string[] | null>(null),
+    [error, setError] = useState('');
+  const button = {
+    padding: 14,
+    borderRadius: 14,
+    backgroundColor: C.primary,
+    marginTop: 10,
+    alignItems: 'center' as const,
+  };
+  const capture = async () => {
+    if (busy || !ready || !camera.current) return;
+    setBusy(true);
+    setError('');
+    try {
+      const status = await api<{ configured: boolean }>('GET', `/api/stores/${storeId}/expiry-ocr`);
+      if (!status.configured)
+        throw new Error(
+          productText
+            ? '촬영 인식 서버 연결이 필요해요. 상품명을 직접 입력해주세요.'
+            : '촬영 인식 서버 연결이 필요해요. 유통기한을 직접 입력해주세요.',
+        );
+      const picture = await camera.current.takePictureAsync({ base64: true, quality: 0.6, exif: false });
+      if (!picture?.base64) throw new Error('사진을 촬영하지 못했어요.');
+      const result = await api<{ candidates: string[]; recognizedText?: string }>(
+        'POST',
+        `/api/stores/${storeId}/expiry-ocr`,
+        { imageBase64: picture.base64 },
+      );
+      setDates(
+        productText
+          ? (result.recognizedText ?? '')
+              .split('\n')
+              .map((v) => v.trim())
+              .filter((v) => v.length > 1 && v.length <= 100)
+              .slice(0, 15)
+          : result.candidates,
+      );
+    } catch (e) {
+      setError(errorText(e, '사진 인식 실패'));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal visible onRequestClose={onClose} animationType="slide">
+      <View style={{ flex: 1, padding: 20, backgroundColor: '#fff', paddingTop: 48 }}>
+        <Text style={{ fontSize: 18, fontWeight: '700' }}>
+          {productText ? '상품명 촬영 인식' : '유통기한 촬영 인식'}
+        </Text>
+        <Text style={{ fontSize: 13, lineHeight: 21, marginVertical: 12 }}>
+          {productText
+            ? '상품명 표기를 가까이 비춰주세요. 인식한 문구는 직접 확인·수정할 수 있어요.'
+            : '상품의 유통기한을 가까이 비춰주세요. 제조일과 구분하여 날짜를 선택해주세요.'}{' '}
+          촬영한 사진을 인식 서버로 전송해요.
+        </Text>
+        {!permission?.granted ? (
+          <Pressable style={button} onPress={() => void requestPermission()}>
+            <Text style={{ color: '#fff' }}>카메라 권한 허용</Text>
+          </Pressable>
+        ) : dates === null ? (
+          <>
+            <CameraView
+              ref={camera}
+              style={{ flex: 1, borderRadius: 16 }}
+              facing="back"
+              onCameraReady={() => setReady(true)}
+            />
+            <Pressable disabled={busy || !ready} style={button} onPress={() => void capture()}>
+              <Text style={{ color: '#fff' }}>
+                {busy ? '인식 중…' : productText ? '촬영하여 상품명 찾기' : '촬영하여 날짜 찾기'}
+              </Text>
+            </Pressable>
+          </>
+        ) : (
+          <ScrollView style={{ flex: 1 }}>
+            <Text>
+              {dates.length
+                ? productText
+                  ? '상품명으로 사용할 문구를 고르고 등록 화면에서 확인·수정해주세요.'
+                  : '유통기한을 확인하고 선택해주세요.'
+                : '날짜를 찾지 못했어요. 다시 촬영하거나 직접 입력해주세요.'}
+            </Text>
+            {dates.map((date) => (
+              <Pressable
+                key={date}
+                style={button}
+                onPress={() => {
+                  onSelect(productText ? date : date.replace(/-/g, '.'));
+                  onClose();
+                }}
+              >
+                <Text style={{ color: '#fff' }}>{date} 선택</Text>
+              </Pressable>
+            ))}
+            <Pressable style={button} onPress={() => setDates(null)}>
+              <Text style={{ color: '#fff' }}>다시 촬영</Text>
+            </Pressable>
+          </ScrollView>
+        )}
+        {!!error && <Text style={{ color: '#B3261E', fontSize: 13, lineHeight: 20, marginTop: 10 }}>{error}</Text>}
+        <Pressable disabled={busy} onPress={onClose} style={{ padding: 16, alignItems: 'center' }}>
+          <Text style={{ color: C.primary }}>닫기 / 직접 입력</Text>
+        </Pressable>
+      </View>
+    </Modal>
+  );
 }

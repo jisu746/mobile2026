@@ -3,11 +3,29 @@ import { api, ApiError } from './api';
 
 // 상품·재고는 서버(Spring)에 저장한다. storeId 는 서버가 준 매장 번호.
 // expiry 는 앱에서 YYYY.MM.DD, 서버와는 YYYY-MM-DD 로 주고받는다.
-export type Product = { barcode: string; name: string; category: string; stock: number; min: number; expiry?: string; photoVersion?:string|null; specification?:string|null };
-export type Receipt = { barcode: string; name: string; category: string; qty: number; expiry?: string };
-export type ReceiptResult = { barcode: string; name: string; before: number; after: number; min: number };
+export type Product = {
+  barcode: string;
+  name: string;
+  category: string;
+  stock: number;
+  min: number;
+  expiry?: string;
+  photoVersion?: string | null;
+  specification?: string | null;
+};
+type Receipt = { barcode: string; name: string; category: string; qty: number; expiry?: string };
+type ReceiptResult = { barcode: string; name: string; before: number; after: number; min: number };
 
-type ProductView = { barcode: string; name: string; category: string | null; stock: number; min: number; expiry: string | null; photoVersion?:string|null; specification?:string|null };
+type ProductView = {
+  barcode: string;
+  name: string;
+  category: string | null;
+  stock: number;
+  min: number;
+  expiry: string | null;
+  photoVersion?: string | null;
+  specification?: string | null;
+};
 
 const toDot = (d: string | null) => (d ? d.replace(/-/g, '.') : undefined);
 const toDash = (d?: string) => (d ? d.replace(/\./g, '-') : null);
@@ -15,7 +33,8 @@ const toProduct = (v: ProductView): Product => ({ ...v, category: v.category ?? 
 
 const base = (storeId: number) => `/api/stores/${storeId}`;
 
-export const listProducts = (storeId: number) => api<ProductView[]>('GET', `${base(storeId)}/products`).then((l) => l.map(toProduct));
+export const listProducts = (storeId: number) =>
+  api<ProductView[]>('GET', `${base(storeId)}/products`).then((l) => l.map(toProduct));
 
 // 등록되지 않은 바코드는 null
 export async function getProduct(storeId: number, barcode: string) {
@@ -28,15 +47,24 @@ export async function getProduct(storeId: number, barcode: string) {
 }
 
 // 입고: 재고를 더하고, 등록되지 않은 상품은 새로 등록한다. 상품별 입고 전후 수량을 돌려준다.
-export const receive = (storeId: number, items: Receipt[], clientKey?:string) =>
+export const receive = (storeId: number, items: Receipt[], clientKey?: string) =>
   api<ReceiptResult[]>('POST', `${base(storeId)}/receipts`, {
     clientKey,
-    items: items.map((i) => ({ barcode: i.barcode, name: i.name, category: i.category, qty: i.qty, expiry: toDash(i.expiry) })),
+    items: items.map((i) => ({
+      barcode: i.barcode,
+      name: i.name,
+      category: i.category,
+      qty: i.qty,
+      expiry: toDash(i.expiry),
+    })),
   });
 
 // 상품명·재고 수량·적정 재고 수정
-export const updateProduct = (storeId: number, barcode: string, patch: { name?: string; stock?: number; min?: number; expectedStock?:number }) =>
-  api('PUT', `${base(storeId)}/products/${encodeURIComponent(barcode)}`, patch);
+export const updateProduct = (
+  storeId: number,
+  barcode: string,
+  patch: { name?: string; stock?: number; min?: number; expectedStock?: number },
+) => api('PUT', `${base(storeId)}/products/${encodeURIComponent(barcode)}`, patch);
 
 export const deleteProduct = (storeId: number, barcode: string, expectedStock: number) =>
   api('DELETE', `${base(storeId)}/products/${encodeURIComponent(barcode)}?expectedStock=${expectedStock}`);

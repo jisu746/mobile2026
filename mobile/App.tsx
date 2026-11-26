@@ -1,4 +1,4 @@
-import {installPushHandler} from './src/pushRegistration';
+import { installPushHandler } from './src/pushRegistration';
 // 앱 전체 화면 전환(로그인, 가입, 매장 설정, 사장님/직원 홈)과 로그인 상태 관리
 import { useEffect, useRef, useState } from 'react';
 import { useFonts } from 'expo-font';
@@ -22,9 +22,20 @@ import { saveStoreSetupSettings } from './src/storeSetupRepository';
 // 프로필은 메인 위에 덮어서 띄운다 (메인의 상태를 유지하기 위해)
 type Screen = 'login' | 's1' | 's2' | 's3' | 's4' | 'o1' | 'o2' | 'o3' | 'f1' | 'f2' | 'f3' | 'f4' | 'home' | 'shome';
 const BACK: Record<Screen, Screen | null> = {
-  login: null, home: null, shome: null, s1: 'login', s2: 's1', s3: 's2', s4: 'login',
-  o1: 'login', o2: 'o1', o3: 'o2',
-  f1: 'login', f2: 'f1', f3: 'f1', f4: 'login',
+  login: null,
+  home: null,
+  shome: null,
+  s1: 'login',
+  s2: 's1',
+  s3: 's2',
+  s4: 'login',
+  o1: 'login',
+  o2: 'o1',
+  o3: 'o2',
+  f1: 'login',
+  f2: 'f1',
+  f3: 'f1',
+  f4: 'login',
 };
 
 const homeOf = (acc: auth.Account): Screen => (acc.role === 'owner' ? 'home' : 'shome');
@@ -35,7 +46,9 @@ const startScreen = (acc: auth.Account): Screen =>
 const FRAME = { width: 360, height: 800, maxHeight: '100%' as const, alignSelf: 'center' as const };
 
 export default function App() {
-  useEffect(()=>{void installPushHandler().catch(()=>{});},[]);
+  useEffect(() => {
+    void installPushHandler().catch(() => {});
+  }, []);
   const [fontsLoaded] = useFonts({ NotoSansKR: require('./assets/NotoSansKR-VF.ttf') });
   const [ready, setReady] = useState(false);
   const [screen, setScreen] = useState<Screen>('login');
@@ -123,7 +136,14 @@ export default function App() {
   }, [screen, account]);
 
   // MY 탭 화면 (사장님·직원 메인의 하단 탭에서 보여준다)
-  const renderMy = (onBell: () => void, onRecords: () => void, unread?: boolean, onEmployeeRequests?: () => void, onEmployees?: () => void, onPayroll?: () => void, onContracts?: () => void) =>
+  const renderMy = (
+    onBell: () => void,
+    onRecords: () => void,
+    onEmployeeRequests?: () => void,
+    onEmployees?: () => void,
+    onPayroll?: () => void,
+    onContracts?: () => void,
+  ) =>
     account && (
       <Profile
         id={userId}
@@ -132,18 +152,25 @@ export default function App() {
         onAdd={() => setScreen(account.role === 'owner' ? 'o1' : 'f1')}
         onLogout={logout}
         onBell={onBell}
-        unread={unread}
         onRecords={onRecords}
         onEmployeeRequests={onEmployeeRequests ?? (() => {})}
         onEmployees={onEmployees ?? (() => {})}
         onPayroll={onPayroll ?? (() => {})}
         onContracts={onContracts ?? (() => {})}
-        onSaveProfile={async ({name,birth,storeName})=>{
-          if(!account)throw new Error('다시 로그인해 주세요.');
-          const store=account.stores[account.current];
-          const updated=await auth.updateProfile({username:userId,name,birth,expectedName:account.name,expectedBirth:account.birth??'',
-            ...(account.role==='owner'&&store&&storeName!==undefined?{storeId:store.id,storeName,expectedStoreName:store.baseName??store.name}:{})});
-          setAccount(current=>current===account?updated:current);
+        onSaveProfile={async ({ name, birth, storeName }) => {
+          if (!account) throw new Error('다시 로그인해 주세요.');
+          const store = account.stores[account.current];
+          const updated = await auth.updateProfile({
+            username: userId,
+            name,
+            birth,
+            expectedName: account.name,
+            expectedBirth: account.birth ?? '',
+            ...(account.role === 'owner' && store && storeName !== undefined
+              ? { storeId: store.id, storeName, expectedStoreName: store.baseName ?? store.name }
+              : {}),
+          });
+          setAccount((current) => (current === account ? updated : current));
         }}
       />
     );
@@ -154,55 +181,72 @@ export default function App() {
     <SafeAreaProvider>
       {/* 웹에서는 시안 크기(360×800) 화면 하나로 보여준다. 폰에서는 기기 화면을 그대로 쓴다. */}
       <View style={{ flex: 1, justifyContent: 'center', backgroundColor: Platform.OS === 'web' ? '#444' : '#fff' }}>
-      <SafeAreaView style={[{ backgroundColor: '#fff' }, Platform.OS === 'web' ? FRAME : { flex: 1 }]}>
-        <StatusBar style="dark" />
-        {screen === 'login' && <Login onSignup={() => setScreen('s1')} onLoggedIn={enter} />}
-        {screen[0] === 'f' && (
-          <StaffJoin
-            step={Number(screen[1]) as 1 | 2 | 3 | 4}
-            onStep={(n) => setScreen(`f${n}` as Screen)}
-            onBack={() => setScreen(backOf(screen) ?? 'login')}
-            onJoin={joinStore}
-            onPoll={pollJoin}
-            pending={account?.pending}
-            onDone={() => setScreen('shome')}
-          />
-        )}
-        {screen === 'shome' && <StaffHome storeId={store.id ?? 0} storeName={store.name} userId={userId} userName={account?.name ?? ''} renderMy={renderMy} onSwitchStore={() => setSwitcher(true)} />}
-        {screen[0] === 's' && screen !== 'shome' && (
-          <Signup
-            step={Number(screen[1]) as 1 | 2 | 3 | 4}
-            onStep={(n) => setScreen(`s${n}` as Screen)}
-            onBack={() => setScreen(BACK[screen] ?? 'login')}
-            onDone={() => setScreen('login')}
-          />
-        )}
-        {screen[0] === 'o' && (
-          <StoreSetup
-            step={Number(screen[1]) as 1 | 2 | 3}
-            onStep={(n) => setScreen(`o${n}` as Screen)}
-            onBack={account?.stores.length ? () => setScreen(backOf(screen) ?? 'login') : undefined}
-            onCreate={createStore}
-            onDone={() => setScreen('home')}
-          />
-        )}
-        {screen === 'home' && <OwnerHome store={store} userId={userId} userName={account?.name ?? ''} renderMy={renderMy} onSwitchStore={() => setSwitcher(true)} />}
+        <SafeAreaView style={[{ backgroundColor: '#fff' }, Platform.OS === 'web' ? FRAME : { flex: 1 }]}>
+          <StatusBar style="dark" />
+          {screen === 'login' && <Login onSignup={() => setScreen('s1')} onLoggedIn={enter} />}
+          {screen[0] === 'f' && (
+            <StaffJoin
+              step={Number(screen[1]) as 1 | 2 | 3 | 4}
+              onStep={(n) => setScreen(`f${n}` as Screen)}
+              onBack={() => setScreen(backOf(screen) ?? 'login')}
+              onJoin={joinStore}
+              onPoll={pollJoin}
+              pending={account?.pending}
+              onDone={() => setScreen('shome')}
+            />
+          )}
+          {screen === 'shome' && (
+            <StaffHome
+              storeId={store.id ?? 0}
+              storeName={store.name}
+              userId={userId}
+              userName={account?.name ?? ''}
+              renderMy={renderMy}
+              onSwitchStore={() => setSwitcher(true)}
+            />
+          )}
+          {screen[0] === 's' && screen !== 'shome' && (
+            <Signup
+              step={Number(screen[1]) as 1 | 2 | 3 | 4}
+              onStep={(n) => setScreen(`s${n}` as Screen)}
+              onBack={() => setScreen(BACK[screen] ?? 'login')}
+              onDone={() => setScreen('login')}
+            />
+          )}
+          {screen[0] === 'o' && (
+            <StoreSetup
+              step={Number(screen[1]) as 1 | 2 | 3}
+              onStep={(n) => setScreen(`o${n}` as Screen)}
+              onBack={account?.stores.length ? () => setScreen(backOf(screen) ?? 'login') : undefined}
+              onCreate={createStore}
+              onDone={() => setScreen('home')}
+            />
+          )}
+          {screen === 'home' && (
+            <OwnerHome
+              store={store}
+              userId={userId}
+              userName={account?.name ?? ''}
+              renderMy={renderMy}
+              onSwitchStore={() => setSwitcher(true)}
+            />
+          )}
 
-        {switcher && account && (
-          <StoreSwitcher
-            acc={account}
-            onClose={() => setSwitcher(false)}
-            onSelect={async (i) => {
-              await changeStore(i);
-              setSwitcher(false);
-            }}
-            onAdd={() => {
-              setSwitcher(false);
-              setScreen(account.role === 'owner' ? 'o1' : 'f1');
-            }}
-          />
-        )}
-      </SafeAreaView>
+          {switcher && account && (
+            <StoreSwitcher
+              acc={account}
+              onClose={() => setSwitcher(false)}
+              onSelect={async (i) => {
+                await changeStore(i);
+                setSwitcher(false);
+              }}
+              onAdd={() => {
+                setSwitcher(false);
+                setScreen(account.role === 'owner' ? 'o1' : 'f1');
+              }}
+            />
+          )}
+        </SafeAreaView>
       </View>
     </SafeAreaProvider>
   );
