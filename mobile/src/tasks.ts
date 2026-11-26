@@ -23,17 +23,17 @@ export function buildTasks(products: Product[], settings: Pick<StoreSetupSetting
   for (const p of products) {
     const d = daysLeft(p.expiry);
     if (d !== null && d < 0) {
-      out.push({ id: `expired:${p.barcode}`, kind: 'expired', title: `${p.name} 폐기 처리`, sub: '유통기한이 지났어요', icon: 'time-outline', tag: '폐기', tone: 'urgent' });
+      out.push({ id: `expired:${p.barcode}`, kind: 'expired', title: p.name, sub: '유통기한이 지났어요', icon: 'time-outline', tag: '폐기', tone: 'urgent' });
     } else if (d !== null && d <= settings.expirationAlertDays) {
       out.push({
-        id: `soon:${p.barcode}`, kind: 'soon', title: `${p.name} 유통기한 확인`,
-        sub: d === 0 ? '유통기한 오늘' : d === 1 ? '유통기한 내일' : `유통기한 D-${d}`,
+        id: `soon:${p.barcode}`, kind: 'soon', title: p.name,
+        sub: d === 0 ? '오늘 만료' : d === 1 ? '유통기한 확인, 내일 만료' : `유통기한 D-${d}`,
         icon: 'time-outline', tag: d === 0 ? 'D-day' : `D-${d}`, tone: 'urgent',
       });
     }
     const stockThreshold = productLowStockThreshold(p.min, settings.lowStockThresholdCount);
     if (isLowStock(p.stock, stockThreshold)) {
-      out.push({ id: `low:${p.barcode}`, kind: 'low', title: `${p.name} 발주 필요`, sub: `현재 ${p.stock}개 · 발주 기준 ${stockThreshold}개`, icon: 'cube-outline', tag: '발주', tone: 'action' });
+      out.push({ id: `low:${p.barcode}`, kind: 'low', title: p.name, sub: `현재 ${p.stock}개 · 발주 기준 ${stockThreshold}개`, icon: 'cube-outline', tag: '발주', tone: 'action' });
     }
   }
   const order = { expired: 0, soon: 1, low: 2, custom: 3 };
