@@ -93,8 +93,7 @@ export default function MissingClockOut({
             ) : (
               <>
                 <Text style={s.hint}>
-                  직원과 실제 퇴근 시각을 확인한 뒤 입력해 주세요. 시급이 미확정인 기록은 퇴근 처리 후에도 금액 합산에서
-                  제외돼요.
+                  직원과 실제 퇴근 시각을 확인한 뒤 입력해 주세요. 저장된 시급이 없는 기록은 최저시급으로 계산해요.
                 </Text>
                 <Text style={s.label}>실제 퇴근 날짜</Text>
                 <TextInput

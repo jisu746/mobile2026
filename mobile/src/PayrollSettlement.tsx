@@ -22,7 +22,6 @@ type Summary = {
   additions: number;
   deductions: number;
   netPay: number;
-  unknownWages: number;
   activeSessions: number;
   finalized: boolean;
   finalizedBy: string | null;
@@ -43,10 +42,12 @@ export default function PayrollSettlement({
   storeId,
   memberId,
   period,
+  initiallyOpen = false,
 }: {
   storeId: number;
   memberId?: number;
   period: string;
+  initiallyOpen?: boolean;
 }) {
   const working = useRef(false),
     key = useRef(''),
@@ -56,7 +57,7 @@ export default function PayrollSettlement({
   const [data, setData] = useState<Summary | null>(null),
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false),
-    [open, setOpen] = useState(false),
+    [open, setOpen] = useState(initiallyOpen),
     [version, setVersion] = useState(0);
   const [kind, setKind] = useState('WEEKLY'),
     [reason, setReason] = useState(''),
@@ -147,24 +148,21 @@ export default function PayrollSettlement({
           {data && (
             <>
               <Text style={note}>
-                {period} · {data.finalized ? '확정 명세' : '미확정 계산'}
+                {period} · {data.finalized ? '확정' : '미확정'}
               </Text>
-              <Text style={note}>퇴근 완료 기본급 {won(data.basePay)}</Text>
+              <Text style={note}>기본급 {won(data.basePay)}</Text>
               <Text style={note}>
                 추가 지급 {won(data.additions)} · 공제 {won(data.deductions)}
               </Text>
               <Text style={{ fontSize: 20, lineHeight: 30, color: C.primary, fontWeight: '700' }}>
                 지급 예상 {won(data.netPay)}
               </Text>
-              {!!(data.unknownWages || data.activeSessions) && (
+              {!!data.activeSessions && (
                 <Text style={{ ...note, color: '#B3261E' }}>
-                  시급 미확정 {data.unknownWages}건 · 근무 중 {data.activeSessions}건은 이 명세 기본급에서 제외했어요.
+                  근무 중 {data.activeSessions}건은 이 명세 기본급에서 제외했어요.
                 </Text>
               )}
-              <Text style={note}>
-                출근한 달을 기준으로 계산해요. 수당 대상·휴게시간·공제 근거는 근로계약과 실제 근무를 확인해야 해요. 원래
-                근무별 시급은 유지하고 정정 차액을 별도 항목으로 남겨요.
-              </Text>
+              
               {owner && (
                 <AutomaticPayroll
                   storeId={storeId}
@@ -324,7 +322,8 @@ export default function PayrollSettlement({
                       </Text>
                     </View>
                     <Text style={note}>
-                      월이 끝나고 미확정 기록이 없어야 확정할 수 있어요. 확정 후에는 이 명세의 금액을 바꿀 수 없어요.
+                      월이 끝나고 퇴근하지 않은 근무가 없어야 확정할 수 있어요. 확정 후에는 이 명세의 금액을 바꿀 수
+                      없어요.
                     </Text>
                     <Pressable
                       disabled={busy || !confirmed}

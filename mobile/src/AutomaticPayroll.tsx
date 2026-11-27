@@ -3,7 +3,8 @@ import { Platform, Pressable, Switch, View } from 'react-native';
 import { Text, TextInput } from './font';
 import { api, errorText } from './api';
 import { C } from './ui';
-import { ymd } from './work';
+import { ymd, MIN_WAGE } from './work';
+import { BreakRow, BreakRows, fromBreakRows, toBreakRows } from './WorkBreakEditor';
 
 type Pause = { from: string; to: string };
 type Work = {
@@ -171,7 +172,7 @@ export default function AutomaticPayroll({
     [busy, setBusy] = useState(false),
     [error, setError] = useState(''),
     [dirty, setDirty] = useState(false),
-    [breakText, setBreakText] = useState<Record<number, string>>({}),
+    [breakRows, setBreakRows] = useState<Record<number, BreakRow[]>>({}),
     [newHoliday, setNewHoliday] = useState(''),
     [newWeekly, setNewWeekly] = useState('');
   const set = (v: Settings) => {
@@ -182,14 +183,7 @@ export default function AutomaticPayroll({
   const accept = (d: Data) => {
     setData(d);
     setSettings(withDefaults(d));
-    setBreakText(
-      Object.fromEntries(
-        withDefaults(d).work.map((w) => [
-          w.id,
-          w.breaks.map((b) => `${b.from.replace('T', ' ')} / ${b.to.replace('T', ' ')}`).join('\n'),
-        ]),
-      ),
-    );
+    setBreakRows(Object.fromEntries(withDefaults(d).work.map((w) => [w.id, toBreakRows(w.breaks)])));
     setDirty(false);
   };
   useEffect(() => {
@@ -219,21 +213,14 @@ export default function AutomaticPayroll({
     setError('');
     try {
       const work = settings.work.map((w) => {
-        const text = (breakText[w.id] ?? '').trim();
-        const breaks = text
-          ? text
-              .split('\n')
-              .filter(Boolean)
-              .map((line) => {
-                const parts = line.split('/').map((x) => x.trim().replace(' ', 'T'));
-                if (parts.length !== 2 || parts.some((x) => !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(x)))
-                  throw Error(
-                    '휴게시간은 YYYY-MM-DD HH:mm / YYYY-MM-DD HH:mm 형식으로 한 줄에 한 구간씩 입력해주세요.',
-                  );
-                return { from: parts[0], to: parts[1] };
-              })
-          : [];
-        return { ...w, breaks };
+        const record = data.records.find((r) => r.id === w.id);
+        // 화면에 없는 근무는 받은 값을 그대로 둔다
+        if (!record) return w;
+        try {
+          return { ...w, breaks: fromBreakRows(breakRows[w.id] ?? [], record.from) };
+        } catch (e) {
+          throw Error(`근무 #${w.id}: ${errorText(e, '휴게시간을 확인해주세요.')}`);
+        }
       });
       const payload = { ...settings, work };
       const numeric = [
@@ -367,7 +354,7 @@ export default function AutomaticPayroll({
                   />
                   <Text style={{ ...label, fontWeight: '700' }}>실제 근무와 무급 휴게시간</Text>
                   <Text style={note}>
-                    휴게가 없으면 빈칸으로 두고 확인해주세요. 임의로 30분·1시간을 빼지 않아요. 월초 주간 계산 때문에
+                    휴게가 없으면 추가하지 않고 확인해주세요. 임의로 30분·1시간을 빼지 않아요. 월초 주간 계산 때문에
                     이전 달 기록도 표시될 수 있어요.
                   </Text>
                   {data.records.map((r) => {
@@ -377,15 +364,17 @@ export default function AutomaticPayroll({
                         <Text style={label}>
                           #{r.id} {r.from.replace('T', ' ')} ~ {r.to?.replace('T', ' ') ?? '근무 중'}
                         </Text>
-                        <Text style={note}>보존 시급 {r.wage?.toLocaleString() ?? '미확정'}원</Text>
-                        <TextInput
-                          accessibilityLabel={`근무 ${r.id} 휴게 구간`}
-                          multiline
-                          placeholder={'2026-11-25 12:00 / 2026-11-25 12:30\n구간마다 줄바꿈 · 휴게 없으면 비움'}
-                          style={{ ...input, height: 80, textAlignVertical: 'top', paddingVertical: 8 }}
-                          value={breakText[r.id] ?? ''}
-                          onChangeText={(v) => {
-                            setBreakText((x) => ({ ...x, [r.id]: v }));
+                        <Text style={note}>
+                          {r.wage == null
+                            ? `${MIN_WAGE.toLocaleString()}원 (최저시급 적용)`
+                            : `보존 시급 ${r.wage.toLocaleString()}원`}
+                        </Text>
+                        <BreakRows
+                          name={`근무 ${r.id} `}
+                          clockIn={r.from}
+                          rows={breakRows[r.id] ?? []}
+                          onChange={(next) => {
+                            setBreakRows((x) => ({ ...x, [r.id]: next }));
                             setDirty(true);
                           }}
                         />

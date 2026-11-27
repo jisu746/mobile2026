@@ -7,7 +7,7 @@ import java.math.*;import java.time.*;import java.util.*;
  private final StoreAccess access;private final StoreMemberRepository members;private final WorkSessionRepository sessions;private final PayrollEntryRepository entries;private final PayrollStatementRepository statements;private final StockBatchService locks;private final Notifier notifier;
  public PayrollController(StoreAccess access,StoreMemberRepository members,WorkSessionRepository sessions,PayrollEntryRepository entries,PayrollStatementRepository statements,StockBatchService locks,Notifier notifier){this.access=access;this.members=members;this.sessions=sessions;this.entries=entries;this.statements=statements;this.locks=locks;this.notifier=notifier;}
  public record Line(long id,String kind,String reason,long amount,String calculation,String actor,String createdAt,boolean cancelled,String cancelReason,boolean automatic){}
- public record Summary(String period,long basePay,long additions,long deductions,long netPay,int unknownWages,int activeSessions,boolean finalized,String finalizedBy,String finalizedAt,List<Line> entries){}
+ public record Summary(String period,long basePay,long additions,long deductions,long netPay,int activeSessions,boolean finalized,String finalizedBy,String finalizedAt,List<Line> entries){}
  public record Add(String kind,String reason,Long amount,BigDecimal hours,Integer hourlyWage,BigDecimal factor,String clientKey){}
  public record Cancel(String reason){}
  public record Finalize(boolean attendanceConfirmed,boolean allowancesConfirmed,boolean deductionsConfirmed){}
@@ -21,11 +21,11 @@ import java.math.*;import java.time.*;import java.util.*;
  }
  private Summary summary(StoreMember member,String period){
   YearMonth ym=YearMonth.parse(period);var records=sessions.findByAccountAndStoreAndClockInGreaterThanEqualAndClockInLessThanOrderByClockInAsc(member.getAccount(),member.getStore(),ym.atDay(1).atStartOfDay(),ym.plusMonths(1).atDay(1).atStartOfDay());
-  int unknown=0,active=0;BigDecimal base=BigDecimal.ZERO;
-  for(var w:records){if(w.getClockOut()==null){active++;continue;}if(w.getHourlyWage()==null){unknown++;continue;}long seconds=Duration.between(w.getClockIn(),w.getClockOut()).getSeconds()-w.getBreakSeconds();base=base.add(BigDecimal.valueOf(Math.max(0,seconds)).multiply(BigDecimal.valueOf(w.getHourlyWage())).divide(BigDecimal.valueOf(3600),12,RoundingMode.HALF_UP));}
+  int active=0;BigDecimal base=BigDecimal.ZERO;
+  for(var w:records){if(w.getClockOut()==null){active++;continue;}int wage=w.getHourlyWage()==null?WageService.DEFAULT_WAGE:w.getHourlyWage();long seconds=Duration.between(w.getClockIn(),w.getClockOut()).getSeconds()-w.getBreakSeconds();base=base.add(BigDecimal.valueOf(Math.max(0,seconds)).multiply(BigDecimal.valueOf(wage)).divide(BigDecimal.valueOf(3600),12,RoundingMode.HALF_UP));}
   var list=entries.findByMemberAndPeriodOrderByIdAsc(member,period);long additions=0,deductions=0;for(var entry:list)if(!entry.isCancelled()){if(entry.getAmount()>0)additions+=entry.getAmount();else deductions-=entry.getAmount();}
   long basic=base.setScale(0,RoundingMode.HALF_UP).longValueExact();var finalized=statements.findByMemberAndPeriod(member,period);if(finalized.isPresent()){var v=finalized.get();basic=v.getBasePay();additions=v.getAdditions();deductions=v.getDeductions();}
-  return new Summary(period,basic,additions,deductions,basic+additions-deductions,unknown,active,finalized.isPresent(),finalized.map(PayrollStatement::getFinalizedBy).orElse(null),finalized.map(v->v.getFinalizedAt().toString()).orElse(null),list.stream().map(e->new Line(e.getId(),e.getKind(),e.getReason(),e.getAmount(),e.getCalculation(),e.getActorName(),e.getCreatedAt().toString(),e.isCancelled(),e.getCancelReason(),e.isAutomatic())).toList());
+  return new Summary(period,basic,additions,deductions,basic+additions-deductions,active,finalized.isPresent(),finalized.map(PayrollStatement::getFinalizedBy).orElse(null),finalized.map(v->v.getFinalizedAt().toString()).orElse(null),list.stream().map(e->new Line(e.getId(),e.getKind(),e.getReason(),e.getAmount(),e.getCalculation(),e.getActorName(),e.getCreatedAt().toString(),e.isCancelled(),e.getCancelReason(),e.isAutomatic())).toList());
  }
  @GetMapping("/staff/{memberId}/payroll") @Transactional(readOnly=true) public Summary get(@RequestAttribute(AuthInterceptor.ACCOUNT)Account owner,@PathVariable Long storeId,@PathVariable Long memberId,@RequestParam String month){return summary(member(owner,storeId,memberId),period(month));}
  @GetMapping("/payroll/me") @Transactional(readOnly=true) public Summary mine(@RequestAttribute(AuthInterceptor.ACCOUNT)Account account,@PathVariable Long storeId,@RequestParam String month){return summary(access.requireApproved(account,storeId),period(month));}
@@ -50,7 +50,7 @@ import java.math.*;import java.time.*;import java.util.*;
   if(!r.attendanceConfirmed()||!r.allowancesConfirmed()||!r.deductionsConfirmed())throw new ApiException(HttpStatus.BAD_REQUEST,"근무·수당·공제 확인이 필요해요");
   if(!YearMonth.parse(period).isBefore(YearMonth.now()))throw new ApiException(HttpStatus.BAD_REQUEST,"월이 끝난 뒤 명세를 확정할 수 있어요");
   if(automaticPayroll!=null)automaticPayroll.requireFresh(m,period);
-  var s=summary(m,period);if(s.unknownWages()>0||s.activeSessions()>0||s.netPay()<0)throw new ApiException(HttpStatus.CONFLICT,"미확정 시급·퇴근 누락·공제 금액을 확인해주세요");
+  var s=summary(m,period);if(s.activeSessions()>0||s.netPay()<0)throw new ApiException(HttpStatus.CONFLICT,"퇴근 누락·공제 금액을 확인해주세요");
   statements.save(new PayrollStatement(m,period,s.basePay(),s.additions(),s.deductions(),owner));notifier.send(m.getStore(),Role.STAFF,owner,"pay","급여 명세가 확정됐어요",period+" · "+m.getAccount().getName());return summary(m,period);
  }
 }

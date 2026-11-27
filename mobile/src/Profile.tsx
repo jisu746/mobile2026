@@ -27,6 +27,7 @@ type Props = {
   onLogout: () => void;
   onBell: () => void;
   onRecords: () => void;
+  beforeClockIn: boolean; // 직원의 출근 전 MY: 매장과 관계없는 공통 화면
   onEmployeeRequests: () => void;
   onEmployees: () => void;
   onPayroll: () => void;
@@ -45,6 +46,7 @@ export default function Profile({
   onLogout,
   onBell,
   onRecords,
+  beforeClockIn,
   onEmployeeRequests,
   onEmployees,
   onPayroll,
@@ -109,13 +111,20 @@ export default function Profile({
       <StaffContractScreen
         employeeId={id}
         employeeName={acc.name}
-        storeId={store?.id ?? 0}
+        // 출근 전에는 모든 업장의 계약서를 업장 이름과 함께 보여준다
+        stores={(beforeClockIn ? acc.stores : [store]).map((st) => ({ id: st?.id ?? 0, name: st?.name ?? '' }))}
+        showStoreName={beforeClockIn}
         onBack={() => setStaffContractOpen(false)}
       />
     );
   if (showNotificationSettings)
     return (
-      <NotificationSettings userId={id} storeId={store?.id ?? 0} onBack={() => setShowNotificationSettings(false)} />
+      <NotificationSettings
+        userId={id}
+        storeId={store?.id ?? 0}
+        hideTypeToggles={beforeClockIn}
+        onBack={() => setShowNotificationSettings(false)}
+      />
     );
   if (editingProfile)
     return (
@@ -131,9 +140,11 @@ export default function Profile({
     <ScrollView contentContainerStyle={s.body}>
       <View style={s.header}>
         <Text style={s.title}>MY</Text>
-        <Pressable onPress={onBell} hitSlop={8}>
-          <NotificationBell storeId={acc.stores[acc.current]?.id ?? 0} />
-        </Pressable>
+        {!beforeClockIn && (
+          <Pressable onPress={onBell} hitSlop={8}>
+            <NotificationBell storeId={acc.stores[acc.current]?.id ?? 0} />
+          </Pressable>
+        )}
         <View style={s.avatar}>
           <Ionicons name="person" size={18} color="#fff" />
         </View>
@@ -158,43 +169,49 @@ export default function Profile({
         </Pressable>
       </View>
 
-      <Pressable style={[s.card, s.storeCard]} onPress={() => setSwitching(!switching)}>
-        {owner ? (
-          <Image
-            source={require('../assets/storemate-store-icon.png')}
-            style={{ width: 34, height: 34 }}
-            resizeMode="contain"
-            accessibilityLabel="StoreMate"
-          />
-        ) : (
-          <Ionicons name="storefront" size={34} color={C.primary} />
-        )}
-        <View style={{ flex: 1 }}>
-          <Text style={s.storeName}>{store?.name ?? '소속 매장 없음'}</Text>
-          <Text style={s.storeSub}>{owner ? '사장님' : `직원${me.joinedAt ? ` · ${dot(me.joinedAt)} 입사` : ''}`}</Text>
-        </View>
-        <Ionicons name={switching ? 'chevron-up' : 'chevron-down'} size={20} color="#5E5C6B" />
-      </Pressable>
-
-      {switching && (
-        <View style={[s.card, { marginTop: 8 }]}>
-          {acc.stores.map((st, i) => (
-            <Pressable key={i} style={[s.row, i > 0 && s.line]} onPress={() => onSelect(i)}>
-              <Text style={[s.rowTitle, { flex: 1 }]}>{st.name}</Text>
-              {i === acc.current ? (
-                <Ionicons name="checkmark-circle" size={22} color={C.primary} />
-              ) : (
-                <View style={s.radio} />
-              )}
-            </Pressable>
-          ))}
-          <Pressable style={[s.row, s.line]} onPress={onAdd}>
-            <Ionicons name="add-circle-outline" size={20} color={C.primary} />
-            <Text style={[s.rowTitle, { color: C.primary }]}>
-              {owner ? '새 매장 등록하기' : '다른 매장에 참여하기'}
-            </Text>
+      {!beforeClockIn && (
+        <>
+          <Pressable style={[s.card, s.storeCard]} onPress={() => setSwitching(!switching)}>
+            {owner ? (
+              <Image
+                source={require('../assets/storemate-store-icon.png')}
+                style={{ width: 34, height: 34 }}
+                resizeMode="contain"
+                accessibilityLabel="StoreMate"
+              />
+            ) : (
+              <Ionicons name="storefront" size={34} color={C.primary} />
+            )}
+            <View style={{ flex: 1 }}>
+              <Text style={s.storeName}>{store?.name ?? '소속 매장 없음'}</Text>
+              <Text style={s.storeSub}>
+                {owner ? '사장님' : `직원${me.joinedAt ? ` · ${dot(me.joinedAt)} 입사` : ''}`}
+              </Text>
+            </View>
+            <Ionicons name={switching ? 'chevron-up' : 'chevron-down'} size={20} color="#5E5C6B" />
           </Pressable>
-        </View>
+
+          {switching && (
+            <View style={[s.card, { marginTop: 8 }]}>
+              {acc.stores.map((st, i) => (
+                <Pressable key={i} style={[s.row, i > 0 && s.line]} onPress={() => onSelect(i)}>
+                  <Text style={[s.rowTitle, { flex: 1 }]}>{st.name}</Text>
+                  {i === acc.current ? (
+                    <Ionicons name="checkmark-circle" size={22} color={C.primary} />
+                  ) : (
+                    <View style={s.radio} />
+                  )}
+                </Pressable>
+              ))}
+              <Pressable style={[s.row, s.line]} onPress={onAdd}>
+                <Ionicons name="add-circle-outline" size={20} color={C.primary} />
+                <Text style={[s.rowTitle, { color: C.primary }]}>
+                  {owner ? '새 매장 등록하기' : '다른 매장에 참여하기'}
+                </Text>
+              </Pressable>
+            </View>
+          )}
+        </>
       )}
 
       {owner ? (
@@ -239,31 +256,32 @@ export default function Profile({
         </>
       ) : (
         <>
-          <View style={s.stats}>
-            <Stat label="이번 달 근무">
-              {staffHours === null ? '—' : hr(staffHours)}
-              <Unit>시간</Unit>
-            </Stat>
-            <Stat label="기본 급여 예상">
-              {staffPay === null ? '—' : (Math.round(staffPay.knownPay / 1000) / 10).toFixed(1)}
-              <Unit>만원</Unit>
-            </Stat>
-            <Stat label="근속">
-              {months >= 12 && (
-                <>
-                  {Math.floor(months / 12)}
-                  <Unit>년 </Unit>
-                </>
-              )}
-              {months % 12}
-              <Unit>개월</Unit>
-            </Stat>
-          </View>
-          <Text style={s.summaryNote}>
-            근무별 보존 시급 기준 · 현재 시급 {won(me.wage)}원{me.wageSet ? '' : ' (기본)'}
-          </Text>
-          {!!staffPay?.unconfirmed && (
-            <Text style={s.summaryNote}>시급 미확정 {staffPay.unconfirmed}건은 금액 합산에서 제외함</Text>
+          {!beforeClockIn && (
+            <>
+              <View style={s.stats}>
+                <Stat label="이번 달 근무">
+                  {staffHours === null ? '—' : hr(staffHours)}
+                  <Unit>시간</Unit>
+                </Stat>
+                <Stat label="기본 급여 예상">
+                  {staffPay === null ? '—' : (Math.round(staffPay.pay / 1000) / 10).toFixed(1)}
+                  <Unit>만원</Unit>
+                </Stat>
+                <Stat label="근속">
+                  {months >= 12 && (
+                    <>
+                      {Math.floor(months / 12)}
+                      <Unit>년 </Unit>
+                    </>
+                  )}
+                  {months % 12}
+                  <Unit>개월</Unit>
+                </Stat>
+              </View>
+              <Text style={s.summaryNote}>
+                근무 당시 시급 기준 · 현재 시급 {won(me.wage)}원{me.wageSet ? '' : ' (기본)'}
+              </Text>
+            </>
           )}
           <Text style={s.section}>근무 · 급여</Text>
           <View style={s.card}>
@@ -296,23 +314,25 @@ export default function Profile({
 function StaffContractScreen({
   employeeId,
   employeeName,
-  storeId,
+  stores,
+  showStoreName,
   onBack,
 }: {
   employeeId: string;
   employeeName: string;
-  storeId: number;
+  stores: { id: number; name: string }[];
+  showStoreName: boolean;
   onBack: () => void;
 }) {
-  const [contract, setContract] = useState<EmploymentContract | null>(null);
+  const [contracts, setContracts] = useState<(EmploymentContract | null)[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const storeKey = stores.map((st) => st.id).join(',');
   useEffect(() => {
     let active = true;
-    contractRepository
-      .getForEmployee(storeId, employeeId, employeeName)
-      .then((value) => {
-        if (active) setContract(value);
+    Promise.all(stores.map((st) => contractRepository.getForEmployee(st.id, employeeId, employeeName)))
+      .then((values) => {
+        if (active) setContracts(values);
       })
       .catch(() => {
         if (active) setError('저장된 계약서를 불러오지 못했어요.');
@@ -323,7 +343,7 @@ function StaffContractScreen({
     return () => {
       active = false;
     };
-  }, [storeId, employeeId, employeeName]);
+  }, [storeKey, employeeId, employeeName]);
   return (
     <View style={s.editRoot}>
       <View style={s.editHeader}>
@@ -337,13 +357,27 @@ function StaffContractScreen({
           <Text style={s.contractMessage}>계약서를 확인하고 있어요.</Text>
         ) : error ? (
           <Text style={s.contractMessage}>{error}</Text>
-        ) : contract ? (
-          <>
-            <Text style={s.contractDate}>등록일 {new Date(contract.capturedAt).toLocaleDateString('ko-KR')}</Text>
-            <Image source={{ uri: contract.photoUri }} style={s.contractImage} resizeMode="contain" />
-          </>
         ) : (
-          <Text style={s.contractMessage}>등록된 근로계약서가 없어요. 사장님이 계약서를 등록하면 여기에 표시돼요.</Text>
+          stores.map((st, i) => {
+            const contract = contracts[i];
+            return (
+              <View key={st.id}>
+                {showStoreName && <Text style={s.section}>{st.name}</Text>}
+                {contract ? (
+                  <>
+                    <Text style={s.contractDate}>
+                      등록일 {new Date(contract.capturedAt).toLocaleDateString('ko-KR')}
+                    </Text>
+                    <Image source={{ uri: contract.photoUri }} style={s.contractImage} resizeMode="contain" />
+                  </>
+                ) : (
+                  <Text style={s.contractMessage}>
+                    등록된 근로계약서가 없어요. 사장님이 계약서를 등록하면 여기에 표시돼요.
+                  </Text>
+                )}
+              </View>
+            );
+          })
         )}
       </ScrollView>
     </View>

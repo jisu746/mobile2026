@@ -15,7 +15,7 @@ import Notifications from './Notifications';
 import Scanner from './Scanner';
 import TaskList from './TaskList';
 import HandoverBoard from './HandoverBoard';
-import WorkRecords from './WorkRecords';
+import WorkRecords, { RecordStore } from './WorkRecords';
 import { Handover, previousHandovers, listHandovers, resolveHandover, writeHandover } from './handover';
 import { useTasks } from './tasks';
 import { C, TabBar, TabItem } from './ui';
@@ -41,6 +41,7 @@ const elapsed = (from: Date, now: number) => {
 export default function StaffHome({
   storeId,
   storeName,
+  stores,
   userId,
   userName,
   renderMy,
@@ -48,9 +49,10 @@ export default function StaffHome({
 }: {
   storeId: number;
   storeName: string;
+  stores: RecordStore[]; // 내가 소속된 모든 업장 (출근 전 근무 기록에서 합쳐서 보여준다)
   userId: string;
   userName: string;
-  renderMy: (onBell: () => void, onRecords: () => void) => ReactNode;
+  renderMy: (onBell: () => void, onRecords: () => void, beforeClockIn: boolean) => ReactNode;
   onSwitchStore: () => void;
 }) {
   const ME = userName;
@@ -164,7 +166,14 @@ export default function StaffHome({
   );
 
   if (notifOpen) return <Notifications storeId={storeId} userId={userId} onBack={() => setNotifOpen(false)} />;
-  if (recordsOpen) return <WorkRecords storeId={storeId} onBack={() => setRecordsOpen(false)} />;
+  if (recordsOpen)
+    return (
+      <WorkRecords
+        storeId={storeId}
+        commonStores={clockedAt ? undefined : stores}
+        onBack={() => setRecordsOpen(false)}
+      />
+    );
   if (summaryOpen) return <ShiftSummary storeId={storeId} owner={false} onBack={() => setSummaryOpen(false)} />;
   if (!ready) return <View style={s.root} />;
 
@@ -202,7 +211,7 @@ export default function StaffHome({
     if (tab === 3) {
       return (
         <View style={s.root}>
-          {renderMy(onBell, () => setRecordsOpen(true))}
+          {renderMy(onBell, () => setRecordsOpen(true), true)}
           <TabBar tabs={BEFORE_TABS} active={1} onChange={(i) => setTab(i === 1 ? 3 : 0)} />
         </View>
       );
@@ -216,15 +225,7 @@ export default function StaffHome({
     }[shiftState(today)];
     return (
       <View style={s.root}>
-        <View style={s.pad}>
-          {header(true, false)}
-          <Pressable
-            onPress={() => setSummaryOpen(true)}
-            style={{ padding: 16, borderWidth: 1, borderColor: '#D8D3E8', borderRadius: 14, marginVertical: 12 }}
-          >
-            <Text style={{ fontWeight: '700', color: C.primary }}>교대 요약 · 남은 업무와 전달 사항 〉</Text>
-          </Pressable>
-        </View>
+        <View style={s.pad}>{header(true, false)}</View>
         <Text style={s.big}>{`${ME}님,\n${headline}`}</Text>
         <View style={s.shift}>
           <Text style={s.shiftLabel}>근무 시간</Text>
@@ -312,11 +313,8 @@ export default function StaffHome({
           </Pressable>
           <Text style={s.hello}>{ME}님, 오늘도 파이팅!</Text>
           <Text style={s.earn}>
-            {pay ? `이번 달 기본급 예상 ${won(pay.knownPay)}원` : '예상 기본급을 불러오는 중이에요'}
+            {pay ? `이번 달 기본급 예상 ${won(pay.pay)}원` : '예상 기본급을 불러오는 중이에요'}
           </Text>
-          {!!pay?.unconfirmed && (
-            <Text style={s.earn}>시급 확인이 필요한 {pay.unconfirmed}건은 금액에서 제외했어요.</Text>
-          )}
 
           <View style={s.status}>
             <View style={{ flex: 1 }}>
@@ -456,7 +454,7 @@ export default function StaffHome({
       ) : tab === 2 ? (
         <InventoryTab store={storeId} onProfile={onProfile} onBell={onBell} />
       ) : tab === 3 ? (
-        renderMy(onBell, () => setRecordsOpen(true))
+        renderMy(onBell, () => setRecordsOpen(true), false)
       ) : (
         <View style={s.empty}>
           <Text style={s.emptyText}>{TABS[tab].label} 화면은 준비 중이에요</Text>

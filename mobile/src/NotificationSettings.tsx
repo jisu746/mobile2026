@@ -27,10 +27,12 @@ const KINDS: { id: NotificationToggleKey; title: string; sub?: string }[] = [
 export default function NotificationSettings({
   userId,
   storeId,
+  hideTypeToggles = false,
   onBack,
 }: {
   userId: string;
   storeId: number;
+  hideTypeToggles?: boolean; // 받을 푸시 알림 종류 목록을 숨긴다 (직원의 출근 전 MY)
   onBack: () => void;
 }) {
   const [on, setOn] = useState(DEFAULT_NOTIFICATION_PREFERENCES);
@@ -183,25 +185,29 @@ export default function NotificationSettings({
           >
             <Text style={[s.rowSub, { color: C.primary, paddingVertical: 12 }]}>이 기기 푸시 알림 연결</Text>
           </Pressable>
-          <Text style={s.section}>받을 푸시 알림</Text>
-          <View style={s.card}>
-            {KINDS.map((k, i) => (
-              <Row
-                key={k.id}
-                line={i > 0}
-                title={k.title}
-                sub={
-                  k.id === 'expiry'
-                    ? `매장 기준 D-${storeSettings.expirationAlertDays}`
-                    : k.id === 'stock'
-                      ? `재고 ${storeSettings.lowStockThresholdCount}개 이하`
-                      : (k.sub ?? '')
-                }
-                value={on[k.id]}
-                onChange={(v) => toggle(k.id, v)}
-              />
-            ))}
-          </View>
+          {!hideTypeToggles && (
+            <>
+              <Text style={s.section}>받을 푸시 알림</Text>
+              <View style={s.card}>
+                {KINDS.map((k, i) => (
+                  <Row
+                    key={k.id}
+                    line={i > 0}
+                    title={k.title}
+                    sub={
+                      k.id === 'expiry'
+                        ? `매장 기준 D-${storeSettings.expirationAlertDays}`
+                        : k.id === 'stock'
+                          ? `재고 ${storeSettings.lowStockThresholdCount}개 이하`
+                          : (k.sub ?? '')
+                    }
+                    value={on[k.id]}
+                    onChange={(v) => toggle(k.id, v)}
+                  />
+                ))}
+              </View>
+            </>
+          )}
 
           <Text style={s.section}>방해 금지</Text>
           <View style={s.card}>

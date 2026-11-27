@@ -52,14 +52,16 @@ public final class StatutoryPayCalculator {
    if(r.to()==null){if(target)blocks.add("근무 #"+r.id()+" 퇴근 처리가 필요해요");continue;}
    if(!r.to().isAfter(r.from())||Duration.between(r.from(),r.to()).toHours()>72||r.to().isAfter(now)) {blocks.add("근무 #"+r.id()+"의 근무시간을 확인해주세요 (72시간 초과 또는 미래 기록)");continue;}
    if(lastEnd!=null&&r.from().isBefore(lastEnd))blocks.add("겹치는 출퇴근 기록을 정정해주세요");lastEnd=r.to();
-   if(r.wage()==null||r.wage()<1||r.wage()>100000){blocks.add("근무 #"+r.id()+"의 당시 시급을 확정해주세요");continue;}
+   if(r.wage()!=null&&(r.wage()<1||r.wage()>100000)){blocks.add("근무 #"+r.id()+"의 당시 시급을 확정해주세요");continue;}
+   // 저장된 시급이 없는 근무는 최저시급으로 계산한다
+   int wage=r.wage()==null?WageService.DEFAULT_WAGE:r.wage();
    var c=confirmed.get(r.id());if(c==null||!c.breaksConfirmed()){blocks.add("근무 #"+r.id()+"의 실제 휴게시간을 확인해주세요 (휴게 없음도 확인 필요)");continue;}
    if((c.breakRevision()==null?0:c.breakRevision())!=r.breakRevision())blocks.add("근무 #"+r.id()+" 휴게 기록이 변경됐어요. 다시 확인해주세요");
    if(s.partTime()&&premium&&(c.agreedDailyMinutes()==null||c.agreedDailyMinutes()<0||c.agreedDailyMinutes()>480)){blocks.add("근무 #"+r.id()+"의 당일 약정 근로시간을 확인해주세요");continue;}
    List<Pause> pauses=c.breaks()==null?List.of():c.breaks().stream().peek(b->{if(b==null||b.from()==null||b.to()==null)throw bad("휴게 시작·종료 시각을 입력해주세요");}).sorted(Comparator.comparing(Pause::from)).toList();LocalDateTime end=r.from();long breakSeconds=0;
    for(var b:pauses){if(b.from()==null||b.to()==null||!b.to().isAfter(b.from())||b.from().isBefore(end)||b.from().isBefore(r.from())||b.to().isAfter(r.to()))throw bad("휴게시간은 해당 근무 안에서 겹치지 않게 입력해주세요");end=b.to();breakSeconds+=Duration.between(b.from(),b.to()).getSeconds();}
    if(breakSeconds>=Duration.between(r.from(),r.to()).getSeconds())throw bad("휴게시간이 전체 근무시간 이상이에요");
-   if(target)breakDeduction=breakDeduction.add(pay(breakSeconds-r.baseBreakSeconds(),r.wage(),1));
+   if(target)breakDeduction=breakDeduction.add(pay(breakSeconds-r.baseBreakSeconds(),wage,1));
    int pauseIndex=0;long active=0;
    for(LocalDateTime t=r.from();t.isBefore(r.to());){
     while(pauseIndex<pauses.size()&&!t.isBefore(pauses.get(pauseIndex).to()))pauseIndex++;
@@ -80,13 +82,13 @@ public final class StatutoryPayCalculator {
     if(!isHoliday&&daySeconds<dailyLimit&&ws<weeklyLimit)step=Math.min(step,weeklyLimit-ws);
     if(step<=0)throw bad("출퇴근 시각은 초 단위로 입력해주세요");
     active+=step;workDay.put(r.from().toLocalDate(),daySeconds+step);
-    int hour=t.getHour();if(target&&premium&&(hour>=22||hour<6))night=night.add(pay(step,r.wage(),.5));
-    if(isHoliday){holidayDay.put(d,hs+step);if(hs<28800&&daySeconds<dailyLimit)ordinaryWeek.put(wk,ws+step);if(target&&premium)holiday=holiday.add(pay(step,r.wage(),hs<28800?.5:1));}
+    int hour=t.getHour();if(target&&premium&&(hour>=22||hour<6))night=night.add(pay(step,wage,.5));
+    if(isHoliday){holidayDay.put(d,hs+step);if(hs<28800&&daySeconds<dailyLimit)ordinaryWeek.put(wk,ws+step);if(target&&premium)holiday=holiday.add(pay(step,wage,hs<28800?.5:1));}
     else{
      if(s.partTime()&&premium&&(w==null||w.agreedWeeklyMinutes()==null))blocks.add(wk+" 주의 약정 근로시간 확인이 필요해요");
      boolean daily=daySeconds>=dailyLimit,weeklyExtra=ws>=weeklyLimit;
      if(!daily)ordinaryWeek.put(wk,ws+step);
-     if(target&&premium&&(daily||weeklyExtra))overtime=overtime.add(pay(step,r.wage(),.5));
+     if(target&&premium&&(daily||weeklyExtra))overtime=overtime.add(pay(step,wage,.5));
     }
     t=t.plusSeconds(step);
    }

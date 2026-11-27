@@ -139,6 +139,7 @@ export default function App() {
   const renderMy = (
     onBell: () => void,
     onRecords: () => void,
+    beforeClockIn: boolean,
     onEmployeeRequests?: () => void,
     onEmployees?: () => void,
     onPayroll?: () => void,
@@ -153,6 +154,7 @@ export default function App() {
         onLogout={logout}
         onBell={onBell}
         onRecords={onRecords}
+        beforeClockIn={beforeClockIn}
         onEmployeeRequests={onEmployeeRequests ?? (() => {})}
         onEmployees={onEmployees ?? (() => {})}
         onPayroll={onPayroll ?? (() => {})}
@@ -199,6 +201,7 @@ export default function App() {
             <StaffHome
               storeId={store.id ?? 0}
               storeName={store.name}
+              stores={(account?.stores ?? []).flatMap((st) => (st.id ? [{ id: st.id, name: st.name }] : []))}
               userId={userId}
               userName={account?.name ?? ''}
               renderMy={renderMy}

@@ -10,8 +10,8 @@ import PayrollSettlement from './PayrollSettlement';
 import MissingClockOut from './MissingClockOut';
 import { livePayrollRepository, payrollSummary } from './livePayrollRepository';
 import type { PayrollMember, PayrollRecord } from './livePayrollRepository';
-import { sessionHours } from './payCalculation';
-import { won } from './work';
+import { sessionHours, appliedWage } from './payCalculation';
+import { won, MIN_WAGE } from './work';
 import { errorText } from './api';
 
 type Entry = { member: PayrollMember; records: PayrollRecord[]; error: string };
@@ -197,13 +197,11 @@ export default function LiveOwnerPayroll({ storeId, onClose }: { storeId: number
                       )}
                       <Text style={s.line}>
                         {record.hourlyWage == null
-                          ? '적용 시급 확인 필요'
+                          ? `${won(MIN_WAGE)}원 (최저시급 적용)`
                           : `보존 시급 ${won(record.hourlyWage)}원${record.wageSource === 'DEFAULT' ? ' (기본값)' : ''}`}
                       </Text>
-                      <Text style={record.hourlyWage == null ? s.error : s.amount}>
-                        {record.hourlyWage == null
-                          ? '금액 합산에서 제외'
-                          : `기본급 예상 ${won(sessionHours(record, now) * record.hourlyWage)}원`}
+                      <Text style={s.amount}>
+                        {`기본급 예상 ${won(sessionHours(record, now) * appliedWage(record.hourlyWage))}원`}
                       </Text>
                       <Pressable style={s.button} onPress={() => setClosing(record)}>
                         <Text style={s.buttonText}>{record.clockOut ? '퇴근 시각 정정' : '퇴근 누락 처리'}</Text>
@@ -268,9 +266,8 @@ function Summary({ entry, now }: { entry: Entry; now: Date }) {
       </Text>
       <View style={s.pay}>
         <Text style={s.hint}>확인된 기록 기본급 예상</Text>
-        <Text style={s.amount}>{won(pay.knownPay)}원</Text>
+        <Text style={s.amount}>{won(pay.pay)}원</Text>
       </View>
-      {!!pay.unconfirmed && <Text style={s.error}>시급 미확정 {pay.unconfirmed}건 · 금액에서 제외했어요.</Text>}
       {!!pay.active && <Text style={s.hint}>근무 중 {pay.active}건 포함 · 조회 시점 기준</Text>}
     </>
   );

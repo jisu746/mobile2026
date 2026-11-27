@@ -44,6 +44,7 @@ export default function OwnerHome({
   renderMy: (
     onBell: () => void,
     onRecords: () => void,
+    beforeClockIn: boolean,
     onEmployeeRequests?: () => void,
     onEmployees?: () => void,
     onPayroll?: () => void,
@@ -98,6 +99,7 @@ export default function OwnerHome({
         renderMy(
           onBell,
           () => setRecordsOpen(true),
+          false,
           () => setStaffPage('requests'),
           () => setStaffPage('employees'),
           () => setPayrollOpen(true),

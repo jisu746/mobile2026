@@ -6,7 +6,7 @@ import { BackHandler, Platform, Pressable, ScrollView, StyleSheet, View } from '
 import { Text } from './font';
 import { Ionicons } from '@expo/vector-icons';
 import { C } from './ui';
-import { hoursByDay, hr, listSessions, won, dayKey } from './work';
+import { hoursByDay, hr, listSessions, won, dayKey, MIN_WAGE } from './work';
 import type { Session } from './work';
 import { summarizePay } from './payCalculation';
 import PayrollSettlement from './PayrollSettlement';
@@ -26,14 +26,28 @@ const duration = (hours: number) => {
 const clockText = (d: Date) =>
   [d.getHours(), d.getMinutes(), d.getSeconds()].map((n) => String(n).padStart(2, '0')).join(':');
 
-export default function WorkRecords({ storeId, onBack }: { storeId: number; onBack: () => void }) {
+export type RecordStore = { id: number; name: string };
+type Row = Session & { storeId: number; storeName?: string };
+
+// commonStores 가 있으면(출근 전) 그 업장들의 기록을 합쳐서 보여준다
+export default function WorkRecords({
+  storeId,
+  commonStores,
+  onBack,
+}: {
+  storeId: number;
+  commonStores?: RecordStore[];
+  onBack: () => void;
+}) {
+  const targets: { id: number; name?: string }[] = commonStores ?? [{ id: storeId }];
+  const targetKey = targets.map((t) => t.id).join(',');
   const today = startOfDay(new Date());
   const [month, setMonth] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   const [selected, setSelected] = useState<Date>(today);
   const [days, setDays] = useState<Record<string, number> | null>(null); // 날짜별 근무 시간 (null = 불러오는 중)
   const [error, setError] = useState('');
   const [version, setVersion] = useState(0);
-  const [sessions, setSessions] = useState<Session[]>([]);
+  const [sessions, setSessions] = useState<Row[]>([]);
   const hoursOf = (d: Date) => days?.[dayKey(d)] ?? 0;
 
   useEffect(() => {
@@ -41,8 +55,16 @@ export default function WorkRecords({ storeId, onBack }: { storeId: number; onBa
     setDays(null);
     setError('');
     setSessions([]);
-    listSessions(storeId, month.getFullYear(), month.getMonth() + 1).then(
-      (l) => {
+    // 한 업장이라도 실패하면 일부만 합친 금액이 보이지 않도록 전체를 오류로 처리한다
+    Promise.all(
+      targets.map((target) =>
+        listSessions(target.id, month.getFullYear(), month.getMonth() + 1).then((list): Row[] =>
+          list.map((session) => ({ ...session, storeId: target.id, storeName: target.name })),
+        ),
+      ),
+    ).then(
+      (lists) => {
+        const l = lists.flat().sort((a, b) => a.clockIn.getTime() - b.clockIn.getTime());
         if (alive) {
           setSessions(l);
           setDays(hoursByDay(l));
@@ -53,7 +75,7 @@ export default function WorkRecords({ storeId, onBack }: { storeId: number; onBa
     return () => {
       alive = false;
     };
-  }, [storeId, month, version]);
+  }, [targetKey, month, version]);
 
   // 안드로이드 뒤로가기로 근무 기록 화면만 닫는다
   useEffect(() => {
@@ -125,30 +147,25 @@ export default function WorkRecords({ storeId, onBack }: { storeId: number; onBa
             <View>
               <Text style={s.heroLabel}>{isThisMonth ? '이번 달' : `${m + 1}월`} 기본급 예상</Text>
               <Text style={s.heroPay}>
-                {won(pay.knownPay)}
+                {won(pay.pay)}
                 <Text style={s.heroWon}>원</Text>
               </Text>
             </View>
             <View style={s.pill}>
-              <Text style={s.pillText}>근무별 보존 시급 기준</Text>
+              <Text style={s.pillText}>근무 당시 시급 기준</Text>
             </View>
           </View>
           <View style={s.metrics}>
             <Metric label="총 근무시간" value={duration(total)} unit="" />
             <Metric label="근무 일수" value={String(workDays)} unit="일" />
           </View>
-          <View style={s.allowance}>
-            <Text style={s.metricLabel}>주휴·가산 수당</Text>
-            <Text style={s.allowanceValue}>별도 확인</Text>
-          </View>
+          
         </View>
 
-        <PayrollSettlement storeId={storeId} period={`${y}-${String(m + 1).padStart(2, '0')}`} />
-        {!!pay.unconfirmed && (
-          <Text style={{ color: '#B3261E', fontSize: 12, lineHeight: 20, marginTop: 12 }}>
-            기존 근무 {pay.unconfirmed}건은 적용 시급 확인이 필요해 금액에서 제외했어요. 관리자가 직원 시급 설정에서
-            확인할 수 있어요.
-          </Text>
+        {commonStores ? (
+          <StorePayslips stores={commonStores} period={`${y}-${String(m + 1).padStart(2, '0')}`} />
+        ) : (
+          <PayrollSettlement storeId={storeId} period={`${y}-${String(m + 1).padStart(2, '0')}`} />
         )}
 
         <View style={s.calendar}>
@@ -230,8 +247,8 @@ export default function WorkRecords({ storeId, onBack }: { storeId: number; onBa
             <View style={s.detail}>
               <View style={s.heroTop}>
                 <Text style={s.detailPay}>
-                  {won(selectedPay.knownPay)}
-                  <Text style={s.detailWon}> 원{selectedPay.unconfirmed ? ' (확정분)' : ''}</Text>
+                  {won(selectedPay.pay)}
+                  <Text style={s.detailWon}> 원</Text>
                 </Text>
                 <View style={s.pill}>
                   <Text style={s.pillText}>근무별 적용 시급</Text>
@@ -243,13 +260,15 @@ export default function WorkRecords({ storeId, onBack }: { storeId: number; onBa
               </View>
               {selectedSessions.map((session, index) => (
                 <View key={`${session.clockIn.toISOString()}-${index}`} style={s.detailBox}>
-                  <Text style={s.metricLabel}>{index + 1}번째 근무</Text>
+                  <Text style={s.metricLabel}>
+                    {index + 1}번째 근무{session.storeName ? ` · ${session.storeName}` : ''}
+                  </Text>
                   <View style={s.sessionRow}>
                     <Text style={s.sessionLabel}>적용 시급</Text>
                     <Text style={s.sessionTime}>
                       {session.hourlyWage == null
-                        ? '확인 필요 · 금액 제외'
-                        : `${won(session.hourlyWage)}원${session.wageSource === 'DEFAULT' ? ' (기본값 보존)' : ''}`}
+                        ? `${won(MIN_WAGE)}원 (최저시급 적용)`
+                        : `${won(session.hourlyWage)}원${session.wageSource === 'DEFAULT' ? ' (기본값 적용)' : ''}`}
                     </Text>
                   </View>
                   <View style={s.sessionRow}>
@@ -269,7 +288,7 @@ export default function WorkRecords({ storeId, onBack }: { storeId: number; onBa
                   </Text>
                   {session.sessionId != null && (
                     <WorkBreakEditor
-                      storeId={storeId}
+                      storeId={session.storeId}
                       sessionId={session.sessionId}
                       onSaved={() => setVersion((v) => v + 1)}
                     />
@@ -296,6 +315,41 @@ export default function WorkRecords({ storeId, onBack }: { storeId: number; onBa
   );
 }
 
+// 급여 명세는 업장별로 만들어지므로 업장을 고른 뒤 연다
+function StorePayslips({ stores, period }: { stores: RecordStore[]; period: string }) {
+  const [choosing, setChoosing] = useState(false);
+  const [chosen, setChosen] = useState<number | null>(null);
+  return (
+    <View>
+      <Pressable
+        style={s.payslipToggle}
+        onPress={() => {
+          setChoosing((v) => !v);
+          setChosen(null);
+        }}
+      >
+        <Text style={s.payslipToggleText}>수당·공제·급여 명세 {choosing ? '닫기' : '열기'}</Text>
+      </Pressable>
+      {choosing && (
+        <>
+          <View style={s.payslipStores}>
+            {stores.map((store) => (
+              <Pressable
+                key={store.id}
+                style={[s.payslipStore, chosen === store.id && s.payslipStoreOn]}
+                onPress={() => setChosen(store.id)}
+              >
+                <Text style={[s.payslipStoreText, chosen === store.id && { color: '#fff' }]}>{store.name}</Text>
+              </Pressable>
+            ))}
+          </View>
+          {chosen !== null && <PayrollSettlement key={chosen} storeId={chosen} period={period} initiallyOpen />}
+        </>
+      )}
+    </View>
+  );
+}
+
 function Metric({ label, value, unit }: { label: string; value: string; unit: string }) {
   return (
     <View style={s.metric}>
@@ -311,6 +365,13 @@ function Metric({ label, value, unit }: { label: string; value: string; unit: st
 }
 
 const s = StyleSheet.create({
+  payslipToggle: { marginTop: 14, borderWidth: 1, borderColor: '#E4E2EC', borderRadius: 16, padding: 14 },
+  payslipToggleText: { fontSize: 15, fontWeight: '700', color: C.primary },
+  payslipHint: { fontSize: 12, lineHeight: 20, color: '#686373', marginTop: 8 },
+  payslipStores: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 6 },
+  payslipStore: { borderWidth: 1, borderColor: C.primary, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 9 },
+  payslipStoreOn: { backgroundColor: C.primary },
+  payslipStoreText: { fontSize: 13, fontWeight: '700', color: C.primary },
   root: { flex: 1, backgroundColor: '#fff' },
   header: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 20, height: 56 },
   title: { flex: 1, fontSize: 18, fontWeight: '700', color: C.text },
