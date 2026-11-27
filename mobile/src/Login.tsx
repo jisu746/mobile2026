@@ -4,7 +4,6 @@ import { Image, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-
 import { Text } from './font';
 import { Account, login, Role } from './auth';
 import { Button, C, Field, Pill } from './ui';
-import SocialLogin from './SocialLogin';
 import { errorText } from './api';
 
 type Props = { onSignup: () => void; onLoggedIn: (id: string, acc: Account) => void };
@@ -103,7 +102,6 @@ export default function Login({ onSignup, onLoggedIn }: Props) {
       </View>
 
       <View style={s.bottom}>
-        <SocialLogin role={role} onLoggedIn={onLoggedIn} />
         <Text style={s.bottomSub}>아직 계정이 없으신가요?</Text>
         <Pressable onPress={onSignup}>
           <Text style={s.bottomLink}>가입하기</Text>

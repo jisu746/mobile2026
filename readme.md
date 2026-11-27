@@ -1,32 +1,15 @@
-# StoreMate
-
-매장의 출퇴근·근무 일정·급여·재고·인수인계를 관리하는 앱입니다. 사장님과 직원 화면이 있습니다.
-
 ## 실행 방법
 
-Java 21, Node.js, MySQL 이 필요합니다. 경로는 내려받은 위치에 맞게 바꿔 주세요.
-
-### 1. DB 준비
-
-MySQL 을 켜고, 처음 한 번만 데이터베이스를 만듭니다.
-
-```sql
-CREATE DATABASE smartstore;
-```
-
-DB 접속 정보는 `backend/src/main/resources/application.properties` 에서 설정합니다.
-테이블은 서버를 켤 때 자동으로 만들어지고 갱신됩니다(`ddl-auto=update`). **지우면 안 되는 데이터가 있으면 `git pull` 후 서버를 켜기 전에 백업하세요.**
-
-### 2. 서버 (명령 프롬프트 1)
+### 1. 백엔드
 
 ```bat
 cd /d C:\mobile2026\backend
 gradlew.bat bootRun
 ```
 
-기본 주소는 `http://localhost:8080` 입니다.
+주소: `http://localhost:8080` 
 
-### 3. 앱 (명령 프롬프트 2)
+### 2. 프론트엔드
 
 ```bat
 cd /d C:\mobile2026\mobile
@@ -34,7 +17,7 @@ npm install
 npx expo start --web
 ```
 
-`npm install` 은 처음 실행할 때와 `package.json` 이 바뀌었을 때 필요합니다. 서버와 앱 창은 계속 열어 둡니다.
+`npm install` 은 처음 실행할 때와 `package.json` 이 바뀌었을 때 필요
 
 | 실행 환경 | 방법 | 서버 주소 |
 |---|---|---|
@@ -53,7 +36,7 @@ mobile2026/
 │  ├─ src/                화면(.tsx)과 서버 연동·계산(.ts)
 │  └─ assets/             아이콘, 글꼴
 ├─ backend/               Spring Boot API 서버
-│  ├─ docs/               배포, 급여 계산, 소셜 로그인 문서
+│  ├─ docs/               배포, 급여 계산 문서
 │  └─ src/main/java/com/storemate/backend/
 │     ├─ web/             요청을 받는 곳(Controller)과 업무 처리
 │     ├─ repo/            DB 조회·저장 인터페이스
@@ -124,7 +107,6 @@ gradlew.bat test
 
 - 촬영 인식(OCR): Google Vision API 키
 - 푸시 알림: Expo 프로젝트와 Android FCM 자격 증명, 설치 앱
-- 소셜 로그인: [SOCIAL_LOGIN.md](backend/docs/SOCIAL_LOGIN.md)
 - 실제 Android 기기의 카메라·위치·권한·알림·전체 흐름
 - 급여 계산은 입력한 약정과 설정을 바탕으로 한 계산 기능입니다. 법정 급여 정산을 보장하지 않습니다. [PAYROLL_AUTOMATIC.md](backend/docs/PAYROLL_AUTOMATIC.md)
 
