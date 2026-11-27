@@ -1,3 +1,16 @@
+## ⚠️ pull 받은 뒤 DB 한 번 수정해야 함
+
+급여 자동 계산 설정이 저장 안 되던 버그 고침. `pull`만으로는 기존 DB가 안 고쳐짐.
+
+서버를 한 번이라도 켠 적 있으면 MySQL에서 아래를 **한 번만** 실행하면 됨. 데이터는 유지됨 (중요한 데이터 있으면 먼저 백업). DB를 새로 만드는 경우는 필요 없음.
+
+```sql
+USE smartstore;
+ALTER TABLE payroll_rule_drafts MODIFY settings MEDIUMTEXT NOT NULL;
+```
+
+실행 후 서버 다시 켜기. (`payroll_rule_drafts` 테이블이 없다고 나오면 아직 안 만들어진 거라 안 해도 됨)
+
 ## 실행 방법
 
 ### 1. 백엔드

@@ -10,7 +10,8 @@ public class PayrollRuleDraft {
  @Id @GeneratedValue(strategy=GenerationType.IDENTITY) private Long id;
  @ManyToOne(fetch=FetchType.LAZY,optional=false) private StoreMember member;
  @Column(nullable=false,length=7) private String period;
- @Lob @Column(nullable=false) private String settings;
+ // 크기를 지정하지 않으면 MySQL 에 tinytext(255바이트)로 만들어진다. 16777215 = mediumtext
+ @Lob @Column(nullable=false,length=16777215) private String settings;
  private long revision;
  @Column(length=64) private String appliedHash;
  private LocalDateTime updatedAt;
