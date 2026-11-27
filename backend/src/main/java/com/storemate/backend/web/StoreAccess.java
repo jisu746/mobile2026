@@ -12,16 +12,6 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class StoreAccess {
-    public enum InventoryPermission { DELETE_PRODUCTS, ADJUST_STOCK, SAVE_ORDER_PLANS }
-    public boolean canInventory(Account a,Long sid,InventoryPermission permission){
-        Store s=requireMember(a,sid);if(s.getOwner().getId().equals(a.getId()))return true;
-        StoreMember m=approved(a,s);
-        return switch(permission){case DELETE_PRODUCTS->m.canDeleteProducts();case ADJUST_STOCK->m.canAdjustStock();case SAVE_ORDER_PLANS->m.canSaveOrderPlans();};
-    }
-    public Store requireInventory(Account a,Long sid,InventoryPermission permission){
-        if(!canInventory(a,sid,permission))throw new ApiException(HttpStatus.FORBIDDEN,"이 작업은 사장님이 허용한 직원만 할 수 있어요.");
-        return requireMember(a,sid);
-    }
     private final StoreRepository stores;
     private final StoreMemberRepository members;
 

@@ -12,7 +12,7 @@ public class StocktakeController {
  private Result view(StocktakeOperation o){return new Result(o.getId(),o.getActor(),o.getCreatedAt().toString(),o.getReason(),json.readValue(o.getLinesJson(),Object.class));}
  @GetMapping @Transactional(readOnly=true) public List<Result> history(@RequestAttribute(AuthInterceptor.ACCOUNT)Account a,@PathVariable Long storeId){return operations.findTop50ByStoreOrderByIdDesc(access.requireMember(a,storeId)).stream().map(this::view).toList();}
  @PostMapping @Transactional public Result save(@RequestAttribute(AuthInterceptor.ACCOUNT)Account a,@PathVariable Long storeId,@RequestBody Save r){
-  var s=access.requireInventory(a,storeId,StoreAccess.InventoryPermission.ADJUST_STOCK);batches.lock(s);
+  var s=access.requireMember(a,storeId);batches.lock(s);
   if(r.clientKey()==null||!r.clientKey().matches("[A-Za-z0-9_-]{8,80}")||r.reason()==null||r.reason().isBlank()||r.reason().length()>300||r.items()==null||r.items().isEmpty()||r.items().size()>100||r.items().stream().anyMatch(Objects::isNull))throw new ApiException(HttpStatus.BAD_REQUEST,"실사 상품 1~100개와 처리 사유를 확인해주세요.");
   String fingerprint=hash(r.reason()+r.items().toString());var old=operations.findByStoreAndClientKey(s,r.clientKey());if(old.isPresent()){if(!old.get().getFingerprint().equals(fingerprint)||!old.get().getActorId().equals(a.getId()))throw new ApiException(HttpStatus.CONFLICT,"같은 요청의 내용이 달라요.");return view(old.get());}
   var selected=new LinkedHashMap<String,Product>();

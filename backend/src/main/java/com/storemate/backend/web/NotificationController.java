@@ -40,7 +40,7 @@ public class NotificationController {
         Set<Long> read = reads.findByAccountIdAndNotificationIdIn(account.getId(), list.stream().map(Notification::getId).toList())
                 .stream().map(NotificationRead::getNotificationId).collect(Collectors.toSet());
         return list.stream().map(n -> new Dto.NotificationView(n.getId(), n.getKind(), n.getTitle(), n.getSub(),
-                n.getCreatedAt().toString(), read.contains(n.getId()),n.getTargetId())).toList();
+                n.getCreatedAt().toString(), read.contains(n.getId()),n.getTargetId(),n.getTargetBarcode())).toList();
     }
 
     // 읽음 표시. 내게 온 알림만 처리한다

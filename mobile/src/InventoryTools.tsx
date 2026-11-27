@@ -61,8 +61,6 @@ export default function InventoryTools({
   const [mode, setMode] = useState<Mode>(initialMode),
     [selected, setSelected] = useState(barcode ?? products[0]?.barcode ?? ''),
     [owner, setOwner] = useState(false),
-    [canAdjust, setCanAdjust] = useState(false),
-    [canPlan, setCanPlan] = useState(false),
     [receiving, setReceiving] = useState<number | null>(null),
     [error, setError] = useState(''),
     [message, setMessage] = useState(''),
@@ -92,15 +90,8 @@ export default function InventoryTools({
   const root = `/api/stores/${storeId}`,
     product = products.find((p) => p.barcode === selected);
   useEffect(() => {
-    api<{ owner: boolean; adjustStock: boolean; saveOrderPlans: boolean }>(
-      'GET',
-      root + '/inventory-capabilities',
-    ).then(
-      (v) => {
-        setOwner(v.owner);
-        setCanAdjust(v.owner || v.adjustStock);
-        setCanPlan(v.owner || v.saveOrderPlans);
-      },
+    api<{ owner: boolean }>('GET', root + '/inventory-capabilities').then(
+      (v) => setOwner(v.owner),
       (e) => setError(e.message),
     );
   }, [root]);
@@ -121,7 +112,7 @@ export default function InventoryTools({
       );
     else if (mode === 'orders')
       Promise.all([
-        canPlan ? api<Row[]>('GET', root + '/order-recommendations') : Promise.resolve([] as Row[]),
+        owner ? api<Row[]>('GET', root + '/order-recommendations') : Promise.resolve([] as Row[]),
         api<Plan[]>('GET', root + '/order-plans'),
       ]).then(
         ([r, p]) => {
@@ -159,7 +150,7 @@ export default function InventoryTools({
     return () => {
       alive = false;
     };
-  }, [root, selected, mode, version, page, canPlan]);
+  }, [root, selected, mode, version, page, owner]);
   const run = async (path: string, body: unknown, method: 'POST' | 'PUT' = 'POST') => {
     if (working.current) return;
     working.current = true;
@@ -190,7 +181,7 @@ export default function InventoryTools({
       <OrderReceiving
         storeId={storeId}
         planId={receiving}
-        canSubmit={canPlan}
+        canSubmit={owner}
         onClose={() => {
           setReceiving(null);
           setVersion((v) => v + 1);
@@ -210,9 +201,9 @@ export default function InventoryTools({
               [
                 ['details', '상품 정보'],
                 ['outbound', '출고'],
-                ...(canAdjust ? [['adjustment', '실사 조정']] : []),
+                ['adjustment', '실사 조정'],
                 ['history', '변동 이력'],
-                ['orders', '발주·입고 계획'],
+                ...(owner ? [['orders', '발주·입고 계획']] : []),
               ] as [Mode, string][]
             ).map(([id, label]) => (
               <Pressable
@@ -420,7 +411,7 @@ export default function InventoryTools({
                 </View>
               ))}
               <Pressable
-                disabled={busy || !rows.length || !canPlan}
+                disabled={busy || !rows.length || !owner}
                 onPress={() => {
                   if (Object.values(counts).some((v) => !/^\d+$/.test(v))) {
                     setError('발주 수량을 정수로 입력해주세요.');

@@ -4,7 +4,7 @@ import NotificationBell from './NotificationBell';
 import { api, errorText } from './api';
 // 재고/발주 탭 화면 (상품 목록, 수정, 폐기) - 사장님·직원 공통
 import { ComponentRef, useEffect, useRef, useState } from 'react';
-import { BackHandler, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { BackHandler, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from './font';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -16,11 +16,11 @@ import {
   listProducts,
   productLowStockThreshold,
   updateProduct,
+  requestOrder,
 } from './inventory';
 import { DEFAULT_STORE_SETUP_SETTINGS, getStoreSetupSettingsOrDefault } from './storeSetupRepository';
 import type { StoreSetupSettings } from './storeSetupRepository';
 import { C, Stepper } from './ui';
-import StockBatches from './StockBatches';
 import InventoryTools from './InventoryTools';
 import ProductPhotoCapture, { ProductPhotoButton } from './ProductPhotoCapture';
 
@@ -28,6 +28,8 @@ type Tag = { label: string; bg: string; fg: string };
 const RED = { bg: '#FEECEB', fg: '#E53935' };
 const ORANGE = { bg: '#FFF4E5', fg: '#D97706' };
 const GREEN = { bg: '#EDFAF2', fg: '#10B981' };
+
+const ORDER_URL = 'https://www.coupang.com'; // 발주 버튼이 여는 주문 페이지
 
 // 상품 상태: 재고 부족 / 유통기한 임박 / 폐기 사항(유통기한 지남)
 function status(p: Product, settings: StoreSetupSettings) {
@@ -55,22 +57,13 @@ export default function InventoryTab({
   const [products, setProducts] = useState<Product[] | null>(null);
   const [alertSettings, setAlertSettings] = useState(DEFAULT_STORE_SETUP_SETTINGS);
   const [q, setQ] = useState('');
-  const [isOwner, setIsOwner] = useState(false);
-  const [canDelete, setCanDelete] = useState(false),
-    [canAdjust, setCanAdjust] = useState(false),
-    [canPlan, setCanPlan] = useState(false),
-    [stocktake, setStocktake] = useState(false);
+  const [isOwner, setIsOwner] = useState<boolean | null>(null); // null = 확인 중
+  const [orderNotice, setOrderNotice] = useState<{ barcode: string; text: string; failed?: boolean } | null>(null);
+  const requesting = useRef(false);
+  const [stocktake, setStocktake] = useState(false);
   useEffect(() => {
-    api<{ owner: boolean; deleteProducts: boolean; adjustStock: boolean; saveOrderPlans: boolean }>(
-      'GET',
-      `/api/stores/${store}/inventory-capabilities`,
-    ).then(
-      (v) => {
-        setIsOwner(v.owner);
-        setCanDelete(v.owner || v.deleteProducts);
-        setCanAdjust(v.owner || v.adjustStock);
-        setCanPlan(v.owner || v.saveOrderPlans);
-      },
+    api<{ owner: boolean }>('GET', `/api/stores/${store}/inventory-capabilities`).then(
+      (v) => setIsOwner(v.owner),
       () => {},
     );
   }, [store]);
@@ -78,7 +71,6 @@ export default function InventoryTab({
   const [open, setOpen] = useState<{ barcode: string; mode: 'edit' | 'discard' } | null>(null);
   const [editName, setEditName] = useState('');
   const [editStock, setEditStock] = useState(0);
-  const [editMin, setEditMin] = useState(0);
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
   const [photoTarget, setPhotoTarget] = useState<Product | null>(null);
   const [tools, setTools] = useState<{ barcode?: string; mode: 'details' | 'history' | 'orders' } | null>(null);
@@ -154,13 +146,27 @@ export default function InventoryTab({
     };
   }, [store]);
 
+  // 직원: 사장님에게 발주 요청을 보내고 결과를 그 카드에 바로 보여준다
+  const sendOrderRequest = async (barcode: string) => {
+    if (requesting.current) return;
+    requesting.current = true;
+    setOrderNotice(null);
+    try {
+      const { sent } = await requestOrder(store, barcode);
+      setOrderNotice({ barcode, text: sent ? '발주 요청을 전송했어요' : '오늘 이미 요청한 상품이에요' });
+    } catch (e) {
+      setOrderNotice({ barcode, text: errorText(e, '발주 요청을 보내지 못했어요'), failed: true });
+    } finally {
+      requesting.current = false;
+    }
+  };
+
   // 같은 카드의 같은 패널을 다시 누르면 접는다
   const toggle = (p: Product, mode: 'edit' | 'discard') => {
     if (open?.barcode === p.barcode && open.mode === mode) return setOpen(null);
     setOpen({ barcode: p.barcode, mode });
     setEditName(p.name);
     setEditStock(p.stock);
-    setEditMin(p.min);
   };
   const save = async (job: Promise<unknown>) => {
     try {
@@ -361,11 +367,9 @@ export default function InventoryTab({
             <Text style={{ color: C.primary }}>입출고·이력·발주 관리 〉</Text>
           </Pressable>
         </View>
-        {canAdjust && (
-          <Pressable onPress={() => setStocktake(true)} style={{ paddingVertical: 12 }}>
-            <Text style={{ color: C.primary, fontWeight: '700' }}>여러 상품 한 번에 실사 〉</Text>
-          </Pressable>
-        )}
+        <Pressable onPress={() => setStocktake(true)} style={{ paddingVertical: 12 }}>
+          <Text style={{ color: C.primary, fontWeight: '700' }}>여러 상품 한 번에 실사 〉</Text>
+        </Pressable>
         {!!focused && (
           <View style={{ paddingVertical: 12, gap: 8 }}>
             <Text style={{ color: C.primary, fontWeight: '700' }}>알림 대상 상품</Text>
@@ -414,7 +418,7 @@ export default function InventoryTab({
                       ))}
                     </View>
                   </View>
-                  {canDelete && (
+                  {isOwner && (
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel={`${p.name} 삭제`}
@@ -440,17 +444,19 @@ export default function InventoryTab({
                     <Text style={s.btnLineText}>수정</Text>
                   </Pressable>
                   <Pressable
+                    disabled={isOwner === null}
                     style={[s.btn, s.btnFill]}
-                    onPress={() => setTools({ barcode: p.barcode, mode: canPlan ? 'orders' : 'details' })}
+                    onPress={() =>
+                      isOwner ? Linking.openURL(ORDER_URL).catch(fail) : void sendOrderRequest(p.barcode)
+                    }
                   >
-                    <Text style={s.btnFillText}>{canPlan ? '발주' : '상세'}</Text>
+                    <Text style={s.btnFillText}>{isOwner === false ? '발주 요청' : '발주'}</Text>
                   </Pressable>
                 </View>
-                <Pressable onPress={() => setTools({ barcode: p.barcode, mode: 'details' })}>
-                  <Text style={{ fontSize: 13, color: C.primary, paddingTop: 12 }}>
-                    상품 상세 · 출고 · 변동 이력 〉
-                  </Text>
-                </Pressable>
+                {orderNotice?.barcode === p.barcode && (
+                  <Text style={[s.orderNotice, orderNotice.failed && { color: '#D93025' }]}>{orderNotice.text}</Text>
+                )}
+                <Pressable onPress={() => setTools({ barcode: p.barcode, mode: 'details' })}></Pressable>
                 {st.expired && (
                   <Pressable style={s.discard} onPress={() => toggle(p, 'discard')}>
                     <Text style={s.discardText}>폐기 사항 확인</Text>
@@ -463,20 +469,7 @@ export default function InventoryTab({
                   <Text style={s.label}>상품명</Text>
                   <TextInput style={s.input} value={editName} onChangeText={setEditName} />
                   <Text style={[s.label, { marginTop: 16 }]}>재고 수량</Text>
-                  <Text style={s.note}>{editStock}개 · 수량 변경은 상품 상세의 출고·실사 조정을 이용해주세요.</Text>
-                  <Text style={[s.label, { marginTop: 16 }]}>적정 재고 알림 기준</Text>
-                  <Stepper value={editMin} onChange={setEditMin} big min={0} />
-                  <StockBatches
-                    storeId={store}
-                    barcode={p.barcode}
-                    onChange={() => {
-                      void reload();
-                    }}
-                  />
-                  <Text style={s.note}>
-                    재고가 {productLowStockThreshold(editMin, alertSettings.lowStockThresholdCount)}개 이하일 때 발주
-                    필요로 표시돼요. 0은 매장 기본 기준을 따라요.
-                  </Text>
+                  <Stepper value={editStock} onChange={setEditStock} big min={0} />
                   <Pressable
                     disabled={!editName.trim()}
                     style={[s.panelBtn, !editName.trim() && { opacity: 0.4 }]}
@@ -485,7 +478,6 @@ export default function InventoryTab({
                         updateProduct(store, p.barcode, {
                           name: editName.trim(),
                           stock: editStock,
-                          min: editMin,
                           expectedStock: p.stock,
                         }),
                       )
@@ -507,13 +499,6 @@ export default function InventoryTab({
                     유통기한이 지난 묶음의 남은 수량만 폐기해요. 날짜를 모르는 재고와 아직 유통기한이 남은 묶음은
                     유지돼요.
                   </Text>
-                  <StockBatches
-                    storeId={store}
-                    barcode={p.barcode}
-                    onChange={() => {
-                      void reload();
-                    }}
-                  />
                   <Text style={s.note}>아래 버튼으로 유통기한이 지난 묶음을 한 번에 폐기할 수 있어요.</Text>
                   <Pressable style={s.panelBtn} onPress={() => save(discardExpired(store, p.barcode))}>
                     <Text style={s.panelBtnText}>폐기 사항 확인 완료</Text>
@@ -687,6 +672,7 @@ const s = StyleSheet.create({
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
   tag: { borderRadius: 4, paddingHorizontal: 6, paddingVertical: 4 },
   tagText: { fontSize: 10, fontWeight: '700' },
+  orderNotice: { fontSize: 13, lineHeight: 20, color: C.primary, textAlign: 'center', marginTop: 8 },
   btns: { flexDirection: 'row', gap: 8, marginTop: 14 },
   btn: { flex: 1, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   btnLine: { borderWidth: 1, borderColor: '#CFCCDB', backgroundColor: '#fff' },

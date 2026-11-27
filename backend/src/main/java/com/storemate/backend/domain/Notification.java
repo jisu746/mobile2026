@@ -33,6 +33,10 @@ public class Notification {
     private LocalDateTime createdAt = LocalDateTime.now().withNano(0);
     private Long targetId;
     public Long getTargetId(){return targetId;}public void target(Long id){targetId=id;}
+    // 알림이 가리키는 상품 (발주 요청처럼 누르면 그 상품으로 이동하는 알림)
+    @Column(length = 20)
+    private String targetBarcode;
+    public String getTargetBarcode(){return targetBarcode;}public void targetProduct(String barcode){targetBarcode=barcode;}
 
     protected Notification() {
     }

@@ -11,4 +11,5 @@ import java.util.List;
 
 public interface NotificationRepository extends JpaRepository<Notification, Long> {
     List<Notification> findByStoreAndAudienceAndCreatedAtAfterOrderByIdDesc(Store store, Role audience, LocalDateTime since);
+    boolean existsByStoreAndKindAndTargetBarcodeAndCreatedAtGreaterThanEqual(Store store, String kind, String targetBarcode, LocalDateTime since);
 }

@@ -66,6 +66,10 @@ export const updateProduct = (
   patch: { name?: string; stock?: number; min?: number; expectedStock?: number },
 ) => api('PUT', `${base(storeId)}/products/${encodeURIComponent(barcode)}`, patch);
 
+// 직원 → 사장님 발주 요청. 오늘 이미 요청한 상품이면 sent 가 false
+export const requestOrder = (storeId: number, barcode: string) =>
+  api<{ sent: boolean }>('POST', `${base(storeId)}/products/${encodeURIComponent(barcode)}/order-request`);
+
 export const deleteProduct = (storeId: number, barcode: string, expectedStock: number) =>
   api('DELETE', `${base(storeId)}/products/${encodeURIComponent(barcode)}?expectedStock=${expectedStock}`);
 

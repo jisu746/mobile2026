@@ -33,19 +33,6 @@ public class StoreMember {
 
     @Column(length = 30)
     private String workPart;
-    private Boolean deleteProducts;
-    private Boolean adjustStock;
-    private Boolean saveOrderPlans;
-    private Long permissionsRevision;
-    private LocalDateTime permissionsUpdatedAt;
-    @ManyToOne(fetch=FetchType.LAZY) private Account permissionsUpdatedBy;
-    public boolean canDeleteProducts(){return Boolean.TRUE.equals(deleteProducts);}
-    public boolean canAdjustStock(){return Boolean.TRUE.equals(adjustStock);}
-    public boolean canSaveOrderPlans(){return Boolean.TRUE.equals(saveOrderPlans);}
-    public long getPermissionsRevision(){return permissionsRevision==null?0:permissionsRevision;}
-    public LocalDateTime getPermissionsUpdatedAt(){return permissionsUpdatedAt;}
-    public String getPermissionsUpdatedBy(){return permissionsUpdatedBy==null?null:permissionsUpdatedBy.getName();}
-    public void permissions(boolean delete,boolean adjust,boolean plans,Account actor){deleteProducts=delete;adjustStock=adjust;saveOrderPlans=plans;permissionsRevision=getPermissionsRevision()+1;permissionsUpdatedAt=LocalDateTime.now().withNano(0);permissionsUpdatedBy=actor;}
     @Column(length=30) private String displayName;
     @Column(length=30) private String contactPhone;
     public String getDisplayName(){return displayName==null?account.getName():displayName;}public String getContactPhone(){return contactPhone;}

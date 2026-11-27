@@ -21,5 +21,15 @@ public class Notifier {
         var notification=notifications.save(new Notification(store, audience, actor.getId(), kind, title, sub));
         push.enqueue(notification,store,audience,actor);
     }
+    // 직원의 발주 요청을 사장님에게 알린다. 같은 상품을 오늘 이미 요청했으면 만들지 않고 false
+    public boolean orderRequest(Store store, Account actor, String barcode, String productName, int stock) {
+        if (notifications.existsByStoreAndKindAndTargetBarcodeAndCreatedAtGreaterThanEqual(store, "order-request", barcode, java.time.LocalDate.now().atStartOfDay())) return false;
+        String title = "발주 요청 · " + productName;
+        var n = new Notification(store, Role.OWNER, actor.getId(), "order-request", title.substring(0, Math.min(100, title.length())), actor.getName() + " · 현재 재고 " + stock + "개");
+        n.targetProduct(barcode);
+        n = notifications.save(n);
+        push.enqueue(n, store, Role.OWNER, actor);
+        return true;
+    }
     public void targeted(Store store,Role audience,Account actor,String kind,String title,String sub,Long targetId){var n=new Notification(store,audience,actor.getId(),kind,title,sub);n.target(targetId);n=notifications.save(n);push.enqueue(n,store,audience,actor);}
 }

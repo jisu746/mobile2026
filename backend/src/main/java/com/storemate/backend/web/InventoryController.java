@@ -36,11 +36,20 @@ public class InventoryController {
         if(list.isEmpty()&&p.getStock()>0)return List.of(new BatchView(0,p.getStock(),p.getExpiry()==null?null:p.getExpiry().toString(),null,"LEGACY",0));
         return list.stream().filter(b->b.getQuantity()>0).map(this::batchView).toList();
     }
+    // 직원이 사장님에게 발주를 요청한다. 같은 상품의 요청은 하루에 한 번만 알림을 만든다
+    public record OrderRequestResult(boolean sent) {}
+    @PostMapping("/products/{barcode}/order-request") @Transactional
+    public OrderRequestResult requestOrder(@RequestAttribute(AuthInterceptor.ACCOUNT) Account account,@PathVariable Long storeId,@PathVariable String barcode){
+        Store store=access.requireMember(account,storeId);batches.lock(store);
+        if(store.getOwner().getId().equals(account.getId()))throw new ApiException(HttpStatus.BAD_REQUEST,"발주 요청은 직원만 보낼 수 있어요");
+        Product p=find(store,barcode);
+        return new OrderRequestResult(notifier.orderRequest(store,account,p.getBarcode(),p.getName(),p.getStock()));
+    }
+
     @PutMapping("/products/{barcode}/batches/{id}") @Transactional
     public Dto.ProductView batchEdit(@RequestAttribute(AuthInterceptor.ACCOUNT) Account account,@PathVariable Long storeId,@PathVariable String barcode,@PathVariable long id,@RequestBody BatchEdit r){
         Store store=access.requireMember(account,storeId);batches.lock(store);Product p=find(store,barcode);
         if(r.revision()==null)throw new ApiException(HttpStatus.BAD_REQUEST,"재고 변경 정보를 확인해주세요");
-        access.requireInventory(account,storeId,StoreAccess.InventoryPermission.ADJUST_STOCK);
         int before=p.getStock();batches.update(p,id,r.revision(),r.quantity(),date(r.expiry()));
         movements.save(new StockMovement(p,account,r.quantity()==0?MovementType.DISCARD:MovementType.ADJUST,before,p.getStock()));return view(p);
     }
@@ -89,7 +98,7 @@ public class InventoryController {
         Product p=products.findByStoreAndBarcode(store,barcode).orElseThrow(()->new ApiException(HttpStatus.NOT_FOUND,"등록되지 않은 상품이에요"));
         if(p.isDeleted())return;
         if(p.getStock()!=expectedStock)throw new ApiException(HttpStatus.CONFLICT,"재고가 변경됐어요. 목록을 다시 확인한 뒤 삭제해주세요");
-        access.requireInventory(account,storeId,StoreAccess.InventoryPermission.DELETE_PRODUCTS);
+        access.requireOwner(account,storeId);
         int before=p.getStock();batches.adjust(p,0);p.archive(account);
         movements.save(new StockMovement(p,account,MovementType.DELETE,before,0));
     }
@@ -159,7 +168,6 @@ public class InventoryController {
             if (r.stock() < 0 || r.stock()>1000000) throw new ApiException(HttpStatus.BAD_REQUEST, "재고 수량은 0개 이상이어야 해요");
             int before = p.getStock();
             if (before != r.stock()) {
-                access.requireInventory(account,storeId,StoreAccess.InventoryPermission.ADJUST_STOCK);
                 batches.adjust(p,r.stock());
                 movements.save(new StockMovement(p, account, MovementType.ADJUST, before, r.stock()));
             }

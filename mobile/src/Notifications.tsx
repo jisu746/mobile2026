@@ -36,6 +36,7 @@ const LOOK: Record<string, Look> = {
   handover: { icon: 'swap-horizontal', ...PURPLE, outline: true },
   expiry: { icon: 'time-outline', ...ORANGE },
   stock: { icon: 'cube-outline', ...RED },
+  'order-request': { icon: 'cart-outline', ...PURPLE, outline: true },
 };
 const DEFAULT_LOOK: Look = { icon: 'notifications-outline', ...GRAY };
 

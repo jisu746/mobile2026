@@ -1,4 +1,3 @@
-import EmployeePermissions from './EmployeePermissions';
 import QrSaveButton from './QrSaveButton';
 import EmployeeContact from './EmployeeContact';
 // 사장님 직원 참여 요청 및 직원 관리 화면 (서버 연동)
@@ -259,7 +258,6 @@ export function OwnerStaffManagement({ storeId, onBack }: { storeId: number; onB
                 <Ionicons name="chevron-forward" size={15} color={C.primary} />
               </Pressable>
               <EmployeeContact storeId={storeId} memberId={Number(person.id)} />
-              <EmployeePermissions storeId={storeId} memberId={Number(person.id)} />
               <View style={[s.managePartSection, openPartId === person.id && s.dropdownLayer]}>
                 <Text style={s.partLabel}>근무 파트</Text>
                 <View style={s.managePartRow}>

@@ -113,7 +113,7 @@ public final class Dto {
     public record HandoverView(Long id, String author, boolean mine, String content, boolean urgent, boolean resolved, String createdAt, long revision, String updatedAt, boolean canEdit, boolean canDelete, boolean confirmedByMe, java.util.List<HandoverConfirmationView> confirmations,String title,Long relatedTaskId,String relatedTaskTitle,String relatedTaskStatus) {
     }
 
-    public record NotificationView(Long id, String kind, String title, String sub, String createdAt, boolean read,Long targetId) {
+    public record NotificationView(Long id, String kind, String title, String sub, String createdAt, boolean read,Long targetId,String targetBarcode) {
     }
 
     public record ReadRequest(List<Long> ids) {
